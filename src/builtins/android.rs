@@ -12,6 +12,9 @@
 //   AndroidCamera::count() → int / takePhoto(path, facing)
 //   AndroidMicrophone::start(path) / stop() / isRecording() → bool
 //   AndroidAudio::play(path) / pause() / resume() / stop() / isPlaying() → bool / setVolume(volume)
+//   AndroidUI::listen(event, callback) / setSystemBarsStyle(style) / setFullscreen(enabled)
+//   AndroidUI::setOrientation(o) / setKeepScreenOn(enabled) / vibrate(ms) / share(text, title)
+//   AndroidUI::alert(title, text) / confirm(title, text) → bool / toast(text) / close()
 //
 // Convention runtime : <Classe>_<méthode>
 // ─────────────────────────────────────────────────────────────────────────────
@@ -30,6 +33,7 @@ pub const ANDROID_BUILTINS: &[(&str, &str)] = &[
     ("AndroidCamera", "camera"),
     ("AndroidMicrophone", "microphone"),
     ("AndroidAudio", "audio"),
+    ("AndroidUI", "ui"),
 ];
 
 fn static_m(params: Vec<(&str, Type)>, ret_ty: Type) -> FuncSig {
@@ -118,6 +122,23 @@ pub fn audio_class() -> ClassInfo {
     class_of(methods)
 }
 
+pub fn ui_class() -> ClassInfo {
+    let mut methods = HashMap::new();
+    let callback = Type::Function { ret_ty: Box::new(Type::Void), param_tys: vec![Type::String] };
+    methods.insert("listen".to_string(), static_m(vec![("event", Type::String), ("callback", callback)], Type::Void));
+    methods.insert("setSystemBarsStyle".to_string(), static_m(vec![("style", Type::String)], Type::Void));
+    methods.insert("setFullscreen".to_string(), static_m(vec![("enabled", Type::Bool)], Type::Void));
+    methods.insert("setOrientation".to_string(), static_m(vec![("orientation", Type::String)], Type::Void));
+    methods.insert("setKeepScreenOn".to_string(), static_m(vec![("enabled", Type::Bool)], Type::Void));
+    methods.insert("vibrate".to_string(), static_m(vec![("ms", Type::Int)], Type::Void));
+    methods.insert("share".to_string(), static_m(vec![("text", Type::String), ("title", Type::String)], Type::Void));
+    methods.insert("alert".to_string(), static_m(vec![("title", Type::String), ("text", Type::String)], Type::Void));
+    methods.insert("confirm".to_string(), static_m(vec![("title", Type::String), ("text", Type::String)], Type::Bool));
+    methods.insert("toast".to_string(), static_m(vec![("text", Type::String)], Type::Void));
+    methods.insert("close".to_string(), static_m(vec![], Type::Void));
+    class_of(methods)
+}
+
 /// Classe de l'un des builtins `ANDROID_BUILTINS`.
 pub fn class(name: &str) -> Option<ClassInfo> {
     match name {
@@ -128,6 +149,7 @@ pub fn class(name: &str) -> Option<ClassInfo> {
         "AndroidCamera" => Some(camera_class()),
         "AndroidMicrophone" => Some(microphone_class()),
         "AndroidAudio" => Some(audio_class()),
+        "AndroidUI" => Some(ui_class()),
         _ => None,
     }
 }

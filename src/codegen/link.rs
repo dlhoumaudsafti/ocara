@@ -302,6 +302,11 @@ const ANDROID_API_LEVEL: u32 = 24;
 const ANDROID_JNI_BRIDGE_ENTRY_SYMBOL: &str =
     "Java_com_ocara_bridge_OcaraBridge_nativeStartServer";
 
+/// Événements Kotlin → Ocara (`ocara.AndroidUI`), même raison : appelé par
+/// la JVM, jamais référencé par le programme.
+const ANDROID_JNI_BRIDGE_EVENT_SYMBOL: &str =
+    "Java_com_ocara_bridge_OcaraBridge_nativeEvent";
+
 /// Résout le nom du clang du NDK pour un triple Android donné. Seuls les
 /// triples effectivement vérifiés par ce chantier (voir packaging-android.md)
 /// sont acceptés — pas de correspondance approximative pour les autres, qui
@@ -432,6 +437,7 @@ pub fn link_android(
         // -u force l'extraction du membre de l'archive qui définit ce symbole,
         // même sans référence entrante — voir la doc d'ANDROID_JNI_BRIDGE_ENTRY_SYMBOL.
         cmd.arg(format!("-Wl,-u,{}", ANDROID_JNI_BRIDGE_ENTRY_SYMBOL));
+        cmd.arg(format!("-Wl,-u,{}", ANDROID_JNI_BRIDGE_EVENT_SYMBOL));
     }
     let status = cmd.arg("-o").arg(out_path)
         .arg("-shared")

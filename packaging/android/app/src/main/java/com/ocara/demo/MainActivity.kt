@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.ocara.bridge.OcaraBridge
 import com.ocara.bridge.OcaraPermissions
+import com.ocara.bridge.OcaraUI
 import com.ocara.demo.theme.OcaraUIHybridDemoTheme
 import java.io.File
 import java.net.HttpURLConnection
@@ -61,6 +62,7 @@ class MainActivity : ComponentActivity() {
     // chemin construit à la main) : voir la doc du paramètre `dataDir`.
     // Contexte et Activity pour les builtins `ocara.Android*` (com.ocara.bridge.Ocara*).
     OcaraBridge.attach(this)
+    OcaraUI.install(this)
     OcaraBridge.nativeStartServer(filesDir.absolutePath)
 
     // Barre de statut transparente (le contenu edge-to-edge de la WebView —
@@ -85,6 +87,7 @@ class MainActivity : ComponentActivity() {
   }
 
   override fun onDestroy() {
+    OcaraUI.release()
     OcaraBridge.detach(this)
     super.onDestroy()
   }

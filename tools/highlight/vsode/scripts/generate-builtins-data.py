@@ -42,6 +42,7 @@ CLASSES = [
     ("AndroidCamera", "android", "camera_class"),
     ("AndroidMicrophone", "android", "microphone_class"),
     ("AndroidAudio", "android", "audio_class"),
+    ("AndroidUI", "android", "ui_class"),
     ("HTML", "html", "class"),
     ("HTMLComponent", "htmlcomponent", "class"),
     ("UnitTest", "unittest", "class"),

@@ -177,5 +177,6 @@ pub fn all_builtins() -> Vec<(&'static str, ClassInfo)> {
         ("AndroidCamera", android::camera_class()),
         ("AndroidMicrophone", android::microphone_class()),
         ("AndroidAudio", android::audio_class()),
+        ("AndroidUI", android::ui_class()),
     ]
 }

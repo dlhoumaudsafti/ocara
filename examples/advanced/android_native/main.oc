@@ -18,6 +18,7 @@ import ocara.HTTPServer
 import ocara.HTTPServerRequest
 import ocara.File
 import ocara.Thread
+import ocara.System
 import ocara.AndroidPermissions
 import ocara.AndroidNotifications
 import ocara.AndroidSensors
@@ -25,8 +26,9 @@ import ocara.AndroidFiles
 import ocara.AndroidCamera
 import ocara.AndroidMicrophone
 import ocara.AndroidAudio
+import ocara.AndroidUI
 
-const PAGE:string = "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width, initial-scale=1.0'><title>Ocara Android</title><style>body{font-family:sans-serif;margin:2rem 1rem}a{display:block;padding:.6rem 0;font-size:1.1rem}</style><h1>Ocara Android</h1><a href=/permissions?name=camera>Permission caméra</a><a href=/permissions?name=microphone>Permission micro</a><a href=/permissions?name=notifications>Permission notifications</a><a href=/permissions?name=activity_recognition>Permission activité</a><a href=/notify>Notification</a><a href=/sensors>Capteurs</a><a href=/files>Fichiers</a><a href=/photo>Photo</a><a href=/record>Enregistrer 2 s</a><a href=/play>Écouter l'enregistrement</a><a href=/download>Photo vers Téléchargements</a>"
+const PAGE:string = "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width, initial-scale=1.0'><title>Ocara Android</title><style>body{font-family:sans-serif;margin:2rem 1rem}a{display:block;padding:.6rem 0;font-size:1.1rem}</style><h1>Ocara Android</h1><a href=/permissions?name=camera>Permission caméra</a><a href=/permissions?name=microphone>Permission micro</a><a href=/permissions?name=notifications>Permission notifications</a><a href=/permissions?name=activity_recognition>Permission activité</a><a href=/notify>Notification</a><a href=/sensors>Capteurs</a><a href=/files>Fichiers</a><a href=/photo>Photo</a><a href=/record>Enregistrer 2 s</a><a href=/play>Écouter l'enregistrement</a><a href=/download>Photo vers Téléchargements</a><h2>Interface</h2><a href=/ui?do=toast>Message bref</a><a href=/ui?do=vibrate>Vibrer</a><a href=/ui?do=share>Partager</a><a href=/ui?do=alert>Alerte</a><a href=/ui?do=confirm>Confirmation</a><a href=/ui?do=fullscreen>Plein écran 3 s</a><a href=/ui?do=landscape>Paysage 3 s</a><a href=/ui?do=light>Icônes sombres</a><a href=/ui?do=dark>Icônes claires</a><p>Bouton retour : confirmation avant de quitter.</p>"
 
 class AndroidController {
 
@@ -124,6 +126,41 @@ class AndroidController {
     }
 }
 
+class InterfaceController {
+
+    public static method run(req:HTTPServerRequest): int {
+        const action:string = req.query("do")
+        try {
+            if action equal "toast" {
+                AndroidUI::toast("Bonjour depuis Ocara")
+            } elseif action equal "vibrate" {
+                AndroidUI::vibrate(300)
+            } elseif action equal "share" {
+                AndroidUI::share("Écrit en Ocara", "Partager avec…")
+            } elseif action equal "alert" {
+                AndroidUI::alert("Ocara", "Alerte depuis un programme Ocara")
+            } elseif action equal "confirm" {
+                req.respond(200, `confirm : ${AndroidUI::confirm("Ocara", "Valider ?")}`)
+                return 0
+            } elseif action equal "fullscreen" {
+                AndroidUI::setFullscreen(true)
+                Thread::sleep(3000)
+                AndroidUI::setFullscreen(false)
+            } elseif action equal "landscape" {
+                AndroidUI::setOrientation("landscape")
+                Thread::sleep(3000)
+                AndroidUI::setOrientation("portrait")
+            } else {
+                AndroidUI::setSystemBarsStyle(action)
+            }
+            req.respond(200, `${action} : ok`)
+        } on e is AndroidException {
+            req.respond(500, `AndroidException ${e.code} : ${e.message}`)
+        }
+        return 0
+    }
+}
+
 class Server extends HTTPServer {
     init() {
         parent::init()
@@ -140,10 +177,21 @@ class Server extends HTTPServer {
         self.route("/record",      "GET", AndroidController::record)
         self.route("/play",        "GET", AndroidController::play)
         self.route("/download",    "GET", AndroidController::download)
+        self.route("/ui",          "GET", InterfaceController::run)
     }
 }
 
 function main(): int {
+    // Bouton retour : intercepté, confirmation avant de quitter.
+    if System::OS equal "android" {
+        AndroidUI::listen("back", nameless(data:string): void {
+            if AndroidUI::confirm("Quitter", "Fermer l'application ?") {
+                AndroidUI::close()
+            }
+        })
+        AndroidUI::setKeepScreenOn(true)
+    }
+
     const server:Server = use Server()
     server.routes()
     server.run()

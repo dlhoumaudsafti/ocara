@@ -21,7 +21,7 @@ pub const OCARA_BUILTINS: &[&str] = &[
     "ThreadException", "MutexException",
     "UnitTestException", "HTTPServerException", "SQLiteException", "MySQLException", "MariaDBException", "DotEnvException", "YAMLException",
     "SDLException", "TauriException", "ImageException", "AndroidException",
-    "AndroidPermissions", "AndroidNotifications", "AndroidSensors", "AndroidFiles", "AndroidCamera", "AndroidMicrophone", "AndroidAudio",
+    "AndroidPermissions", "AndroidNotifications", "AndroidSensors", "AndroidFiles", "AndroidCamera", "AndroidMicrophone", "AndroidAudio", "AndroidUI",
 ];
 
 /// (import, répertoire du fichier parent, namespace du fichier parent)

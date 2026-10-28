@@ -3272,6 +3272,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ocara_runtime_android_ui"
+version = "1.0.0"
+dependencies = [
+ "ocara_runtime_android_common",
+]
+
+[[package]]
 name = "ocara_runtime_image"
 version = "1.0.0"
 dependencies = [

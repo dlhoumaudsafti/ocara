@@ -238,7 +238,7 @@ $ANDROID_HOME/build-tools/<version>/apksigner verify --print-certs \
 
 ## 6. Builtins natifs Android
 
-Sept builtins, un par domaine, donnent accès aux capacités du téléphone hors
+Huit builtins, un par domaine, donnent accès aux capacités du téléphone hors
 interface graphique. Chacun a son crate Rust (`runtime_android/<domaine>`),
 lié dans le `.so` **seulement si le programme l'importe** :
 
@@ -251,6 +251,7 @@ lié dans le `.so` **seulement si le programme l'importe** :
 | [AndroidCamera](builtins/AndroidCamera.md) | photo | JNI → `OcaraCamera.kt` (Camera2) |
 | [AndroidMicrophone](builtins/AndroidMicrophone.md) | enregistrement | JNI → `OcaraMicrophone.kt` (`MediaRecorder`) |
 | [AndroidAudio](builtins/AndroidAudio.md) | lecture audio | JNI → `OcaraAudio.kt` (`MediaPlayer`) |
+| [AndroidUI](builtins/AndroidUI.md) | interface : bouton retour et événements, barres système, orientation, plein écran, vibration, partage, boîtes de dialogue | JNI → `OcaraUI.kt` ; événements Kotlin → Ocara par `OcaraBridge.nativeEvent` |
 
 **Fonctionnement.** Le pont JNI (`runtime_android_jni`) note la JVM et la
 classe `OcaraBridge` au démarrage. Le crate commun
@@ -270,9 +271,17 @@ trouve les archives des builtins importés dans le même dossier ;
 `--android-jni-bridge` est obligatoire dès qu'un builtin `Android*` est
 importé. Exemple complet : `examples/advanced/android_native/` (`make android`).
 
-**Dans l'app.** `MainActivity` appelle `OcaraBridge.attach(this)` avant
-`nativeStartServer`, `OcaraBridge.detach(this)` dans `onDestroy`, et transmet
-`onRequestPermissionsResult` à `OcaraPermissions.onResult`. Le manifeste
+**Dans l'app.** `MainActivity` appelle `OcaraBridge.attach(this)` et
+`OcaraUI.install(this)` avant `nativeStartServer`, `OcaraUI.release()` puis
+`OcaraBridge.detach(this)` dans `onDestroy`, et transmet
+`onRequestPermissionsResult` à `OcaraPermissions.onResult`. Le programme
+Ocara ne démarre qu'une fois par processus (une Activity recréée ne le
+relance pas) ; l'Activity déclare `android:configChanges` (orientation,
+taille…) pour qu'une rotation ne la recrée pas.
+
+**Événements Kotlin → Ocara.** `OcaraBridge.nativeEvent(event, data)` (pont
+JNI) remet l'événement à `runtime_android/ui`, qui le traite sur un thread
+Ocara dédié (`AndroidUI::listen`) : jamais sur le thread principal Android. Le manifeste
 déclare les permissions des builtins utilisés (voir les commentaires de
 `AndroidManifest.xml`). Un chemin relatif part de `filesDir`, répertoire de
 travail du programme.
@@ -283,7 +292,10 @@ appel lève `AndroidException` 100.
 **Vérifié** sur un téléphone réel (arm64-v8a, Android 15) : demande de
 permission avec la boîte de dialogue système, notification, relevé de 8
 capteurs, répertoires et assets, photo 3120×4160 correctement exposée,
-enregistrement et relecture au micro, copie vers Téléchargements.
+enregistrement et relecture au micro, copie vers Téléchargements ; pour
+`AndroidUI` : bouton retour intercepté (confirmation, annulation, fermeture),
+message bref, vibration, style des barres, plein écran, paysage sans
+recréation de l'Activity, alerte, partage.
 
 ### Codes d'erreur AndroidException
 
@@ -308,4 +320,4 @@ enregistrement et relecture au micro, copie vers Téléchargements.
 - **Pointeurs de tas Android tagués (Scudo)** — l'allocateur natif d'Android peut renvoyer des pointeurs dont l'octet de poids fort est non nul (voir [roadmap.d/runtime-android-aarch64-pic-string-concat.md](roadmap.d/runtime-android-aarch64-pic-string-concat.md)) ; corrigé en désactivant ce tagging pour le processus (`mallopt` dans le pont JNI), vérifié en exécution réelle.
 - **`ocara.Tauri` sur une cible Android** ne rejette plus la compilation : compilé en talon local no-op (voir [roadmap.d/packaging-android-webview-hybrid.md](roadmap.d/packaging-android-webview-hybrid.md)) — un simple avertissement est émis à la place, ce qui permet un point d'entrée `.oc` unique partagé entre desktop et Android.
 - **`ocara.Tauri`** ne fonctionne pas et ne fonctionnera jamais sur Android (GTK, voir tableau ci-dessus).
-- **Packaging APK** : un squelette Gradle minimal existe (`packaging/android/`, WebView + pont JNI, voir §4) et produit un APK réel, testé avec succès sur un émulateur ET sur un appareil physique (`examples/advanced/mini_project` fonctionne bout en bout, à l'exception du bug de rendu ci-dessus) — mais reste un squelette de démonstration (port/nom de `.so`/package codés en dur, pas de cycle de vie Android), pas encore un gabarit générique réutilisable pour n'importe quel programme Ocara. Fichiers statiques (CSS, images…) : à copier manuellement dans `packaging/android/app/src/main/assets/` avant `./gradlew assembleDebug` — Gradle ne le fait pas automatiquement pour un projet Ocara, voir `packaging/android/README.md`. Voir la stratégie envisagée dans [roadmap.d/packaging-android.md](roadmap.d/packaging-android.md), et les chantiers suivants [webview hybride](roadmap.d/packaging-android-webview-hybrid.md) / [GUI native](roadmap.d/packaging-android-gui-native.md).
+- **Packaging APK** : un squelette Gradle minimal existe (`packaging/android/`, WebView + pont JNI, voir §4) et produit un APK réel, testé avec succès sur un émulateur ET sur un appareil physique (`examples/advanced/mini_project` fonctionne bout en bout, à l'exception du bug de rendu ci-dessus) — mais reste un squelette de démonstration (port/nom de `.so`/package codés en dur, pas de cycle de vie Android), pas encore un gabarit générique réutilisable pour n'importe quel programme Ocara. Fichiers statiques (CSS, images…) : à copier manuellement dans `packaging/android/app/src/main/assets/` avant `./gradlew assembleDebug` — Gradle ne le fait pas automatiquement pour un projet Ocara, voir `packaging/android/README.md`. Voir la stratégie envisagée dans [roadmap.d/packaging-android.md](roadmap.d/packaging-android.md), et les chantiers suivants [webview hybride](roadmap.d/packaging-android-webview-hybrid.md) / [interface native `ocara.UI`](roadmap.d/langage-builtin-ui-multiplateforme.md).

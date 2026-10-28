@@ -131,14 +131,48 @@ impl Drop for ThreadGuard {
 pub struct Parked;
 
 pub fn park() -> Parked {
-    RUNNING.fetch_sub(1, Ordering::SeqCst);
+    unsafe { thread_leave() };
     Parked
 }
 
 impl Drop for Parked {
     fn drop(&mut self) {
-        resume();
+        unsafe { thread_resume() };
     }
+}
+
+// Compteurs des threads Ocara en ABI C : un crate séparé (`runtime_tauri`,
+// `runtime_sdl`) embarque sa propre copie de ce runtime, et ses
+// `park()`/`enter()` agissaient sur les compteurs de cette copie, pas sur
+// ceux du programme. Appelés par leur symbole, ils sont résolus vers le
+// runtime du programme (lié en premier) ; les crates `runtime_android/*`
+// les appellent directement.
+unsafe extern "C" {
+    #[link_name = "__rc_thread_enter"]
+    fn thread_enter();
+    #[link_name = "__rc_thread_leave"]
+    fn thread_leave();
+    #[link_name = "__rc_thread_resume"]
+    fn thread_resume();
+}
+
+/// Un thread étranger va exécuter du code Ocara.
+#[unsafe(no_mangle)]
+pub extern "C" fn __rc_thread_enter() {
+    go_multi_threaded();
+    resume();
+}
+
+/// Fin de l'exécution de code Ocara (ou début d'une attente garée).
+#[unsafe(no_mangle)]
+pub extern "C" fn __rc_thread_leave() {
+    RUNNING.fetch_sub(1, Ordering::SeqCst);
+}
+
+/// Réveil d'un thread garé.
+#[unsafe(no_mangle)]
+pub extern "C" fn __rc_thread_resume() {
+    resume();
 }
 
 fn resume() {
@@ -159,14 +193,13 @@ fn resume() {
 pub struct Entered;
 
 pub fn enter() -> Entered {
-    go_multi_threaded();
-    resume();
+    unsafe { thread_enter() };
     Entered
 }
 
 impl Drop for Entered {
     fn drop(&mut self) {
-        RUNNING.fetch_sub(1, Ordering::SeqCst);
+        unsafe { thread_leave() };
     }
 }
 

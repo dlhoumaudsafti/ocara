@@ -155,6 +155,14 @@ pub extern "system" fn Java_com_ocara_bridge_OcaraBridge_nativeStartServer<'loca
         return jni::sys::JNI_FALSE;
     }
 
+    // Une seule fois par processus : une Activity recréée (rotation, retour
+    // au premier plan) rappelle `nativeStartServer`, et un second `main`
+    // échouait à rouvrir le port du serveur, terminant le processus.
+    static STARTED: std::sync::Once = std::sync::Once::new();
+    if STARTED.is_completed() {
+        return jni::sys::JNI_TRUE;
+    }
+    STARTED.call_once(|| {});
     std::thread::spawn(|| {
         // `main` peut légitimement ne jamais retourner (un serveur HTTP tourne
         // en boucle) — c'est le comportement attendu, pas un thread qui fuit :
@@ -162,4 +170,37 @@ pub extern "system" fn Java_com_ocara_bridge_OcaraBridge_nativeStartServer<'loca
         unsafe { main(); }
     });
     jni::sys::JNI_TRUE
+}
+
+/// Récepteur des événements Kotlin → Ocara (`OcaraBridge.nativeEvent`),
+/// enregistré par `runtime_android/ui` au premier `AndroidUI::listen` : ce
+/// crate n'est lié que si le programme importe `ocara.AndroidUI`.
+/// Signature : (événement UTF-8, longueur, données JSON UTF-8, longueur).
+type EventSink = extern "C" fn(*const u8, usize, *const u8, usize);
+
+static EVENT_SINK: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ocara_android_set_event_sink(sink: EventSink) {
+    EVENT_SINK.store(sink as usize, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// `OcaraBridge.nativeEvent(event, data)` : remet l'événement au récepteur,
+/// qui le traite sur un thread Ocara (jamais sur l'appelant, souvent le
+/// thread principal Android). Sans récepteur, l'événement est ignoré.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_ocara_bridge_OcaraBridge_nativeEvent<'local>(
+    mut env: JNIEnv<'local>,
+    _bridge: JObject<'local>,
+    event: JString<'local>,
+    data: JString<'local>,
+) {
+    let sink = EVENT_SINK.load(std::sync::atomic::Ordering::SeqCst);
+    if sink == 0 {
+        return;
+    }
+    let (Ok(event), Ok(data)) = (env.get_string(&event), env.get_string(&data)) else { return };
+    let (event, data): (String, String) = (event.into(), data.into());
+    let sink: EventSink = unsafe { std::mem::transmute(sink) };
+    sink(event.as_ptr(), event.len(), data.as_ptr(), data.len());
 }

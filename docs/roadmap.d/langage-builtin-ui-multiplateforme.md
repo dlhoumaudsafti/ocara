@@ -412,7 +412,7 @@ Contrat proposé :
 |---------|------|-------|-------|
 | `ocara.UI` | tout ce qui se standardise (§3) : `.oc.ui`, `on`, `get`/`set`, navigation, vue web, menus, services communs | desktop et Android | `runtime_ui_tauri` ou `runtime_android/ui`, choisi selon la cible |
 | `ocara.Tauri` | spécificités desktop : plusieurs fenêtres, options de fenêtre (sans bordure, toujours au premier plan, transparence), tray, raccourcis globaux, page écrite à la main avec son IPC (usage actuel) | desktop | `runtime_tauri` (existant) |
-| `ocara.AndroidUI` | spécificités Android : barres système (couleur, masquage), orientation, plein écran immersif, écran maintenu allumé, retour haptique, partage (`Intent.ACTION_SEND`), composants Material propres (bouton flottant, panneau inférieur, tiroir) | Android | `runtime_android/ui` (à créer, voir [packaging-android-gui-native](packaging-android-gui-native.md)) |
+| `ocara.AndroidUI` | spécificités Android, fait à l'étape 2 (API statique `AndroidUI::…`, voir `docs/builtins/AndroidUI.md`) : événements Kotlin → Ocara (`listen`, bouton retour), style des barres système, plein écran, orientation, écran allumé, vibration, partage, `alert`/`confirm`/`toast`, `close` ; plus tard, composants Material propres (bouton flottant, panneau inférieur, tiroir) | Android | `runtime_android/ui` |
 
 Règles proposées :
 
@@ -479,9 +479,9 @@ avec les noms et signatures d'`ocara.UI`, une seule fois par plateforme.
 | Étape | Contenu | Complexité | Fiche |
 |-------|---------|------------|-------|
 | 1 | ~~**Finaliser `ocara.Tauri`**~~ — **fait** (2026-10-28) : état de fenêtre réel, `emit`/`listen`, boîtes de dialogue et notifications natives, menus, plusieurs fenêtres, tray, raccourcis globaux | — | `docs/builtins/Tauri.md` |
-| 2 | **Créer `ocara.AndroidUI`** dans l'app hybride : canal d'événements Kotlin → Ocara, barres système, orientation, plein écran, écran allumé, retour haptique, partage, boîtes de dialogue, messages brefs, bouton retour | Structurel | [packaging-android-gui-native](packaging-android-gui-native.md) |
+| 2 | ~~**Créer `ocara.AndroidUI`**~~ — **fait** (2026-10-28) : canal d'événements Kotlin → Ocara (`OcaraBridge.nativeEvent`, file, thread Ocara dédié), bouton retour intercepté, style des barres, plein écran, orientation, écran allumé, vibration, partage, `alert`/`confirm`/`toast`, `close` ; vérifié sur téléphone | — | `docs/builtins/AndroidUI.md` |
 | 3 | **Schéma `.oc.ui`** : lecteur YAML et validation dans le compilateur (types, propriétés, `id` uniques, actions), arbre JSON embarqué, tests des erreurs | Structurel | cette fiche, §4 |
-| 4 | **Les deux moteurs de rendu** : contenu dans la fenêtre Tauri (column, row, text, input, button, checkbox d'abord), moteur Compose (`OcaraUI.kt`) dans l'Activity | Massive | cette fiche, §2 et §3 |
+| 4 | **Les deux moteurs de rendu** : contenu dans la fenêtre Tauri (column, row, text, input, button, checkbox d'abord), moteur Compose (`OcaraUI.kt`, partagé avec `ocara.AndroidUI`) qui interprète l'arbre d'un `.oc.ui` dans l'Activity, puis les composants Material sans équivalent desktop (bouton flottant, panneau inférieur, tiroir) dans `ocara.AndroidUI`. Pistes écartées pour le rendu Android : `ANativeActivity` (pas de composants natifs) et un pont JNI widget par widget (surface énorme, propriété des objets Java depuis Ocara) | Massive | cette fiche, §2 et §3 |
 | 5 | **Façade `ocara.UI`** : `use UI("x.oc.ui")`, `ui.on`, `get`/`set`, choix du backend selon la cible, `ui.tauri()`/`ui.android()` ; exemple desktop et Android, test ocaraunit | Structurel | cette fiche, §6 et §8 |
 | 6 | **Suite** : navigation (`screens`), listes (`setItems`), composant `webview` (vraie vue web isolée), styles et thème, images embarquées, surcharges `tauri:`/`android:`, schéma JSON des `.oc.ui` et complétion dans VS Code, rechargement à chaud | Structurel | cette fiche |
 
@@ -491,4 +491,4 @@ avec les noms et signatures d'`ocara.UI`, une seule fois par plateforme.
 et `runtime_android/common/` (pont JNI et appels Kotlin), `packaging/android/`
 (app Compose), `src/codegen/link.rs` (archive selon la cible),
 `src/codegen/emit.d/emitter.rs` (talons hors plateforme), `docs/builtins/Tauri.md`,
-[packaging-android-gui-native](packaging-android-gui-native.md) (`ocara.AndroidUI`).
+`docs/builtins/AndroidUI.md`, `runtime_android/ui/`.

@@ -2328,6 +2328,7 @@ Un builtin par domaine, toutes méthodes statiques ; programme compilé pour And
 - **AndroidCamera** — `count()`, `takePhoto()` ([AndroidCamera.md](builtins/AndroidCamera.md))
 - **AndroidMicrophone** — `start()`, `stop()`, `isRecording()` ([AndroidMicrophone.md](builtins/AndroidMicrophone.md))
 - **AndroidAudio** — `play()`, `pause()`, `resume()`, `stop()`, `isPlaying()`, `setVolume()` ([AndroidAudio.md](builtins/AndroidAudio.md))
+- **AndroidUI** — `listen()` (bouton retour…), `setSystemBarsStyle()`, `setFullscreen()`, `setOrientation()`, `setKeepScreenOn()`, `vibrate()`, `share()`, `alert()`, `confirm()`, `toast()`, `close()` ([AndroidUI.md](builtins/AndroidUI.md))
 
 #### Gestion des erreurs
 

@@ -5161,6 +5161,177 @@
     "consts": []
   },
   {
+    "name": "AndroidUI",
+    "methods": [
+      {
+        "name": "alert",
+        "params": [
+          {
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "name": "text",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidUI::alert(title, text)` → `void`\n\nBoîte d'information ; bloque jusqu'à sa fermeture.",
+        "docFile": "AndroidUI.md",
+        "docHeading": "`AndroidUI::alert(title, text)` → `void`"
+      },
+      {
+        "name": "close",
+        "params": [],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidUI::close()` → `void`\n\nFerme l'app (termine l'Activity).",
+        "docFile": "AndroidUI.md",
+        "docHeading": "`AndroidUI::close()` → `void`"
+      },
+      {
+        "name": "confirm",
+        "params": [
+          {
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "name": "text",
+            "type": "string"
+          }
+        ],
+        "returns": "bool",
+        "static": true,
+        "doc": "`AndroidUI::confirm(title, text)` → `bool`\n\nBoîte de confirmation : vrai si l'utilisateur valide, faux s'il annule ou\nferme la boîte.",
+        "docFile": "AndroidUI.md",
+        "docHeading": "`AndroidUI::confirm(title, text)` → `bool`"
+      },
+      {
+        "name": "listen",
+        "params": [
+          {
+            "name": "event",
+            "type": "string"
+          },
+          {
+            "name": "callback",
+            "type": "Function<void(string)>"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidUI::listen(event, callback)` → `void`\n\nVoir [Événements](#événements).",
+        "docFile": "AndroidUI.md",
+        "docHeading": "`AndroidUI::listen(event, callback)` → `void`"
+      },
+      {
+        "name": "setFullscreen",
+        "params": [
+          {
+            "name": "enabled",
+            "type": "bool"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidUI::setFullscreen(enabled)` → `void`\n\nMasque (`true`) ou rétablit les barres système ; un balayage depuis le bord\nles fait réapparaître un instant.",
+        "docFile": "AndroidUI.md",
+        "docHeading": "`AndroidUI::setFullscreen(enabled)` → `void`"
+      },
+      {
+        "name": "setKeepScreenOn",
+        "params": [
+          {
+            "name": "enabled",
+            "type": "bool"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidUI::setKeepScreenOn(enabled)` → `void`\n\nEmpêche la mise en veille de l'écran tant que l'app est affichée.",
+        "docFile": "AndroidUI.md",
+        "docHeading": "`AndroidUI::setKeepScreenOn(enabled)` → `void`"
+      },
+      {
+        "name": "setOrientation",
+        "params": [
+          {
+            "name": "orientation",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidUI::setOrientation(orientation)` → `void`\n\n`\"portrait\"`, `\"landscape\"` ou `\"auto\"` (suit la rotation de l'appareil).",
+        "docFile": "AndroidUI.md",
+        "docHeading": "`AndroidUI::setOrientation(orientation)` → `void`"
+      },
+      {
+        "name": "setSystemBarsStyle",
+        "params": [
+          {
+            "name": "style",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidUI::setSystemBarsStyle(style)` → `void`\n\nCouleur des icônes des barres système : `\"light\"` (icônes sombres, pour un\ncontenu clair) ou `\"dark\"` (icônes claires). L'app étant affichée sous les\nbarres (« edge-to-edge »), c'est le contenu de la page qui en fait la\ncouleur.",
+        "docFile": "AndroidUI.md",
+        "docHeading": "`AndroidUI::setSystemBarsStyle(style)` → `void`"
+      },
+      {
+        "name": "share",
+        "params": [
+          {
+            "name": "text",
+            "type": "string"
+          },
+          {
+            "name": "title",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidUI::share(text, title)` → `void`\n\nOuvre la feuille de partage du système avec `text` (`title` : titre de la\nfeuille, `\"\"` pour celui du système).",
+        "docFile": "AndroidUI.md",
+        "docHeading": "`AndroidUI::share(text, title)` → `void`"
+      },
+      {
+        "name": "toast",
+        "params": [
+          {
+            "name": "text",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidUI::toast(text)` → `void`\n\nMessage bref en bas de l'écran.",
+        "docFile": "AndroidUI.md",
+        "docHeading": "`AndroidUI::toast(text)` → `void`"
+      },
+      {
+        "name": "vibrate",
+        "params": [
+          {
+            "name": "ms",
+            "type": "int"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`AndroidUI::vibrate(ms)` → `void`\n\nVibration de `ms` millisecondes. `AndroidException` 103 sans vibreur.",
+        "docFile": "AndroidUI.md",
+        "docHeading": "`AndroidUI::vibrate(ms)` → `void`"
+      }
+    ],
+    "consts": []
+  },
+  {
     "name": "HTML",
     "methods": [
       {

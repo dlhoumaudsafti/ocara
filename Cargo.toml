@@ -1,5 +1,5 @@
 [workspace]
-members = ["runtime", "runtime_tauri", "runtime_sdl", "runtime_image", "runtime_android_jni", "runtime_android/common", "runtime_android/permissions", "runtime_android/notifications", "runtime_android/sensors", "runtime_android/files", "runtime_android/camera", "runtime_android/microphone", "runtime_android/audio", "tools/ocaracs", "tools/ocaraunit"]
+members = ["runtime", "runtime_tauri", "runtime_sdl", "runtime_image", "runtime_android_jni", "runtime_android/common", "runtime_android/permissions", "runtime_android/notifications", "runtime_android/sensors", "runtime_android/files", "runtime_android/camera", "runtime_android/microphone", "runtime_android/audio", "runtime_android/ui", "tools/ocaracs", "tools/ocaraunit"]
 
 # tiny_http 0.12.0 patché (vendor/tiny_http, modifications marquées
 # `[Ocara]`) : délai de lecture/écriture par connexion, écoute maintenue

@@ -73,4 +73,10 @@ object OcaraBridge {
      *   lequel on lance le programme.
      */
     external fun nativeStartServer(dataDir: String): Boolean
+
+    /**
+     * Événement pour le programme Ocara (`AndroidUI::listen(event, …)`),
+     * `data` en JSON. Traité sur un thread Ocara : ne bloque pas l'appelant.
+     */
+    external fun nativeEvent(event: String, data: String)
 }

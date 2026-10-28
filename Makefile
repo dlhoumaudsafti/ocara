@@ -176,7 +176,7 @@ build-jni-bridge-android:
 # par domaine sous runtime_android/, chacun lié dans le .so seulement si le
 # programme importe son builtin (`link_android`, src/codegen/link.rs, cherche
 # ces archives à côté de --android-runtime). Exigent aussi le pont JNI.
-ANDROID_FEATURES := permissions notifications sensors files camera microphone audio
+ANDROID_FEATURES := permissions notifications sensors files camera microphone audio ui
 
 build-android-features:
 	@if [ -z "$(ANDROID_NDK_HOME)" ]; then \

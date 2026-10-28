@@ -8,6 +8,7 @@ import ocara.AndroidFiles
 import ocara.AndroidCamera
 import ocara.AndroidMicrophone
 import ocara.AndroidAudio
+import ocara.AndroidUI
 
 // Builtins ocara.Android* hors Android : le programme compile, chaque appel
 // lève AndroidException 100, rattrapable, sans fuite (talons locaux,
@@ -25,8 +26,9 @@ class Test119AndroidBuiltinsDesktop extends UnitTest {
         try { AndroidFiles::filesDir() } on e is AndroidException { codes = codes + `${e.code} ` }
         try { AndroidCamera::count() } on e is AndroidException { codes = codes + `${e.code} ` }
         try { AndroidMicrophone::isRecording() } on e is AndroidException { codes = codes + `${e.code} ` }
-        try { AndroidAudio::isPlaying() } on e is AndroidException { codes = codes + `${e.code}` }
-        self::assertEquals("100 100 100 100 100 100 100 100", codes)
+        try { AndroidAudio::isPlaying() } on e is AndroidException { codes = codes + `${e.code} ` }
+        try { AndroidUI::confirm("t", "x") } on e is AndroidException { codes = codes + `${e.code}` }
+        self::assertEquals("100 100 100 100 100 100 100 100 100", codes)
         return 0
     }
 
@@ -36,7 +38,9 @@ class Test119AndroidBuiltinsDesktop extends UnitTest {
         try { AndroidMicrophone::start("v.m4a") } on e is AndroidException { count++ }
         try { AndroidAudio::setVolume(0.5) } on e is AndroidException { count++ }
         try { AndroidFiles::copyAsset("a", "b") } on e is AndroidException { count++ }
-        self::assertEquals(4, count)
+        try { AndroidUI::toast("x") } on e is AndroidException { count++ }
+        try { AndroidUI::listen("back", nameless(data:string): void { }) } on e is AndroidException { count++ }
+        self::assertEquals(6, count)
         return 0
     }
 

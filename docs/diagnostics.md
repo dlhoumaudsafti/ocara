@@ -1581,7 +1581,7 @@ Les **exceptions runtime** (levées pendant l'exécution du programme) sont docu
 | `TauriException` | Tauri | [Tauri.md](builtins/Tauri.md) |
 | `SDLException` | SDL | [SDL.md](builtins/SDL.md) |
 | `ImageException` | Image | [Image.md](builtins/Image.md) |
-| `AndroidException` | AndroidPermissions, AndroidNotifications, AndroidSensors, AndroidFiles, AndroidCamera, AndroidMicrophone, AndroidAudio | [android.md](android.md) |
+| `AndroidException` | AndroidPermissions, AndroidNotifications, AndroidSensors, AndroidFiles, AndroidCamera, AndroidMicrophone, AndroidAudio, AndroidUI | [android.md](android.md) |
 
 Chaque exception a des **codes d'erreur spécifiques** (101, 102, etc.) documentés dans les pages correspondantes.
 
