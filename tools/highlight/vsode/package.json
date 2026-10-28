@@ -35,6 +35,12 @@
           ".oc"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "yaml",
+        "extensions": [
+          ".oc.ui"
+        ]
       }
     ],
     "grammars": [

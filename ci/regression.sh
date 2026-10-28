@@ -271,6 +271,23 @@ for src in examples/builtins/*.oc; do
     fi
 done
 
+# Interfaces examples/ui/*.oc.ui : schéma valide (docs/oc-ui.md)
+echo "══════════════════════════════════════════════"
+echo " Régression examples/ui/*.oc.ui"
+echo "══════════════════════════════════════════════"
+
+for src in examples/ui/*.oc.ui; do
+    [ -f "$src" ] || continue
+    name="ui/$(basename "$src" .oc.ui)"
+    if $OCARA "$src" > /dev/null; then
+        echo -e "${GREEN}PASS: $name${RESET}"
+    else
+        echo -e "${RED}FAIL [schéma] $name${RESET}"
+        fail=1
+        failed="$failed $name"
+    fi
+done
+
 rm -f "$TMP"
 
 # ── Résultat final ────────────────────────────────────────────────────────────

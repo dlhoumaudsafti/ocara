@@ -33,3 +33,7 @@ pub mod render_file;
 pub mod runtime_expand;
 pub mod source;
 pub mod test_wiring;
+#[path = "ui_schema.d/mod.rs"]
+pub mod ui_schema;
+#[cfg(test)]
+mod tests_ui_schema;

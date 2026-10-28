@@ -1,0 +1,42 @@
+# Interface décrite en YAML (schéma : docs/oc-ui.md). Validée par
+# `ocara examples/ui/garage.oc.ui` ; `--dump` affiche l'arbre JSON normalisé.
+window:
+  title: "Garage"
+  width: 900
+  height: 640
+  theme: auto
+
+styles:
+  titre: { fontSize: 22, bold: true }
+
+start: home
+screens:
+  home:
+    layout:
+      type: column
+      spacing: 12
+      padding: 16
+      children:
+        - { type: heading, value: "Mes voitures", style: titre }
+        - type: row
+          spacing: 8
+          children:
+            - { type: input, id: search, placeholder: "Rechercher", onSubmit: search, width: fill }
+            - { type: iconButton, icon: search, label: "Rechercher", onClick: search }
+        - type: list
+          id: cars
+          onSelect: open_car
+          item:
+            type: row
+            spacing: 8
+            children:
+              - { type: text, bind: brand }
+              - { type: text, bind: model }
+  details:
+    title: "Détail"
+    layout:
+      type: column
+      padding: 16
+      children:
+        - { type: text, id: car_title, style: titre }
+        - { type: button, text: "Retour", onClick: back }

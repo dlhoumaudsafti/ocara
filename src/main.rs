@@ -42,6 +42,11 @@ fn run() {
         return;
     }
 
+    if args.input.to_string_lossy().ends_with(".oc.ui") {
+        check_ui_file(&args.input, args.dump);
+        return;
+    }
+
     if args.architecture_report {
         let root = args.src_dir.clone().unwrap_or_else(|| args.input.parent().map(|p| p.to_path_buf()).unwrap_or_default());
         println!("{}", core::analysis::architecture_report::report(&args.input, &root));
@@ -244,6 +249,21 @@ fn run() {
         }
         Err(e) => {
             diagnostic::print_error(&args.input, 0, 0, &format!("link: {}", e));
+            std::process::exit(1);
+        }
+    }
+}
+
+/// `ocara fichier.oc.ui` : valide l'interface (schéma `.oc.ui`) ; `--dump`
+/// affiche l'arbre JSON normalisé qu'embarque le binaire.
+fn check_ui_file(input: &std::path::Path, dump: bool) {
+    match core::ui_schema::check_file(input) {
+        Ok(spec) if dump => println!("{}", serde_json::to_string_pretty(&spec.tree).unwrap_or_default()),
+        Ok(spec) => println!("check ok — {} id, {} action(s).", spec.ids.len(), spec.actions.len()),
+        Err(diagnostics) => {
+            for d in &diagnostics {
+                d.print();
+            }
             std::process::exit(1);
         }
     }

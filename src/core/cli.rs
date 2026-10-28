@@ -70,6 +70,7 @@ pub fn print_help() {
     println!();
     println!("Usage :");
     println!("  ocara <fichier.oc> [options]");
+    println!("  ocara <fichier.oc.ui> [--dump]   Valide une interface .oc.ui (--dump : arbre JSON normalisé)");
     println!();
     println!("Options :");
     println!("  -o <sortie>   Fichier de sortie (défaut : out)");
@@ -109,6 +110,7 @@ pub fn print_help() {
     println!("Exemples :");
     println!("  ocara main.oc -o ./mon_programme");
     println!("  ocara main.oc --check");
+    println!("  ocara garage.oc.ui");
     println!("  ocara tests/mainTest.oc --src .");
     println!("  ocara main.oc --target aarch64-linux-android --no-link -o out");
     println!("  ocara main.oc --target aarch64-linux-android --android-runtime libocara_runtime.a -o libmain.so");

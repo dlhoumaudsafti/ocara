@@ -17,6 +17,7 @@
 | [benchmarking.md](benchmarking.md) | Mesurer la mémoire (fuites) et le temps d'exécution d'un programme |
 | [android.md](android.md) | Compilation croisée vers Android (`.so`, NDK) — état actuel et limitations |
 | [windows.md](windows.md) | Compilation pour Windows |
+| [oc-ui.md](oc-ui.md) | Fichiers `.oc.ui` : interfaces décrites en YAML (schéma, validation à la compilation) |
 | [adding-builtins.md](adding-builtins.md) | Ajouter une classe builtin au runtime et au compilateur |
 | [adding-types.md](adding-types.md) | Ajouter un type au langage |
 | [roadmap.md](roadmap.md) | Travaux restants, par priorité (fiches détaillées dans `roadmap.d/`) |

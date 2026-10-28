@@ -51,7 +51,7 @@ layout:
 | Desktop | `ocara.Tauri`, complet depuis l'étape 1 (2026-10-28) : vraie fenêtre Tauri v2 (WebKitGTK) et son état, plusieurs fenêtres et leurs options, appels JS → méthode statique Ocara typés (`ui.handler`/`ui.handlers`), événements `emit`/`listen`, boîtes de dialogue et notifications natives, menus (barre, clic droit), zone de notification, raccourcis globaux, inspecteur. Actions (menus, tray, raccourcis) reçues par `ui.listen(action, …)`. | `runtime_tauri/src/` (`app.rs`, `window.rs`, `events.rs`, `dialogs.rs`, `menus.rs`, `tray.rs`, `shortcuts.rs`), `docs/builtins/Tauri.md` |
 | Android | App de `packaging/android` en **Jetpack Compose** (Material3, navigation3 déjà en dépendances) qui affiche une WebView ; pont JNI qui démarre le programme Ocara sur son propre thread et expose la JVM et la classe `OcaraBridge` ; appels Ocara → Kotlin (`runtime_android/common`) ; builtins natifs hors GUI (permissions, notifications, fichiers…). | `runtime_android_jni/`, `runtime_android/`, `packaging/android/`, [docs/android.md](../android.md) §4 et §6 |
 | Langage | Choix d'implémentation selon la cible : archive liée selon `--target` et talons ailleurs (modèle `android_feature_libs`, `src/codegen/link.rs`) ; déclarations conditionnelles `when System::OS is …` (EBNF §32). | `src/codegen/link.rs`, `src/codegen/emit.d/emitter.rs` |
-| Langage | `ocara.YAML` décode du YAML **à l'exécution** (runtime, `serde_yaml`) ; le compilateur ne lit pas de YAML aujourd'hui. | `runtime/src/yaml.rs` |
+| Langage | Schéma `.oc.ui` (étape 3, 2026-10-28) : le compilateur lit le YAML (événements de libyaml, positions gardées), valide types, propriétés, valeurs, `id` uniques, styles et actions, et produit l'arbre JSON normalisé ; `ocara x.oc.ui [--dump]` le vérifie. | `src/core/ui_schema.d/`, [docs/oc-ui.md](../oc-ui.md), `examples/ui/` |
 
 Les trois builtins et leurs backends :
 
@@ -447,12 +447,9 @@ Règles proposées :
 
 ## 9. Questions à trancher
 
-1. **Lecture du `.oc.ui`** : à la compilation (proposé : erreurs avec ligne,
-   vérification des `ui.on` contre les actions déclarées, des `get`/`set`
-   contre les `id` et les propriétés, rien à livrer à côté de l'APK ; il faut
-   ajouter un lecteur YAML au compilateur), ou à l'exécution (rechargement à
-   chaud en mode debug) ? Les deux sont compatibles : compilation par défaut,
-   rechargement en option.
+1. ~~**Lecture du `.oc.ui`**~~ — **tranché** (étape 3) : à la compilation,
+   erreurs situées à la ligne du `.oc.ui`, arbre JSON embarqué ; le
+   rechargement à chaud reste une option de l'étape 6.
 2. **État** : impératif (`get`/`set`, proposé pour commencer) ou liaisons
    déclaratives (`bind: user.name` sur un objet Ocara) plus tard ?
 3. **Accès aux spécificités** : `ui.tauri()`/`ui.android()` (proposé, §8), ou
@@ -480,7 +477,7 @@ avec les noms et signatures d'`ocara.UI`, une seule fois par plateforme.
 |-------|---------|------------|-------|
 | 1 | ~~**Finaliser `ocara.Tauri`**~~ — **fait** (2026-10-28) : état de fenêtre réel, `emit`/`listen`, boîtes de dialogue et notifications natives, menus, plusieurs fenêtres, tray, raccourcis globaux | — | `docs/builtins/Tauri.md` |
 | 2 | ~~**Créer `ocara.AndroidUI`**~~ — **fait** (2026-10-28) : canal d'événements Kotlin → Ocara (`OcaraBridge.nativeEvent`, file, thread Ocara dédié), bouton retour intercepté, style des barres, plein écran, orientation, écran allumé, vibration, partage, `alert`/`confirm`/`toast`, `close` ; vérifié sur téléphone | — | `docs/builtins/AndroidUI.md` |
-| 3 | **Schéma `.oc.ui`** : lecteur YAML et validation dans le compilateur (types, propriétés, `id` uniques, actions), arbre JSON embarqué, tests des erreurs | Structurel | cette fiche, §4 |
+| 3 | ~~**Schéma `.oc.ui`**~~ — **fait** (2026-10-28) : lecteur YAML positionné et validation dans le compilateur (types, propriétés, valeurs, `id` uniques, styles, actions, surcharges `tauri:`/`android:`), arbre JSON normalisé (`ids`, `actions` compris), `ocara x.oc.ui [--dump]`, tests des erreurs. L'embarquement dans le binaire se fait par `use UI(…)` (étape 5) | — | [docs/oc-ui.md](../oc-ui.md) |
 | 4 | **Les deux moteurs de rendu** : contenu dans la fenêtre Tauri (column, row, text, input, button, checkbox d'abord), moteur Compose (`OcaraUI.kt`, partagé avec `ocara.AndroidUI`) qui interprète l'arbre d'un `.oc.ui` dans l'Activity, puis les composants Material sans équivalent desktop (bouton flottant, panneau inférieur, tiroir) dans `ocara.AndroidUI`. Pistes écartées pour le rendu Android : `ANativeActivity` (pas de composants natifs) et un pont JNI widget par widget (surface énorme, propriété des objets Java depuis Ocara) | Massive | cette fiche, §2 et §3 |
 | 5 | **Façade `ocara.UI`** : `use UI("x.oc.ui")`, `ui.on`, `get`/`set`, choix du backend selon la cible, `ui.tauri()`/`ui.android()` ; exemple desktop et Android, test ocaraunit | Structurel | cette fiche, §6 et §8 |
 | 6 | **Suite** : navigation (`screens`), listes (`setItems`), composant `webview` (vraie vue web isolée), styles et thème, images embarquées, surcharges `tauri:`/`android:`, schéma JSON des `.oc.ui` et complétion dans VS Code, rechargement à chaud | Structurel | cette fiche |
