@@ -34,7 +34,9 @@ fn spec_of(items_ptr: i64) -> Value {
     spec
 }
 
-fn build_items(app: &tauri::AppHandle, spec: &Value, next_id: &mut usize, checks: &mut Vec<CheckMenuItem<tauri::Wry>>) -> tauri::Result<Vec<Box<dyn IsMenuItem<tauri::Wry>>>> {
+/// Entrées d'une description ; l'identifiant d'une entrée est son action,
+/// précédée de `prefix` (menu du tray, voir tray.rs).
+fn build_items(app: &tauri::AppHandle, spec: &Value, prefix: &str, next_id: &mut usize, checks: &mut Vec<CheckMenuItem<tauri::Wry>>) -> tauri::Result<Vec<Box<dyn IsMenuItem<tauri::Wry>>>> {
     let mut items: Vec<Box<dyn IsMenuItem<tauri::Wry>>> = Vec::new();
     for entry in spec.as_array().into_iter().flatten() {
         let field = |key: &str| entry.get(key);
@@ -44,16 +46,16 @@ fn build_items(app: &tauri::AppHandle, spec: &Value, next_id: &mut usize, checks
             items.push(Box::new(PredefinedMenuItem::separator(app)?));
         } else if let Some(children) = field("items") {
             let submenu = Submenu::new(app, text, enabled)?;
-            for child in build_items(app, children, next_id, checks)? {
+            for child in build_items(app, children, prefix, next_id, checks)? {
                 submenu.append(child.as_ref())?;
             }
             items.push(Box::new(submenu));
         } else {
             let id = match field("action").and_then(Value::as_str) {
-                Some(action) => action.to_string(),
+                Some(action) => format!("{prefix}{action}"),
                 None => {
                     *next_id += 1;
-                    format!("__ocara_menu_{next_id}")
+                    format!("{prefix}__ocara_menu_{next_id}")
                 }
             };
             let shortcut = field("shortcut").and_then(Value::as_str);
@@ -71,10 +73,10 @@ fn build_items(app: &tauri::AppHandle, spec: &Value, next_id: &mut usize, checks
 }
 
 /// Menu décrit par `spec`, et ses entrées cochables (lues au clic).
-fn build_menu(app: &tauri::AppHandle, spec: &Value) -> tauri::Result<(Menu<tauri::Wry>, Vec<CheckMenuItem<tauri::Wry>>)> {
+pub(crate) fn build_menu(app: &tauri::AppHandle, spec: &Value, prefix: &str) -> tauri::Result<(Menu<tauri::Wry>, Vec<CheckMenuItem<tauri::Wry>>)> {
     let menu = Menu::new(app)?;
     let mut checks = Vec::new();
-    for item in build_items(app, spec, &mut 0, &mut checks)? {
+    for item in build_items(app, spec, prefix, &mut 0, &mut checks)? {
         menu.append(item.as_ref())?;
     }
     Ok((menu, checks))
@@ -84,7 +86,7 @@ fn build_menu(app: &tauri::AppHandle, spec: &Value) -> tauri::Result<(Menu<tauri
 pub(crate) fn apply_menu_bar(this: i64, window: &tauri::WebviewWindow) {
     let Some(app) = app(this) else { return };
     let Some(spec) = state(this, |w| w.menu_spec.clone()).flatten() else { return };
-    match build_menu(&app, &spec) {
+    match build_menu(&app, &spec, "") {
         Ok((menu, checks)) => {
             let _ = window.set_menu(menu);
             state(this, |w| w.menu_checks = checks);
@@ -97,7 +99,7 @@ pub(crate) fn apply_menu_bar(this: i64, window: &tauri::WebviewWindow) {
 pub(crate) fn apply_context_menu(this: i64) {
     let Some(app) = app(this) else { return };
     let Some(spec) = state(this, |w| w.context_spec.clone()).flatten() else { return };
-    match build_menu(&app, &spec) {
+    match build_menu(&app, &spec, "") {
         Ok((menu, checks)) => {
             state(this, |w| {
                 w.context_menu = Some(menu);
@@ -128,13 +130,14 @@ pub(crate) fn show_context_menu(this: i64) {
     }
 }
 
-/// Clic sur une entrée : son action devient un événement `ui.listen`.
-pub(crate) fn on_click(this: i64, id: &str) {
-    if id.starts_with("__ocara_menu_") {
+/// Clic sur l'entrée `id` (action `action`) : l'action devient un événement
+/// `ui.listen`.
+pub(crate) fn on_click(this: i64, id: &str, action: &str) {
+    if action.starts_with("__ocara_menu_") || action.starts_with(crate::tray::TRAY_PREFIX) {
         return;
     }
     let checked = state(this, |w| {
-        w.menu_checks.iter().chain(&w.context_checks)
+        w.menu_checks.iter().chain(&w.context_checks).chain(&w.tray_checks)
             .find(|item| item.id().as_ref() == id)
             .and_then(|item| item.is_checked().ok())
     }).flatten();
@@ -142,7 +145,7 @@ pub(crate) fn on_click(this: i64, id: &str) {
         Some(checked) => serde_json::json!({ "checked": checked }).to_string(),
         None => "null".to_string(),
     };
-    crate::events::dispatch_to_ocara(this, &serde_json::json!({ "event": id, "data": data }));
+    crate::events::dispatch_to_ocara(this, &serde_json::json!({ "event": action, "data": data }));
 }
 
 /// `ui.setMenu(items)` : barre de menus de la fenêtre (avant ou pendant `run()`).

@@ -1,0 +1,44 @@
+// examples/advanced/tauri_desktop/main.oc
+// Plusieurs fenêtres, options de fenêtre, icône de zone de notification et
+// raccourci global : chaque `use Tauri(...)` est une fenêtre ; le premier
+// `run()` lance l'application, `open()` ouvre une autre fenêtre pendant.
+// Clics du tray, raccourci et événements des pages arrivent à ui.listen.
+//
+// Depuis ce dossier (les pages sont lues dans le répertoire courant) :
+//   ../../../target/release/ocara main.oc -o /tmp/tauri_desktop && /tmp/tauri_desktop
+
+architecture permissive
+
+import ocara.Tauri
+
+const MAIN:Tauri = use Tauri({ "title": "Bureau", "width": 640, "height": 360, "url": "index.html" })
+const PANEL:Tauri = use Tauri({
+    "title": "Panneau", "width": 280, "height": 200, "url": "panel.html",
+    "alwaysOnTop": true, "decorations": false, "resizable": false
+})
+
+function main(): void {
+    MAIN.setTray({ "tooltip": "Ocara", "items": [
+        { "text": "Afficher", "action": "show" },
+        { "text": "Panneau", "action": "panel" },
+        { "separator": true },
+        { "text": "Quitter", "action": "quit" }
+    ] })
+    MAIN.addShortcut("CmdOrCtrl+Shift+P", "panel")
+
+    MAIN.listen("show", nameless(data:string): void {
+        MAIN.open()
+    })
+    MAIN.listen("panel", nameless(data:string): void {
+        PANEL.open()
+    })
+    MAIN.listen("quit", nameless(data:string): void {
+        PANEL.close()
+        MAIN.close()
+    })
+    PANEL.listen("close", nameless(data:string): void {
+        PANEL.close()
+    })
+
+    MAIN.run()
+}

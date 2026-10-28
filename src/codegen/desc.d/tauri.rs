@@ -64,6 +64,48 @@ pub const TAURI_BUILTINS: &[BuiltinDesc] = &[
 		module: Some("Tauri"),
 	},
 	BuiltinDesc {
+		name: "Tauri_setAlwaysOnTop",
+		params: &[clt::I64, clt::I64], // this, enabled
+		returns: None,
+		module: Some("Tauri"),
+	},
+	BuiltinDesc {
+		name: "Tauri_setDecorations",
+		params: &[clt::I64, clt::I64], // this, enabled
+		returns: None,
+		module: Some("Tauri"),
+	},
+	BuiltinDesc {
+		name: "Tauri_setResizable",
+		params: &[clt::I64, clt::I64], // this, enabled
+		returns: None,
+		module: Some("Tauri"),
+	},
+	BuiltinDesc {
+		name: "Tauri_setTray",
+		params: &[clt::I64, clt::I64], // this, options
+		returns: None,
+		module: Some("Tauri"),
+	},
+	BuiltinDesc {
+		name: "Tauri_removeTray",
+		params: &[clt::I64], // this
+		returns: None,
+		module: Some("Tauri"),
+	},
+	BuiltinDesc {
+		name: "Tauri_addShortcut",
+		params: &[clt::I64, clt::I64, clt::I64], // this, shortcut, action
+		returns: None,
+		module: Some("Tauri"),
+	},
+	BuiltinDesc {
+		name: "Tauri_removeShortcut",
+		params: &[clt::I64, clt::I64], // this, shortcut
+		returns: None,
+		module: Some("Tauri"),
+	},
+	BuiltinDesc {
 		name: "Tauri_alert",
 		params: &[clt::I64, clt::I64, clt::I64], // this, title, text
 		returns: None,

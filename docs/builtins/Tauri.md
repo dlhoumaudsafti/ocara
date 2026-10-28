@@ -1,6 +1,6 @@
 # Builtin Tauri
 
-> **Statut :** la fenêtre desktop réelle (basée sur Tauri v2 / WebKitGTK), son état (titre, taille, URL, réduction, agrandissement, focus, fermeture), le pont IPC JS → Ocara (`ui.handler()` / `ui.handlers()`), les événements entre la page et Ocara (`emit` / `listen`), les boîtes de dialogue, les notifications et les menus natifs sont fonctionnels. Plusieurs fenêtres, icône de zone de notification et raccourcis globaux sont à venir ([roadmap](../roadmap.d/builtins-tauri.md)). Prérequis système (GTK/WebKit) : voir [README.md](../../README.md#dépendances-gui-natives-builtin-tauri).
+> **Statut :** la fenêtre desktop réelle (basée sur Tauri v2 / WebKitGTK), son état (titre, taille, URL, réduction, agrandissement, focus, fermeture), le pont IPC JS → Ocara (`ui.handler()` / `ui.handlers()`), les événements entre la page et Ocara (`emit` / `listen`), les boîtes de dialogue, les notifications, les menus natifs, plusieurs fenêtres, l'icône de zone de notification et les raccourcis globaux sont fonctionnels. Prérequis système (GTK/WebKit) : voir [README.md](../../README.md#dépendances-gui-natives-builtin-tauri).
 
 Ce builtin permet d'interfacer Ocara avec Tauri pour créer des applications desktop multiplateformes avec une interface web native (WebKitGTK sur Linux).
 
@@ -26,6 +26,8 @@ ui.run()   // bloquant — ouvre la vraie fenêtre, rend la main à la fermeture
 ```
 
 > **Remarque :** si `width`/`height` ne sont pas définis, la fenêtre est créée en 800×600.
+
+Autres options : `decorations` (`false` : sans barre de titre ni bordure), `alwaysOnTop`, `transparent`, `resizable` (`false` : taille fixe), `minWidth`/`minHeight`. `setAlwaysOnTop`, `setDecorations` et `setResizable` les changent ensuite.
 
 `url` peut être :
 - un **chemin de fichier local** (ex. `"index.html"`) : résolu depuis le répertoire courant du binaire compilé au moment de l'exécution ;
@@ -181,6 +183,57 @@ function main(): void {
 
 Exemple complet : `examples/advanced/tauri_menus/`.
 
+## Plusieurs fenêtres
+
+Chaque `use Tauri(...)` est une fenêtre. Le premier `run()` lance l'application et sa fenêtre ; pendant la boucle, `open()` d'un autre objet `Tauri` ouvre sa fenêtre (et `run()` d'un autre objet l'ouvre puis attend sa fermeture, hors du thread de la boucle). Chaque fenêtre a ses propres handlers, écouteurs et menus. L'application se termine quand toutes les fenêtres sont fermées.
+
+```ocara
+import ocara.Tauri
+
+const MAIN:Tauri = use Tauri({ "title": "Bureau", "url": "index.html" })
+const PANEL:Tauri = use Tauri({ "title": "Panneau", "url": "panel.html", "alwaysOnTop": true, "decorations": false })
+
+function main(): void {
+    MAIN.listen("panel", nameless(data:string): void {
+        PANEL.open()
+    })
+    MAIN.run()
+}
+```
+
+Les handlers (`handler`/`handlers`) de toutes les fenêtres sont à enregistrer avant le premier `run()`.
+
+## Zone de notification et raccourcis globaux
+
+`setTray(options)` place une icône dans la zone de notification : `icon` (fichier PNG, logo Ocara par défaut), `tooltip`, `items` (menu, même description que [setMenu](#menus)), `action` (clic sur l'icône). `removeTray()` la retire. `addShortcut("CmdOrCtrl+Shift+P", "panel")` déclare un raccourci clavier global, actif même quand la fenêtre n'a pas le focus ; `removeShortcut` le retire. Clics et raccourcis arrivent aux callbacks `ui.listen(action, …)`.
+
+```ocara
+import ocara.Tauri
+
+function main(): void {
+    var ui:Tauri = use Tauri({ "title": "Lecteur", "url": "index.html" })
+    ui.setTray({ "tooltip": "Lecteur", "items": [
+        { "text": "Afficher", "action": "show" },
+        { "text": "Quitter", "action": "quit" }
+    ] })
+    ui.addShortcut("CmdOrCtrl+Shift+L", "show")
+
+    ui.listen("show", nameless(data:string): void {
+        ui.open()
+    })
+    ui.listen("quit", nameless(data:string): void {
+        ui.close()
+    })
+    ui.run()
+}
+```
+
+- Sous Linux, l'icône passe par `libayatana-appindicator` (installée avec GNOME/Ubuntu) : seul le menu est transmis, pas le clic sur l'icône elle-même (`action`).
+- Les raccourcis globaux fonctionnent sous X11 ; Wayland ne les permet pas aux applications.
+- `addShortcut` lève `TauriException` 104 si le raccourci est invalide ou déjà pris par une autre application.
+
+Exemple complet : `examples/advanced/tauri_desktop/`.
+
 ## Appeler du code Ocara depuis le JS de la page (IPC)
 
 `ui.handler()` (un enregistrement) et `ui.handlers()` (plusieurs à la fois) exposent une méthode statique Ocara comme commande que le JS de la page peut appeler directement — un vrai appel entrant dans du code Ocara compilé, pas une requête HTTP.
@@ -330,6 +383,9 @@ Convention runtime : `Tauri_<méthode>`.
 | `setContextMenu(items:array<map<string,mixed>>)` → `void` | Menu du clic droit de la page ; `[]` le supprime |
 | `setDevTools(enabled:bool)` → `void` | Autorise l'inspecteur web (avant `run()`) |
 | `openDevTools()` → `void` | Ouvre l'inspecteur web |
+| `setAlwaysOnTop(enabled:bool)` / `setDecorations(enabled:bool)` / `setResizable(enabled:bool)` → `void` | Options de fenêtre (aussi clés de `use Tauri`) |
+| `setTray(options:map<string,mixed>)` / `removeTray()` → `void` | Icône de zone de notification (voir plus haut) |
+| `addShortcut(shortcut:string, action:string)` / `removeShortcut(shortcut:string)` → `void` | Raccourci clavier global → `listen(action, …)` |
 | `getTitle()` / `setTitle(title:string)` | Titre de la fenêtre |
 | `getWidth()` / `setWidth(width:int)` | Largeur intérieure (pixels logiques) |
 | `getHeight()` / `setHeight(height:int)` | Hauteur intérieure (pixels logiques) |

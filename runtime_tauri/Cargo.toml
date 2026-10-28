@@ -17,7 +17,7 @@ crate-type = ["staticlib"]
 # de linker (--gc-sections y compris) ne peut alors éviter que même un simple
 # "Hello World" exige GTK/WebKit installés sur la machine cible.
 ocara_runtime = { path = "../runtime" }
-tauri      = { version = "~2.11", default-features = false, features = ["wry", "compression", "devtools"] }
+tauri      = { version = "~2.11", default-features = false, features = ["wry", "compression", "devtools", "tray-icon", "image-png"] }
 semver     = "1"
 glob       = "0.3"
 serde_json = "=1.0.132"
@@ -27,6 +27,7 @@ url        = "2"
 # Versions compatibles avec tauri 2.11 (les suivantes exigent 2.12).
 tauri-plugin-dialog       = "~2.7"
 tauri-plugin-notification = "~2.4"
+tauri-plugin-global-shortcut = "~2.3"
 
 # `present()` d'une fenêtre réduite (window.rs, `bring_to_front`) : GNOME
 # ignore la désiconification demandée par Tauri. Même version que Tauri.

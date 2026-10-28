@@ -8,11 +8,14 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use once_cell::sync::Lazy;
 
-use ocara_runtime::{alloc_str, ptr_to_str, free_str};
+use ocara_runtime::{alloc_str, ptr_to_str};
 
+mod app;
 mod dialogs;
 mod events;
 mod menus;
+mod shortcuts;
+mod tray;
 mod window;
 
 /// Codes d'erreur TauriException (voir docs/builtins/Tauri.md)
@@ -61,8 +64,59 @@ pub(crate) struct OcaraTauriWindow {
     menu_checks: Vec<tauri::menu::CheckMenuItem<tauri::Wry>>,
     context_checks: Vec<tauri::menu::CheckMenuItem<tauri::Wry>>,
     context_menu: Option<tauri::menu::Menu<tauri::Wry>>,
-    /// Inspecteur web autorisé (`setDevTools`, appliqué par `run()`).
+    /// Inspecteur web autorisé (`setDevTools`, appliqué à la création).
     devtools: bool,
+    /// Étiquette de la vraie fenêtre (`main` pour le premier `run()`), vide
+    /// tant qu'elle n'est pas créée.
+    label: String,
+    /// Options de `use Tauri` (`decorations`, `alwaysOnTop`, `transparent`,
+    /// `resizable`, `minWidth`/`minHeight`), réglables ensuite.
+    decorations: bool,
+    always_on_top: bool,
+    transparent: bool,
+    resizable: bool,
+    min_size: Option<(i64, i64)>,
+    /// Icône de zone de notification (tray.rs) et raccourcis globaux
+    /// (shortcuts.rs, `(raccourci, action)`).
+    tray_spec: Option<serde_json::Value>,
+    tray: Option<tauri::tray::TrayIcon>,
+    tray_checks: Vec<tauri::menu::CheckMenuItem<tauri::Wry>>,
+    shortcuts: Vec<(String, String)>,
+}
+
+/// Réglages de construction d'une fenêtre (app.rs, `build_window`).
+pub(crate) struct WindowConfig {
+    pub(crate) title: String,
+    pub(crate) width: i64,
+    pub(crate) height: i64,
+    pub(crate) url: String,
+    pub(crate) maximized: bool,
+    pub(crate) minimized: bool,
+    pub(crate) devtools: bool,
+    pub(crate) decorations: bool,
+    pub(crate) always_on_top: bool,
+    pub(crate) transparent: bool,
+    pub(crate) resizable: bool,
+    pub(crate) min_size: Option<(i64, i64)>,
+}
+
+impl OcaraTauriWindow {
+    pub(crate) fn clone_config(&self) -> WindowConfig {
+        WindowConfig {
+            title: self.title.clone(),
+            width: self.width,
+            height: self.height,
+            url: self.url.clone(),
+            maximized: self.is_maximized,
+            minimized: self.is_minimized,
+            devtools: self.devtools,
+            decorations: self.decorations,
+            always_on_top: self.always_on_top,
+            transparent: self.transparent,
+            resizable: self.resizable,
+            min_size: self.min_size,
+        }
+    }
 }
 
 // Table globale des fenêtres créées (clé = pointeur Ocara)
@@ -71,21 +125,13 @@ pub(crate) static TAURI_WINDOWS: Lazy<Mutex<HashMap<i64, Arc<Mutex<OcaraTauriWin
     Mutex::new(HashMap::new())
 });
 
-/// Lit une clé string d'une map d'options (`__map_get` + décodage du pointeur
-/// string), ou renvoie `default` si la clé est absente (valeur brute nulle).
-unsafe fn map_get_str(options_ptr: i64, key: &str, default: &str) -> String {
-    let val = ocara_runtime::map_lookup(options_ptr, key);
-    if val == 0 {
-        default.to_string()
-    } else {
-        unsafe { ptr_to_str(val).to_string() }
-    }
-}
-
-/// Lit une clé int d'une map d'options, ou renvoie `default` si absente (0).
-unsafe fn map_get_int(options_ptr: i64, key: &str, default: i64) -> i64 {
-    let val = ocara_runtime::map_lookup(options_ptr, key);
-    if val == 0 { default } else { val }
+/// Options de `use Tauri` (`map<string, mixed>`) en JSON : les booléens
+/// et nombres y sont lus avec leur type.
+pub(crate) fn options_of(options_ptr: i64) -> serde_json::Value {
+    let encoded = ocara_runtime::JSON_encode(options_ptr, 0);
+    let options = serde_json::from_str(unsafe { ptr_to_str(encoded) }).unwrap_or(serde_json::Value::Null);
+    ocara_runtime::rc::__rc_release(encoded);
+    options
 }
 
 unsafe extern "C" {
@@ -94,7 +140,8 @@ unsafe extern "C" {
 }
 
 /// Libération de l'objet `Tauri` : son état et les callbacks `listen` retenus.
-extern "C" fn finalize_window(this: i64) {
+pub(crate) extern "C" fn finalize_window(this: i64) {
+    tray::remove(this);
     let closed = TAURI_WINDOWS.lock().unwrap().remove(&this);
     if let Some(win) = closed {
         events::release_listeners(&win.lock().unwrap().event_callbacks);
@@ -114,11 +161,15 @@ extern "C" fn finalize_window(this: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn Tauri_init(this: i64, options_ptr: i64) {
     unsafe { __rc_register_window_finalizer(finalize_window) };
+    let options = options_of(options_ptr);
+    let text = |key: &str, default: &str| options.get(key).and_then(|v| v.as_str()).unwrap_or(default).to_string();
+    let int = |key: &str| options.get(key).and_then(|v| v.as_i64());
+    let flag = |key: &str, default: bool| options.get(key).and_then(|v| v.as_bool()).unwrap_or(default);
     let win = Arc::new(Mutex::new(OcaraTauriWindow {
-        title:  unsafe { map_get_str(options_ptr, "title", "Ocara App") },
-        width:  unsafe { map_get_int(options_ptr, "width", 800) },
-        height: unsafe { map_get_int(options_ptr, "height", 600) },
-        url:    unsafe { map_get_str(options_ptr, "url", "index.html") },
+        title: text("title", "Ocara App"),
+        width: int("width").unwrap_or(800),
+        height: int("height").unwrap_or(600),
+        url: text("url", "index.html"),
         is_open: true,
         is_minimized: false,
         is_maximized: false,
@@ -132,6 +183,16 @@ pub extern "C" fn Tauri_init(this: i64, options_ptr: i64) {
         context_checks: Vec::new(),
         context_menu: None,
         devtools: false,
+        label: String::new(),
+        decorations: flag("decorations", true),
+        always_on_top: flag("alwaysOnTop", false),
+        transparent: flag("transparent", false),
+        resizable: flag("resizable", true),
+        min_size: int("minWidth").zip(int("minHeight")),
+        tray_spec: None,
+        tray: None,
+        tray_checks: Vec::new(),
+        shortcuts: Vec::new(),
     }));
     TAURI_WINDOWS.lock().unwrap().insert(this, win);
 }
@@ -173,7 +234,7 @@ pub extern "C" fn Tauri_handler_register(this: i64, name_ptr: i64, trampoline_ad
 
 /// Recherche le trampoline enregistré pour `command_name` sur la fenêtre `this`.
 /// Utilisé par l'invoke_handler installé dans Tauri_run (pas exposé à Ocara).
-fn lookup_handler(this: i64, command_name: &str) -> Option<i64> {
+pub(crate) fn lookup_handler(this: i64, command_name: &str) -> Option<i64> {
     let map = TAURI_WINDOWS.lock().unwrap();
     let win = map.get(&this)?;
     let w = win.lock().unwrap();
@@ -208,7 +269,7 @@ fn handler_param_names_map(this: i64) -> HashMap<String, Vec<String>> {
 /// (scripts/core.js), donc toute tentative de le réécrire ensuite lève une
 /// `TypeError: Cannot redefine property`. `window.ocara` est un espace de noms à
 /// nous, sans ce verrou : c'est la façade officielle Ocara pour l'IPC JS→Ocara.
-fn build_ipc_shim_script(this: i64) -> String {
+pub(crate) fn build_ipc_shim_script(this: i64) -> String {
     let param_names = handler_param_names_map(this);
     let names_json = serde_json::to_string(&param_names).unwrap_or_else(|_| "{}".to_string());
     format!(
@@ -341,300 +402,4 @@ pub extern "C" fn __tauri_err(msg_ptr: i64) -> i64 {
     let msg = unsafe { ptr_to_str(msg_ptr) };
     let s = format!("{{\"ok\":false,\"error\":{}}}", serde_json::to_string(msg).unwrap_or_else(|_| "\"\"".to_string()));
     unsafe { alloc_str(&s) }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Phase 1 : vraie fenêtre native (pont vers le crate `tauri`)
-//
-// Tout ce qui précède dans ce fichier est une simulation en mémoire (aucune
-// fenêtre réelle). `Tauri_run` est le premier pont vers le vrai crate `tauri` :
-// il construit un `tauri::Context` dynamiquement (pas de tauri.conf.json ni de
-// macro `generate_context!()` — voir `tauri::Context::new`, un constructeur
-// public) à partir de l'état actuellement stocké dans TAURI_WINDOWS, puis
-// lance une vraie fenêtre GTK/WebKit.
-//
-// Portée de cette phase : une seule fenêtre déclarée statiquement via
-// `config.tauri.windows`, pas encore de pont IPC listen/emit réel (toujours
-// simulé), pas de dialog/notify réels. `run()` BLOQUE le thread appelant
-// jusqu'à la fermeture de la fenêtre — c'est une contrainte du crate `tauri`,
-// pas un choix : tout enregistrement (listen, etc.) doit se faire avant.
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Implémentation de `tauri::Assets<R>` qui lit les fichiers du frontend
-/// directement sur le disque (au lieu de les embarquer à la compilation du
-/// runtime, ce qui serait figé pour tous les programmes Ocara).
-/// Base = répertoire courant du processus au moment de `use Tauri(...)`.
-struct DiskAssets {
-    base_dir: std::path::PathBuf,
-}
-
-impl<R: tauri::Runtime> tauri::Assets<R> for DiskAssets {
-    fn get(&self, key: &tauri::utils::assets::AssetKey) -> Option<std::borrow::Cow<'_, [u8]>> {
-        let rel = key.as_ref().trim_start_matches('/');
-        let rel = if rel.is_empty() { "index.html" } else { rel };
-        let full = self.base_dir.join(rel);
-        std::fs::read(&full).ok().map(std::borrow::Cow::Owned)
-    }
-
-    fn iter(&self) -> Box<tauri::utils::assets::AssetsIter<'_>> {
-        // Pas d'introspection nécessaire (pas de bundling) : liste vide.
-        Box::new(std::iter::empty())
-    }
-
-    fn csp_hashes(
-        &self,
-        _html_path: &tauri::utils::assets::AssetKey,
-    ) -> Box<dyn Iterator<Item = tauri::utils::assets::CspHash<'_>> + '_> {
-        Box::new(std::iter::empty())
-    }
-}
-
-/// Lance réellement la fenêtre Tauri configurée par `use Tauri(...)` et les
-/// appels effectués avant `run()`. Bloque jusqu'à la fermeture de la fenêtre.
-/// Retire les variables GTK que des applications GTK tierces (typiquement VS Code,
-/// distribué en snap) injectent dans l'environnement hérité par ce process. GTK les
-/// lit au premier `gtk_init` et tente de charger LEURS modules (ex: un plugin son
-/// dans le sandbox snap de VS Code), dont les bibliothèques embarquées (libpthread
-/// notamment) sont incompatibles avec la glibc du système : ça plante immédiatement
-/// avec `undefined symbol: __libc_pthread_init` avant même qu'une fenêtre existe.
-/// Sans rapport avec Ocara ou Tauri eux-mêmes — un artefact d'environnement de
-/// terminal qu'on neutralise ici pour ne pas demander à chaque utilisateur de le
-/// faire manuellement à chaque lancement.
-fn clear_inherited_gtk_env() {
-    for var in [
-        "GTK_PATH",
-        "GTK_EXE_PREFIX",
-        "GDK_PIXBUF_MODULE_FILE",
-        "GDK_PIXBUF_MODULEDIR",
-        "GIO_MODULE_DIR",
-        "GTK_IM_MODULE_FILE",
-    ] {
-        unsafe { std::env::remove_var(var); }
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_run(this: i64) {
-    if ocara_runtime::blocking::neutralized("Tauri.run") {
-        return;
-    }
-    clear_inherited_gtk_env();
-    dialogs::note_loop_thread();
-    let devtools = window::state(this, |w| w.devtools).unwrap_or(false);
-    let (title, width, height, url, maximized, minimized) = {
-        let map = TAURI_WINDOWS.lock().unwrap();
-        match map.get(&this) {
-            Some(win) => {
-                let w = win.lock().unwrap();
-                (w.title.clone(), w.width, w.height, w.url.clone(), w.is_maximized, w.is_minimized)
-            }
-            None => {
-                eprintln!("[Tauri_run] fenêtre introuvable pour ce handle, abandon.");
-                return;
-            }
-        }
-    };
-
-    // "url" pointe soit vers un fichier local servi par DiskAssets (ex: "index.html"),
-    // soit vers un serveur déjà en cours d'exécution (ex: "http://localhost:8080") —
-    // dans ce second cas c'est une vraie URL externe, pas un asset embarqué.
-    let webview_url = match url::Url::parse(&url) {
-        Ok(u) if u.scheme() == "http" || u.scheme() == "https" => {
-            tauri::WebviewUrl::External(u)
-        }
-        _ => tauri::WebviewUrl::App(url.into()),
-    };
-
-    // La fenêtre n'est PAS déclarée ici via `config.app.windows` : on la construit
-    // nous-mêmes plus bas (dans `.setup()`, via WebviewWindowBuilder) pour pouvoir
-    // lui attacher `.initialization_script(...)` — le shim JS `window.ocara.invoke`
-    // (voir build_ipc_shim_script). Une fenêtre déclarée en Config n'a aucun moyen
-    // de recevoir de script d'initialisation supplémentaire.
-    let mut config = tauri::utils::config::Config::default();
-    config.identifier = "app.ocara.demo".to_string();
-
-    let assets: Box<dyn tauri::Assets<tauri::Wry>> = Box::new(DiskAssets {
-        base_dir: std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
-    });
-
-    let package_info = tauri::PackageInfo {
-        name: "Ocara App".to_string(),
-        version: semver::Version::new(0, 1, 0),
-        authors: "",
-        description: "",
-        crate_name: "ocara_app",
-    };
-
-    // Aucune commande IPC enregistrée pour l'instant (Phase 1 : juste la fenêtre) →
-    // ACL résolue vide, ce qui suffit puisqu'on n'invoque encore aucune commande.
-    // Tauri v2 rejette par défaut toute commande demandée par du contenu
-    // "distant" (URL externe, y compris http://localhost — c'est notre cas,
-    // puisqu'on pointe vers un vrai serveur Ocara, pas un asset embarqué) tant
-    // qu'aucune permission explicite ne l'autorise. On construit ici une ACL
-    // permissive mais ciblée : uniquement les commandes réellement enregistrées
-    // via ui.handler/ui.handlers sur CETTE fenêtre, depuis n'importe quelle
-    // origine http(s) — pas d'ouverture plus large que ça.
-    let handler_names: Vec<String> = {
-        let map = TAURI_WINDOWS.lock().unwrap();
-        map.get(&this)
-            .map(|win| win.lock().unwrap().handlers.keys().cloned().collect())
-            .unwrap_or_default()
-    };
-    let any_origin = tauri::utils::acl::ExecutionContext::Remote {
-        url: "http://*:*/*".parse().expect("motif ACL http://*:*/* invalide"),
-    };
-    let match_all = glob::Pattern::new("*").expect("motif glob * invalide");
-    let mut allowed_commands: std::collections::BTreeMap<String, Vec<tauri::utils::acl::resolved::ResolvedCommand>> =
-        std::collections::BTreeMap::new();
-    for name in handler_names.into_iter().chain([events::EVENT_COMMAND.to_string(), menus::CONTEXT_COMMAND.to_string()]) {
-        allowed_commands.insert(name, vec![tauri::utils::acl::resolved::ResolvedCommand {
-            context: any_origin.clone(),
-            windows: vec![match_all.clone()],
-            webviews: vec![match_all.clone()],
-            scope_id: None,
-            ..Default::default()
-        }]);
-    }
-    let resolved_acl = tauri::utils::acl::resolved::Resolved {
-        has_app_acl: false,
-        allowed_commands,
-        ..Default::default()
-    };
-    #[cfg(debug_assertions)]
-    let authority = tauri::ipc::RuntimeAuthority::new(std::collections::BTreeMap::new(), resolved_acl);
-    #[cfg(not(debug_assertions))]
-    let authority = tauri::ipc::RuntimeAuthority::new(resolved_acl);
-
-    let context = tauri::Context::new(
-        config,
-        assets,
-        None, // default_window_icon
-        None, // app_icon
-        package_info,
-        tauri::Pattern::Brownfield,
-        authority,
-        None, // plugin_global_api_scripts
-    );
-
-    // Un seul invoke_handler dynamique : il ne connaît aucune commande à la
-    // compilation du runtime (elles sont définies dans le programme Ocara de
-    // l'utilisateur), il se contente de chercher le nom demandé par JS dans le
-    // registre de handlers de CETTE fenêtre (voir Tauri_handler_register) et
-    // d'appeler le trampoline correspondant avec le JSON brut des arguments.
-    let invoke_handler = move |invoke: tauri::ipc::Invoke<tauri::Wry>| -> bool {
-        let command = invoke.message.command().to_string();
-        let args_json: String = match invoke.message.payload() {
-            tauri::ipc::InvokeBody::Json(v) => v.to_string(),
-            // Un payload Raw (binaire) ne peut provenir que d'un array top-level envoyé
-            // directement à window.__TAURI_INTERNALS__.invoke (voir la note dans
-            // build_ipc_shim_script) : pas notre convention (objet nommé attendu), donc
-            // pas de valeurs à en tirer — {} laisse simplement chaque clé manquante,
-            // ce que le trampoline généré rejette proprement (message d'erreur clair).
-            tauri::ipc::InvokeBody::Raw(_) => "{}".to_string(),
-        };
-
-        if command == menus::CONTEXT_COMMAND {
-            menus::show_context_menu(this);
-            invoke.resolver.resolve(serde_json::Value::Null);
-            return true;
-        }
-        if command == events::EVENT_COMMAND {
-            let payload = serde_json::from_str(&args_json).unwrap_or(serde_json::Value::Null);
-            events::dispatch_to_ocara(this, &payload);
-            invoke.resolver.resolve(serde_json::Value::Null);
-            return true;
-        }
-
-        match lookup_handler(this, &command) {
-            Some(trampoline_addr) => {
-                // Le thread de la boucle d'événements est garé (voir plus bas) :
-                // il compte comme en cours le temps du handler Ocara.
-                let _running = ocara_runtime::rc::enter();
-                let args_ptr = unsafe { alloc_str(&args_json) };
-                let result_ptr = unsafe {
-                    let f: unsafe extern "C" fn(i64) -> i64 = std::mem::transmute(trampoline_addr as usize);
-                    f(args_ptr)
-                };
-                // args_ptr n'est plus utile une fois le trampoline appelé — ni
-                // result_ptr une fois sa donnée copiée dans result_str juste en
-                // dessous. Sans ça, CHAQUE appel IPC (window.ocara.invoke)
-                // fuyait deux strings, potentiellement pendant des heures vu que
-                // run() reste bloqué tant que la fenêtre est ouverte.
-                unsafe { free_str(args_ptr); }
-                let result_str = unsafe { ptr_to_str(result_ptr) }.to_string();
-                unsafe { free_str(result_ptr); }
-                match serde_json::from_str::<serde_json::Value>(&result_str) {
-                    Ok(serde_json::Value::Object(obj)) if obj.get("ok").and_then(|v| v.as_bool()) == Some(true) => {
-                        invoke.resolver.resolve(obj.get("value").cloned().unwrap_or(serde_json::Value::Null));
-                    }
-                    Ok(serde_json::Value::Object(obj)) => {
-                        let msg = obj.get("error").and_then(|v| v.as_str()).unwrap_or("erreur inconnue").to_string();
-                        invoke.resolver.reject(msg);
-                    }
-                    _ => invoke.resolver.reject("réponse invalide du handler Ocara".to_string()),
-                }
-            }
-            None => {
-                invoke.resolver.reject(format!("aucun handler enregistré pour la commande '{}'", command));
-            }
-        }
-        true
-    };
-
-    // Construit la fenêtre elle-même (titre/taille/URL déjà résolus plus haut) avec
-    // son script d'initialisation — exécuté par le moteur de webview au tout début
-    // du chargement de CHAQUE page (y compris une URL externe), avant n'importe quel
-    // script de la page elle-même. C'est le seul point d'accroche fiable pour exposer
-    // `window.ocara.invoke` : voir build_ipc_shim_script pour le détail.
-    let shim_script = build_ipc_shim_script(this);
-    let setup = move |app: &mut tauri::App<tauri::Wry>| -> Result<(), Box<dyn std::error::Error>> {
-        let window = tauri::WebviewWindowBuilder::new(app, window::MAIN_LABEL, webview_url)
-            .title(&title)
-            .inner_size(width as f64, height as f64)
-            .maximized(maximized)
-            .initialization_script(&shim_script)
-            .devtools(devtools)
-            .on_page_load(move |_, payload| {
-                if payload.event() == tauri::webview::PageLoadEvent::Finished {
-                    menus::sync_page_flag(this);
-                }
-            })
-            .build()?;
-        if minimized {
-            let _ = window.minimize();
-        }
-        window::track_size(this, &window);
-        let handle = app.handle().clone();
-        window::state(this, |w| w.app = Some(handle));
-        app.on_menu_event(move |_, event| menus::on_click(this, event.id().as_ref()));
-        menus::apply_menu_bar(this, &window);
-        menus::apply_context_menu(this);
-        Ok(())
-    };
-
-    // Garé pendant toute la boucle d'événements : les autres threads (serveur
-    // HTTP) peuvent collecter leurs cycles ; un handler Ocara se recompte.
-    // `run_return` et non `run` : `run` termine le processus à la fermeture
-    // de la dernière fenêtre, et le code Ocara qui suit `ui.run()` ne
-    // s'exécutait jamais.
-    let parked = ocara_runtime::rc::park();
-    match tauri::Builder::<tauri::Wry>::new()
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_notification::init())
-        .invoke_handler(invoke_handler)
-        .setup(setup)
-        .build(context) {
-        Ok(app) => {
-            app.run_return(|_, _| {});
-        }
-        Err(e) => eprintln!("[Tauri_run] erreur au lancement : {e}"),
-    }
-    drop(parked);
-
-    // run() ne retourne qu'une fois la fenêtre réelle définitivement fermée
-    // (ou si son lancement a échoué) — l'entrée simulée de TAURI_WINDOWS peut
-    // alors être retirée sans risque (jusqu'ici jamais faite : chaque
-    // `use Tauri(...)` fuyait indéfiniment son état + ses registres
-    // handlers/event_callbacks).
-    finalize_window(this);
 }

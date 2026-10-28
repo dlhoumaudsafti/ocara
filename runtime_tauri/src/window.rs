@@ -9,7 +9,7 @@ use ocara_runtime::{alloc_str, ptr_to_str};
 
 use crate::{OcaraTauriWindow, TAURI_WINDOWS};
 
-/// Étiquette de la fenêtre créée par `Tauri_run`.
+/// Étiquette de la fenêtre du premier `run()` (les autres : `window-<n>`).
 pub(crate) const MAIN_LABEL: &str = "main";
 
 /// Applique `f` à l'état de la fenêtre `this`, verrou de la table relâché.
@@ -26,7 +26,8 @@ pub(crate) fn app(this: i64) -> Option<tauri::AppHandle> {
 
 /// Vraie fenêtre, si `run()` l'a ouverte et qu'elle existe encore.
 pub(crate) fn live(this: i64) -> Option<tauri::WebviewWindow> {
-    app(this)?.get_webview_window(MAIN_LABEL)
+    let label = state(this, |w| w.label.clone())?;
+    app(this)?.get_webview_window(&label)
 }
 
 /// Taille intérieure réelle en pixels logiques (ceux de `use Tauri`).
@@ -175,10 +176,17 @@ fn linux_present(gtk_window: &gtk::ApplicationWindow) {
     }
 }
 
+/// Pendant la boucle, `open()` d'une fenêtre pas encore créée l'ouvre
+/// (fenêtre secondaire).
 #[unsafe(no_mangle)]
 pub extern "C" fn Tauri_open(this: i64) {
-    if let Some(window) = live(this) {
-        bring_to_front(&window);
+    match live(this) {
+        Some(window) => bring_to_front(&window),
+        None => {
+            if let Some(app) = crate::app::running() {
+                crate::app::open_secondary(this, &app);
+            }
+        }
     }
     state(this, |w| {
         w.is_open = true;
@@ -270,4 +278,31 @@ pub extern "C" fn Tauri_isMaximized(this: i64) -> i64 {
         Some(window) => flag(window.is_maximized().unwrap_or(false)),
         None => flag(state(this, |w| w.is_maximized).unwrap_or(false)),
     }
+}
+
+/// `ui.setAlwaysOnTop(enabled)` : toujours au premier plan.
+#[unsafe(no_mangle)]
+pub extern "C" fn Tauri_setAlwaysOnTop(this: i64, enabled: i64) {
+    if let Some(window) = live(this) {
+        let _ = window.set_always_on_top(enabled != 0);
+    }
+    state(this, |w| w.always_on_top = enabled != 0);
+}
+
+/// `ui.setDecorations(enabled)` : barre de titre et bordures du système.
+#[unsafe(no_mangle)]
+pub extern "C" fn Tauri_setDecorations(this: i64, enabled: i64) {
+    if let Some(window) = live(this) {
+        let _ = window.set_decorations(enabled != 0);
+    }
+    state(this, |w| w.decorations = enabled != 0);
+}
+
+/// `ui.setResizable(enabled)` : redimensionnable par l'utilisateur.
+#[unsafe(no_mangle)]
+pub extern "C" fn Tauri_setResizable(this: i64, enabled: i64) {
+    if let Some(window) = live(this) {
+        let _ = window.set_resizable(enabled != 0);
+    }
+    state(this, |w| w.resizable = enabled != 0);
 }

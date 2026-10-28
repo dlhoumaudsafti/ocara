@@ -2304,6 +2304,7 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
   - `getTitle()`/`setTitle()`, `getWidth()`/`setWidth()`, `getHeight()`/`setHeight()`, `getUrl()`/`setUrl()`, `open()`/`close()`/`isOpen()`, `focus()`/`hasFocus()`, `minimize()`/`maximize()`/`restore()`/`isMinimized()`/`isMaximized()` — état de la vraie fenêtre pendant `run()`
   - `alert()`, `confirm()`, `pickFile()`, `saveFile()`, `dialog()`, `notify()` — boîtes de dialogue et notifications natives, pendant `run()`
   - `setMenu()`, `setContextMenu()` — barre de menus et menu contextuel natifs (clic → `listen(action, …)`) ; `setDevTools()`, `openDevTools()` — inspecteur web
+  - plusieurs fenêtres (un objet `Tauri` par fenêtre, `open()` pendant `run()`) ; `setAlwaysOnTop()`, `setDecorations()`, `setResizable()` ; `setTray()`, `removeTray()` — zone de notification ; `addShortcut()`, `removeShortcut()` — raccourcis globaux
 - **SDL** — Fenêtrage + rendu 2D + entrées + images + texte + manettes + audio via SDL3 (classe d'instance ; Paliers 1-3, voir [SDL.md](builtins/SDL.md)) — entièrement fonctionnel, rien de simulé
   - `pollEvent()`, `setDrawColor()`/`clear()`/`fillRect()`/`drawRect()`/`drawLine()`/`drawPoint()`/`present()`, `isOpen()`/`close()`, `getWidth()`/`getHeight()`/`getTitle()`/`setTitle()`, `SDL::ticks()`/`SDL::delay()` (statiques)
   - Palier 2 : `loadTexture()`/`textureWidth()`/`textureHeight()`/`drawTexture()`/`drawTextureScaled()`/`drawTextureRegion()` (SDL_image), `loadFont()`/`drawText()` (SDL_ttf)
@@ -2353,7 +2354,7 @@ Les classes d'exception permettent une gestion fine des erreurs avec `try/on`. T
 - **MySQLException** — Erreurs de requête/connexion MySQL/MariaDB
 - **DotEnvException** — Erreurs de chargement de fichier `.env`
 - **HTTPServerException** — Erreurs du serveur HTTP : démarrage (101, ex : port déjà utilisé), valeur non stockable en session (102)
-- **TauriException** — Handler IPC déjà enregistré (101), boîte de dialogue ou notification hors de `run()` (102), notification refusée par le système (103)
+- **TauriException** — Handler IPC déjà enregistré (101), boîte de dialogue ou notification hors de `run()` (102), notification refusée par le système (103), raccourci global invalide ou déjà pris (104)
 - **SDLException** — Erreurs SDL (fenêtre déjà ouverte, échec d'initialisation, appel depuis le mauvais thread) (3 codes d'erreur)
 - **ImageException** — Erreurs d'image (fichier illisible ou corrompu, format non pris en charge, dimensions, pixel hors de l'image, valeur invalide) (8 codes d'erreur)
 - **AndroidException** — Erreurs des builtins `Android*` : hors Android, permission refusée, argument invalide, matériel absent, E/S, échec Android, délai dépassé, état invalide (8 codes d'erreur)

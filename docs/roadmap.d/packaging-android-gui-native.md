@@ -1,8 +1,11 @@
 # Interface native, étape 2 : builtin `ocara.AndroidUI`
 
 Statut : **à faire, deuxième étape** du chantier interface native
-([`ocara.UI`](langage-builtin-ui-multiplateforme.md), §10). Indépendante de
-l'étape 1 ([finaliser `ocara.Tauri`](builtins-tauri.md)).
+([`ocara.UI`](langage-builtin-ui-multiplateforme.md), §10). L'étape 1
+(`ocara.Tauri` complet, voir `docs/builtins/Tauri.md`) est faite : ses
+choix (actions reçues par `listen`, appels Ocara depuis la boucle par l'ABI
+C, attente de boîte de dialogue en faisant tourner la boucle) servent de
+modèle ici.
 
 ## Rôle
 

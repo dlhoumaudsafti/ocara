@@ -48,7 +48,7 @@ layout:
 
 | Côté | En place | Fichiers |
 |------|----------|----------|
-| Desktop | `ocara.Tauri` : vraie fenêtre Tauri v2 (WebKitGTK), page chargée par URL ou fichier, script injecté au chargement (`initialization_script`), appels JS → méthode statique Ocara typés (`ui.handler`/`ui.handlers`). `listen`, `emit`, `dialog`, `notify` et l'état de fenêtre après `run()` sont simulés. | `runtime_tauri/src/lib.rs`, `docs/builtins/Tauri.md`, [builtins-tauri](builtins-tauri.md) |
+| Desktop | `ocara.Tauri`, complet depuis l'étape 1 (2026-10-28) : vraie fenêtre Tauri v2 (WebKitGTK) et son état, plusieurs fenêtres et leurs options, appels JS → méthode statique Ocara typés (`ui.handler`/`ui.handlers`), événements `emit`/`listen`, boîtes de dialogue et notifications natives, menus (barre, clic droit), zone de notification, raccourcis globaux, inspecteur. Actions (menus, tray, raccourcis) reçues par `ui.listen(action, …)`. | `runtime_tauri/src/` (`app.rs`, `window.rs`, `events.rs`, `dialogs.rs`, `menus.rs`, `tray.rs`, `shortcuts.rs`), `docs/builtins/Tauri.md` |
 | Android | App de `packaging/android` en **Jetpack Compose** (Material3, navigation3 déjà en dépendances) qui affiche une WebView ; pont JNI qui démarre le programme Ocara sur son propre thread et expose la JVM et la classe `OcaraBridge` ; appels Ocara → Kotlin (`runtime_android/common`) ; builtins natifs hors GUI (permissions, notifications, fichiers…). | `runtime_android_jni/`, `runtime_android/`, `packaging/android/`, [docs/android.md](../android.md) §4 et §6 |
 | Langage | Choix d'implémentation selon la cible : archive liée selon `--target` et talons ailleurs (modèle `android_feature_libs`, `src/codegen/link.rs`) ; déclarations conditionnelles `when System::OS is …` (EBNF §32). | `src/codegen/link.rs`, `src/codegen/emit.d/emitter.rs` |
 | Langage | `ocara.YAML` décode du YAML **à l'exécution** (runtime, `serde_yaml`) ; le compilateur ne lit pas de YAML aujourd'hui. | `runtime/src/yaml.rs` |
@@ -478,7 +478,7 @@ avec les noms et signatures d'`ocara.UI`, une seule fois par plateforme.
 
 | Étape | Contenu | Complexité | Fiche |
 |-------|---------|------------|-------|
-| 1 | **Finaliser `ocara.Tauri`** : état de fenêtre réel après `run()`, `emit`/`listen` réels, boîtes de dialogue et notifications natives, menus, plusieurs fenêtres, tray, raccourcis globaux | Massive (six points Légère à Structurel) | [builtins-tauri](builtins-tauri.md) |
+| 1 | ~~**Finaliser `ocara.Tauri`**~~ — **fait** (2026-10-28) : état de fenêtre réel, `emit`/`listen`, boîtes de dialogue et notifications natives, menus, plusieurs fenêtres, tray, raccourcis globaux | — | `docs/builtins/Tauri.md` |
 | 2 | **Créer `ocara.AndroidUI`** dans l'app hybride : canal d'événements Kotlin → Ocara, barres système, orientation, plein écran, écran allumé, retour haptique, partage, boîtes de dialogue, messages brefs, bouton retour | Structurel | [packaging-android-gui-native](packaging-android-gui-native.md) |
 | 3 | **Schéma `.oc.ui`** : lecteur YAML et validation dans le compilateur (types, propriétés, `id` uniques, actions), arbre JSON embarqué, tests des erreurs | Structurel | cette fiche, §4 |
 | 4 | **Les deux moteurs de rendu** : contenu dans la fenêtre Tauri (column, row, text, input, button, checkbox d'abord), moteur Compose (`OcaraUI.kt`) dans l'Activity | Massive | cette fiche, §2 et §3 |
@@ -491,5 +491,4 @@ avec les noms et signatures d'`ocara.UI`, une seule fois par plateforme.
 et `runtime_android/common/` (pont JNI et appels Kotlin), `packaging/android/`
 (app Compose), `src/codegen/link.rs` (archive selon la cible),
 `src/codegen/emit.d/emitter.rs` (talons hors plateforme), `docs/builtins/Tauri.md`,
-[packaging-android-gui-native](packaging-android-gui-native.md) (`ocara.AndroidUI`),
-[builtins-tauri](builtins-tauri.md) (dialogues et notifications desktop).
+[packaging-android-gui-native](packaging-android-gui-native.md) (`ocara.AndroidUI`).

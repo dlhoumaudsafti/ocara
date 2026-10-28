@@ -10,6 +10,8 @@
 //   ui.pickFile(extensions: array<string>) → string / ui.saveFile(name) → string
 //   ui.notify(title, text)
 //   ui.setMenu(items) / ui.setContextMenu(items) / ui.setDevTools(enabled) / ui.openDevTools()
+//   ui.setAlwaysOnTop / setDecorations / setResizable(enabled)
+//   ui.setTray(options) / ui.removeTray() / ui.addShortcut(shortcut, action) / ui.removeShortcut(shortcut)
 //
 // Convention runtime : Tauri_<method>
 // ─────────────────────────────────────────────────────────────────────────────
@@ -87,6 +89,17 @@ pub fn tauri_class() -> ClassInfo {
     methods.insert("setContextMenu".to_string(), inst_m(vec![ ("items", menu_items()) ], Type::Void));
     methods.insert("setDevTools".to_string(), inst_m(vec![ ("enabled", Type::Bool) ], Type::Void));
     methods.insert("openDevTools".to_string(), inst_m(vec![], Type::Void));
+
+    // Options de fenêtre (aussi clés de `use Tauri` : alwaysOnTop, decorations, resizable…)
+    methods.insert("setAlwaysOnTop".to_string(), inst_m(vec![ ("enabled", Type::Bool) ], Type::Void));
+    methods.insert("setDecorations".to_string(), inst_m(vec![ ("enabled", Type::Bool) ], Type::Void));
+    methods.insert("setResizable".to_string(), inst_m(vec![ ("enabled", Type::Bool) ], Type::Void));
+
+    // Icône de zone de notification et raccourcis globaux (clic/appui → ui.listen(action, …))
+    methods.insert("setTray".to_string(), inst_m(vec![ ("options", Type::Map(Box::new(Type::String), Box::new(Type::Mixed))) ], Type::Void));
+    methods.insert("removeTray".to_string(), inst_m(vec![], Type::Void));
+    methods.insert("addShortcut".to_string(), inst_m(vec![ ("shortcut", Type::String), ("action", Type::String) ], Type::Void));
+    methods.insert("removeShortcut".to_string(), inst_m(vec![ ("shortcut", Type::String) ], Type::Void));
 
     // Getters/setters et gestion fenêtre (parité runtime)
     methods.insert("getTitle".to_string(), inst_m(vec![], Type::String));

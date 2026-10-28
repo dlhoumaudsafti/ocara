@@ -47,6 +47,11 @@ pub(crate) fn note_loop_thread() {
     let _ = LOOP_THREAD.set(std::thread::current().id());
 }
 
+/// Vrai sur le thread de la boucle de Tauri (handler, écouteur).
+pub(crate) fn on_loop_thread() -> bool {
+    LOOP_THREAD.get() == Some(&std::thread::current().id())
+}
+
 fn running_app(this: i64, what: &str) -> tauri::AppHandle {
     app(this).unwrap_or_else(|| raise(ERR_NOT_RUNNING, &format!("{what} : la fenêtre n'est pas ouverte (appeler pendant run())")))
 }
@@ -56,7 +61,7 @@ fn running_app(this: i64, what: &str) -> tauri::AppHandle {
 /// la boucle GTK tourne le temps de l'attente.
 fn wait<T>(answer: mpsc::Receiver<T>) -> Option<T> {
     #[cfg(target_os = "linux")]
-    if LOOP_THREAD.get() == Some(&std::thread::current().id()) {
+    if on_loop_thread() {
         loop {
             match answer.try_recv() {
                 Ok(value) => return Some(value),

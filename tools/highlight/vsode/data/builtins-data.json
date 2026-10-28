@@ -3330,6 +3330,23 @@
         "static": true
       },
       {
+        "name": "addShortcut",
+        "params": [
+          {
+            "name": "shortcut",
+            "type": "string"
+          },
+          {
+            "name": "action",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`addShortcut(shortcut:string, action:string)` / `removeShortcut(shortcut:string)` → `void` — Raccourci clavier global → `listen(action, …)`",
+        "docFile": "Tauri.md"
+      },
+      {
         "name": "alert",
         "params": [
           {
@@ -3583,6 +3600,27 @@
         "docFile": "Tauri.md"
       },
       {
+        "name": "removeShortcut",
+        "params": [
+          {
+            "name": "shortcut",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`addShortcut(shortcut:string, action:string)` / `removeShortcut(shortcut:string)` → `void` — Raccourci clavier global → `listen(action, …)`",
+        "docFile": "Tauri.md"
+      },
+      {
+        "name": "removeTray",
+        "params": [],
+        "returns": "void",
+        "static": false,
+        "doc": "`setTray(options:map<string,mixed>)` / `removeTray()` → `void` — Icône de zone de notification (voir plus haut)",
+        "docFile": "Tauri.md"
+      },
+      {
         "name": "restore",
         "params": [],
         "returns": "void",
@@ -3612,6 +3650,19 @@
         "docFile": "Tauri.md"
       },
       {
+        "name": "setAlwaysOnTop",
+        "params": [
+          {
+            "name": "enabled",
+            "type": "bool"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`setAlwaysOnTop(enabled:bool)` / `setDecorations(enabled:bool)` / `setResizable(enabled:bool)` → `void` — Options de fenêtre (aussi clés de `use Tauri`)",
+        "docFile": "Tauri.md"
+      },
+      {
         "name": "setContextMenu",
         "params": [
           {
@@ -3622,6 +3673,19 @@
         "returns": "void",
         "static": false,
         "doc": "`setContextMenu(items:array<map<string,mixed>>)` → `void` — Menu du clic droit de la page ; `[]` le supprime",
+        "docFile": "Tauri.md"
+      },
+      {
+        "name": "setDecorations",
+        "params": [
+          {
+            "name": "enabled",
+            "type": "bool"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`setAlwaysOnTop(enabled:bool)` / `setDecorations(enabled:bool)` / `setResizable(enabled:bool)` → `void` — Options de fenêtre (aussi clés de `use Tauri`)",
         "docFile": "Tauri.md"
       },
       {
@@ -3664,6 +3728,19 @@
         "docFile": "Tauri.md"
       },
       {
+        "name": "setResizable",
+        "params": [
+          {
+            "name": "enabled",
+            "type": "bool"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`setAlwaysOnTop(enabled:bool)` / `setDecorations(enabled:bool)` / `setResizable(enabled:bool)` → `void` — Options de fenêtre (aussi clés de `use Tauri`)",
+        "docFile": "Tauri.md"
+      },
+      {
         "name": "setTitle",
         "params": [
           {
@@ -3674,6 +3751,19 @@
         "returns": "void",
         "static": false,
         "doc": "`getTitle()` / `setTitle(title:string)` — Titre de la fenêtre",
+        "docFile": "Tauri.md"
+      },
+      {
+        "name": "setTray",
+        "params": [
+          {
+            "name": "options",
+            "type": "map<string, mixed>"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`setTray(options:map<string,mixed>)` / `removeTray()` → `void` — Icône de zone de notification (voir plus haut)",
         "docFile": "Tauri.md"
       },
       {
