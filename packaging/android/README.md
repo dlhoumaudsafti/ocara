@@ -1,4 +1,4 @@
-# Ocara UIHybrid — squelette Android (fondations)
+# Ocara — squelette Android (app hybride WebView)
 
 Squelette Android minimal démontrant le patron "hybride WebView" décrit dans
 [docs/roadmap.d/packaging-android-webview-hybrid.md](../../docs/roadmap.d/packaging-android-webview-hybrid.md) :
@@ -16,10 +16,10 @@ tas Android tagués, pas du codegen comme d'abord supposé) — voir
 [docs/roadmap.d/runtime-android-aarch64-pic-string-concat.md](../../docs/roadmap.d/runtime-android-aarch64-pic-string-concat.md)
 pour l'état complet.
 
-Ce squelette n'est PAS encore le builtin `ocara.UIHybrid` envisagé dans
-[docs/roadmap.d/langage-builtin-ui-hybride.md](../../docs/roadmap.d/langage-builtin-ui-hybride.md)
-— tout ici est câblé à la main (nom de classe JNI figé, port du serveur figé
-dans `MainActivity.kt`), pas encore une abstraction du compilateur Ocara.
+Tout ici est câblé à la main (nom de classe JNI figé, port du serveur figé
+dans `MainActivity.kt`), pas encore une abstraction du compilateur Ocara :
+voir [`ocara.UI`](../../docs/roadmap.d/langage-builtin-ui-multiplateforme.md),
+dont la vue web est un composant.
 
 ## Structure
 

@@ -1,31 +1,47 @@
-# GUI native Android pilotée depuis Ocara
+# Builtin `ocara.AndroidUI` (interface Android native)
 
-## Idée
+Statut : **pas commencé**, défini par l'analyse d'[`ocara.UI`](langage-builtin-ui-multiplateforme.md)
+(2026-10-28), dont il est l'étape 7.
 
-Après [le hybride WebView](packaging-android-webview-hybrid.md) (étape "pour commencer"), aller plus loin : permettre à un programme Ocara de piloter une **interface graphique native Android** (vues Android/Jetpack Compose, ou rendu bas niveau via `ANativeWindow`/`ANativeActivity` du NDK) directement, pas seulement via une page HTML dans une `WebView`.
+## Rôle
 
-**Non tranché** — David a explicitement indiqué vouloir d'abord traiter le hybride WebView, "puis on verra" pour ce point. Ce ticket existe pour garder la trace de l'intention, pas pour fixer une direction technique : aucune des pistes ci-dessous n'a été évaluée en profondeur.
+Les spécificités de l'interface Android native, celles qu'`ocara.UI` ne
+standardise pas (décision de David : tout ce qui se standardise passe par
+`ocara.UI`, le reste par `ocara.Tauri` sur desktop et `ocara.AndroidUI` sur
+Android) :
 
-## Pistes possibles (aucune investiguée)
+- barres système (couleur, masquage), orientation, plein écran immersif ;
+- écran maintenu allumé, retour haptique ;
+- partage vers une autre app (`Intent.ACTION_SEND`) ;
+- composants Material sans équivalent desktop (bouton flottant, panneau
+  inférieur, tiroir de navigation).
 
-- **`ANativeActivity` / `ANativeWindow`** (NDK bas niveau, C) — dans l'esprit de ce que fait déjà `ocara.SDL` sur desktop : rendu direct dans une surface, sans passer par la JVM pour l'UI elle-même. Cohérent avec [packaging-android](packaging-android.md) sous-chantier 4 (SDL Android, **fait et vérifié** depuis) — SDL sait déjà s'intégrer à `ANativeActivity`, ce serait alors le MÊME mécanisme, déjà en place, pas un nouveau à construire.
-- **Pont JNI vers les Views Android / Jetpack Compose** (Java/Kotlin) — permettrait des composants natifs "comme il faut" (Material Design, accessibilité système, etc.), mais demande une bien plus grosse surface de pont JNI que le hybride WebView (chaque widget, chaque callback d'événement), et un nouveau builtin Ocara (`ocara.AndroidUI` ou similaire) entièrement à concevoir — API, ownership des objets Java depuis le modèle mémoire sans-GC d'Ocara (question ouverte, non triviale : voir la contrainte no-GC documentée pour le langage), etc.
+Il s'utilise seul (`use AndroidUI()`, y compris dans l'app hybride de
+`mini_project_hexa` pour régler barres système et orientation) ou depuis une
+interface `ocara.UI` (`ui.android()`, question 3 de l'analyse).
 
-Une fois l'une de ces deux pistes engagée, voir [langage-builtin-ui-multiplateforme](langage-builtin-ui-multiplateforme.md) : un builtin `ocara.UI` qui route vers le futur support GUI natif de Tauri sur desktop et vers le backend retenu ici sur Android, selon la cible de compilation — ticket séparé, dédié, car c'est un chantier de conception de langage à part entière, pas un détail d'implémentation de ce ticket-ci. Distinct de [`ocara.UIHybrid`](langage-builtin-ui-hybride.md) (WebView unifiée Tauri+WebKit/WebView Android) — deux builtins, chacun unifiant un seul paradigme, plutôt qu'un seul builtin universel.
-
-## Piste retenue (2026-10-28)
+## Piste technique retenue
 
 L'app de `packaging/android` est déjà en Jetpack Compose (Material3,
-navigation3) : l'[analyse d'`ocara.UI`](langage-builtin-ui-multiplateforme.md)
-propose un moteur Compose qui interprète l'arbre d'un fichier `.ui`, piloté
-par le pont JNI existant (`runtime_android/common`) — ni `ANativeActivity`,
-ni un pont widget par widget. À confirmer (question 2 de cette
-analyse).
+navigation3). Le rendu natif d'`ocara.UI` sur Android est un moteur Compose
+(`OcaraUI.kt`) qui interprète l'arbre d'un `.oc.ui`, piloté par le pont JNI
+existant (`runtime_android/common`) ; `ocara.AndroidUI` partage ce crate
+(`runtime_android/ui`) et cette classe Kotlin. Pistes écartées :
+`ANativeActivity` (rendu bas niveau sans composants natifs) et un pont JNI
+widget par widget (surface énorme, propriété des objets Java depuis Ocara).
 
-## Priorité / Complexité
+Comme les builtins `ocara.Android*`, il est lié dans le `.so` seulement s'il
+est importé, et lève `AndroidException` 100 hors Android.
 
-**Priorité Très Basse** — explicitement "on verra", pas de travail prévu avant que [le hybride WebView](packaging-android-webview-hybrid.md) soit fait. **Complexité non évaluée** — dépend entièrement de la piste choisie, qui n'a pas encore été discutée ni tranchée ; probablement Massive quelle que soit la piste (nouveau pont JNI large, ou nouveau backend basé sur SDL/`ANativeActivity` déjà disponible, dans les deux cas une zone entièrement neuve pour ce projet côté GUI).
+## Complexité
+
+Structurel une fois le moteur Compose d'`ocara.UI` en place (étape 3 de
+l'analyse) ; chaque spécificité est ensuite un appel Kotlin de quelques
+lignes.
 
 ## Fichiers clés
 
-Aucun — chantier pas commencé, aucune piste tranchée. [packaging-android](packaging-android.md) (infrastructure de cross-compilation + SDL Android, prérequis, fait) et [packaging-android-webview-hybrid](packaging-android-webview-hybrid.md) (prérequis/contexte, pas fait), `docs/builtins/Tauri.md`/`docs/builtins/SDL.md` (les deux builtins GUI existants, référence de style d'API pour un futur builtin Android), [langage-builtin-ui-multiplateforme](langage-builtin-ui-multiplateforme.md) et [langage-builtin-ui-hybride](langage-builtin-ui-hybride.md) (chantiers suivants, une fois une piste GUI Android choisie).
+[langage-builtin-ui-multiplateforme](langage-builtin-ui-multiplateforme.md)
+(analyse, §8), `runtime_android/common/` (appels Kotlin), `packaging/android/`
+(app Compose), [packaging-android-native-features](packaging-android-native-features.md)
+(builtins Android hors interface, même schéma de crates).
