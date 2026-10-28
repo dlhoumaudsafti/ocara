@@ -63,11 +63,18 @@ mémoire sans effet** sur la vraie fenêtre (`runtime_tauri/src/lib.rs`).
    Vérifié sur une vraie fenêtre (confirm depuis un handler, alert, pickFile
    et saveFile depuis un thread, notification GNOME).
 
+5. **Menus natifs** (`runtime_tauri/src/menus.rs`) : `setMenu(items)` (barre
+   de menus, raccourcis, entrées cochables, sous-menus) et
+   `setContextMenu(items)` (remplace le menu clic droit de WebKit, `[]` le
+   supprime ; le clic droit est intercepté par le script injecté, ce qui
+   marche aussi sous WebKitGTK, où `wry` n'a pas d'option portable). Un clic
+   appelle les callbacks `ui.listen(action, …)` — même notion d'« action »
+   qu'`ocara.UI`. Inspecteur web : `setDevTools(true)` / `openDevTools()`
+   (feature `devtools` de Tauri ; désactivé par défaut). Vérifié sur une vraie
+   fenêtre (barre, entrée cochable, menu contextuel, inspecteur).
+
 ## À faire
 
-5. **Menus** : barre de menus et menu contextuel natifs ; contrôle du menu
-   clic droit de WebKit et de l'inspecteur
-   ([builtins-tauri-webkit-menu-inspecteur](builtins-tauri-webkit-menu-inspecteur.md)).
 6. **Spécificités desktop** que garde `ocara.Tauri` : plusieurs fenêtres,
    options de fenêtre (sans bordure, toujours au premier plan, transparence),
    icône de zone de notification (tray), raccourcis globaux.
@@ -78,8 +85,8 @@ menus) est codé une seule fois dans `runtime_tauri`, avec les noms et les
 signatures prévus pour `ocara.UI` (§3 et §6 de l'analyse) ; `ocara.Tauri`
 l'expose dès maintenant, `ocara.UI` l'appellera ensuite sans réécriture.
 
-Chaque point se termine par sa doc (`docs/builtins/Tauri.md`, section « Ce
-qui est simulé » réduite d'autant), un exemple et un test.
+Chaque point se termine par sa doc (`docs/builtins/Tauri.md`), un exemple
+et sa vérification sur une vraie fenêtre (ocaraunit n'ouvre pas de fenêtre).
 
 ## Complexité
 
@@ -92,5 +99,4 @@ les autres.
 `runtime_tauri/src/lib.rs`, `runtime_tauri/Cargo.toml` (plugins et features
 Tauri), `src/builtins/tauri.rs` et `src/codegen/desc.d/tauri.rs`
 (déclarations), `docs/builtins/Tauri.md`,
-[builtins-tauri-webkit-menu-inspecteur](builtins-tauri-webkit-menu-inspecteur.md),
 [langage-builtin-ui-multiplateforme](langage-builtin-ui-multiplateforme.md).

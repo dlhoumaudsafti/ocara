@@ -2303,6 +2303,7 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
   - `listen()`, `emit()` — événements entre la page et Ocara (données en JSON)
   - `getTitle()`/`setTitle()`, `getWidth()`/`setWidth()`, `getHeight()`/`setHeight()`, `getUrl()`/`setUrl()`, `open()`/`close()`/`isOpen()`, `focus()`/`hasFocus()`, `minimize()`/`maximize()`/`restore()`/`isMinimized()`/`isMaximized()` — état de la vraie fenêtre pendant `run()`
   - `alert()`, `confirm()`, `pickFile()`, `saveFile()`, `dialog()`, `notify()` — boîtes de dialogue et notifications natives, pendant `run()`
+  - `setMenu()`, `setContextMenu()` — barre de menus et menu contextuel natifs (clic → `listen(action, …)`) ; `setDevTools()`, `openDevTools()` — inspecteur web
 - **SDL** — Fenêtrage + rendu 2D + entrées + images + texte + manettes + audio via SDL3 (classe d'instance ; Paliers 1-3, voir [SDL.md](builtins/SDL.md)) — entièrement fonctionnel, rien de simulé
   - `pollEvent()`, `setDrawColor()`/`clear()`/`fillRect()`/`drawRect()`/`drawLine()`/`drawPoint()`/`present()`, `isOpen()`/`close()`, `getWidth()`/`getHeight()`/`getTitle()`/`setTitle()`, `SDL::ticks()`/`SDL::delay()` (statiques)
   - Palier 2 : `loadTexture()`/`textureWidth()`/`textureHeight()`/`drawTexture()`/`drawTextureScaled()`/`drawTextureRegion()` (SDL_image), `loadFont()`/`drawText()` (SDL_ttf)

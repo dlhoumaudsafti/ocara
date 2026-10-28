@@ -12,6 +12,7 @@ use ocara_runtime::{alloc_str, ptr_to_str, free_str};
 
 mod dialogs;
 mod events;
+mod menus;
 mod window;
 
 /// Codes d'erreur TauriException (voir docs/builtins/Tauri.md)
@@ -53,6 +54,15 @@ pub(crate) struct OcaraTauriWindow {
     /// Application Tauri pendant `run()` : les méthodes de fenêtre agissent
     /// alors sur la vraie fenêtre (voir window.rs).
     app: Option<tauri::AppHandle>,
+    /// Barre de menus et menu contextuel décrits par `setMenu` /
+    /// `setContextMenu` (JSON), entrées cochables construites (menus.rs).
+    menu_spec: Option<serde_json::Value>,
+    context_spec: Option<serde_json::Value>,
+    menu_checks: Vec<tauri::menu::CheckMenuItem<tauri::Wry>>,
+    context_checks: Vec<tauri::menu::CheckMenuItem<tauri::Wry>>,
+    context_menu: Option<tauri::menu::Menu<tauri::Wry>>,
+    /// Inspecteur web autorisé (`setDevTools`, appliqué par `run()`).
+    devtools: bool,
 }
 
 // Table globale des fenêtres créées (clé = pointeur Ocara)
@@ -116,6 +126,12 @@ pub extern "C" fn Tauri_init(this: i64, options_ptr: i64) {
         event_callbacks: HashMap::new(),
         handlers: HashMap::new(),
         app: None,
+        menu_spec: None,
+        context_spec: None,
+        menu_checks: Vec::new(),
+        context_checks: Vec::new(),
+        context_menu: None,
+        devtools: false,
     }));
     TAURI_WINDOWS.lock().unwrap().insert(this, win);
 }
@@ -211,7 +227,7 @@ fn build_ipc_shim_script(this: i64) -> String {
 }})();
 {events}"#,
         names_json = names_json,
-        events = events::EVENTS_SHIM,
+        events = [events::EVENTS_SHIM, menus::MENU_SHIM].concat(),
     )
 }
 
@@ -404,6 +420,7 @@ pub extern "C" fn Tauri_run(this: i64) {
     }
     clear_inherited_gtk_env();
     dialogs::note_loop_thread();
+    let devtools = window::state(this, |w| w.devtools).unwrap_or(false);
     let (title, width, height, url, maximized, minimized) = {
         let map = TAURI_WINDOWS.lock().unwrap();
         match map.get(&this) {
@@ -469,7 +486,7 @@ pub extern "C" fn Tauri_run(this: i64) {
     let match_all = glob::Pattern::new("*").expect("motif glob * invalide");
     let mut allowed_commands: std::collections::BTreeMap<String, Vec<tauri::utils::acl::resolved::ResolvedCommand>> =
         std::collections::BTreeMap::new();
-    for name in handler_names.into_iter().chain([events::EVENT_COMMAND.to_string()]) {
+    for name in handler_names.into_iter().chain([events::EVENT_COMMAND.to_string(), menus::CONTEXT_COMMAND.to_string()]) {
         allowed_commands.insert(name, vec![tauri::utils::acl::resolved::ResolvedCommand {
             context: any_origin.clone(),
             windows: vec![match_all.clone()],
@@ -516,6 +533,11 @@ pub extern "C" fn Tauri_run(this: i64) {
             tauri::ipc::InvokeBody::Raw(_) => "{}".to_string(),
         };
 
+        if command == menus::CONTEXT_COMMAND {
+            menus::show_context_menu(this);
+            invoke.resolver.resolve(serde_json::Value::Null);
+            return true;
+        }
         if command == events::EVENT_COMMAND {
             let payload = serde_json::from_str(&args_json).unwrap_or(serde_json::Value::Null);
             events::dispatch_to_ocara(this, &payload);
@@ -571,6 +593,12 @@ pub extern "C" fn Tauri_run(this: i64) {
             .inner_size(width as f64, height as f64)
             .maximized(maximized)
             .initialization_script(&shim_script)
+            .devtools(devtools)
+            .on_page_load(move |_, payload| {
+                if payload.event() == tauri::webview::PageLoadEvent::Finished {
+                    menus::sync_page_flag(this);
+                }
+            })
             .build()?;
         if minimized {
             let _ = window.minimize();
@@ -578,6 +606,9 @@ pub extern "C" fn Tauri_run(this: i64) {
         window::track_size(this, &window);
         let handle = app.handle().clone();
         window::state(this, |w| w.app = Some(handle));
+        app.on_menu_event(move |_, event| menus::on_click(this, event.id().as_ref()));
+        menus::apply_menu_bar(this, &window);
+        menus::apply_context_menu(this);
         Ok(())
     };
 

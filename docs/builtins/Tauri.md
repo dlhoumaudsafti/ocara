@@ -1,6 +1,6 @@
 # Builtin Tauri
 
-> **Statut :** la fenêtre desktop réelle (basée sur Tauri v2 / WebKitGTK), son état (titre, taille, URL, réduction, agrandissement, focus, fermeture), le pont IPC JS → Ocara (`ui.handler()` / `ui.handlers()`), les événements entre la page et Ocara (`emit` / `listen`), les boîtes de dialogue et les notifications natives sont fonctionnels. Menus, plusieurs fenêtres, icône de zone de notification et raccourcis globaux sont à venir ([roadmap](../roadmap.d/builtins-tauri.md)). Prérequis système (GTK/WebKit) : voir [README.md](../../README.md#dépendances-gui-natives-builtin-tauri).
+> **Statut :** la fenêtre desktop réelle (basée sur Tauri v2 / WebKitGTK), son état (titre, taille, URL, réduction, agrandissement, focus, fermeture), le pont IPC JS → Ocara (`ui.handler()` / `ui.handlers()`), les événements entre la page et Ocara (`emit` / `listen`), les boîtes de dialogue, les notifications et les menus natifs sont fonctionnels. Plusieurs fenêtres, icône de zone de notification et raccourcis globaux sont à venir ([roadmap](../roadmap.d/builtins-tauri.md)). Prérequis système (GTK/WebKit) : voir [README.md](../../README.md#dépendances-gui-natives-builtin-tauri).
 
 Ce builtin permet d'interfacer Ocara avec Tauri pour créer des applications desktop multiplateformes avec une interface web native (WebKitGTK sur Linux).
 
@@ -133,6 +133,53 @@ function main(): void {
 - `pickFile(["png", "jpg"])` filtre par extension ; `pickFile([])` accepte tous les fichiers. `pickFile` et `saveFile` rendent `""` si l'utilisateur annule.
 - Avant `run()`, ces méthodes lèvent `TauriException` 102 (aucune fenêtre ouverte) ; une notification que le système refuse lève 103.
 - `dialog(options)`, forme d'origine, reste disponible : `type` `"info"`, `"warning"`, `"error"` (rend `"ok"`), `"confirm"` (rend `"ok"` ou `"cancel"`), `"open"`, `"save"` (rend le chemin), avec `title` et `message`.
+
+## Menus
+
+`setMenu(items)` pose la barre de menus de la fenêtre ; `setContextMenu(items)` remplace le menu du clic droit de la page (`setContextMenu([])` le supprime). Chaque entrée est une map :
+
+| Clé | Rôle |
+|-----|------|
+| `text` | Libellé |
+| `action` | Action déclenchée par le clic : les callbacks `ui.listen(action, …)` sont appelés |
+| `shortcut` | Raccourci clavier (`"CmdOrCtrl+O"`, `"Shift+F5"`…), barre de menus uniquement |
+| `enabled` | `false` grise l'entrée (défaut `true`) |
+| `checked` | Entrée cochable, état initial ; le callback reçoit `{"checked": true}` ou `false` |
+| `separator` | `true` : séparateur |
+| `items` | Sous-menu (les entrées de premier niveau de la barre en sont) |
+
+```ocara
+import ocara.Tauri
+
+function main(): void {
+    var ui:Tauri = use Tauri({ "title": "Éditeur", "url": "index.html" })
+
+    ui.setMenu([
+        { "text": "Fichier", "items": [
+            { "text": "Ouvrir…", "action": "open", "shortcut": "CmdOrCtrl+O" },
+            { "separator": true },
+            { "text": "Quitter", "action": "quit" }
+        ] },
+        { "text": "Affichage", "items": [
+            { "text": "Mode sombre", "action": "dark", "checked": false }
+        ] }
+    ])
+    ui.setContextMenu([{ "text": "Copier", "action": "copy" }])
+
+    ui.listen("open", nameless(data:string): void {
+        ui.setTitle(ui.pickFile(["txt"]))
+    })
+    ui.listen("quit", nameless(data:string): void {
+        ui.close()
+    })
+
+    ui.run()
+}
+```
+
+`setMenu`/`setContextMenu` s'utilisent avant `run()` comme pendant (le menu est alors reconstruit). L'inspecteur web de WebKit est désactivé par défaut : `setDevTools(true)` (avant `run()`) l'autorise, `openDevTools()` l'ouvre.
+
+Exemple complet : `examples/advanced/tauri_menus/`.
 
 ## Appeler du code Ocara depuis le JS de la page (IPC)
 
@@ -279,6 +326,10 @@ Convention runtime : `Tauri_<méthode>`.
 | `saveFile(name:string)` → `string` | Choix du chemin d'enregistrement, nom proposé `name` (`""` si annulé) |
 | `notify(title:string, text:string)` → `void` | Notification système |
 | `dialog(options:map<string,mixed>)` → `string` | Forme d'origine des boîtes (voir plus haut) |
+| `setMenu(items:array<map<string,mixed>>)` → `void` | Barre de menus de la fenêtre (voir [Menus](#menus)) |
+| `setContextMenu(items:array<map<string,mixed>>)` → `void` | Menu du clic droit de la page ; `[]` le supprime |
+| `setDevTools(enabled:bool)` → `void` | Autorise l'inspecteur web (avant `run()`) |
+| `openDevTools()` → `void` | Ouvre l'inspecteur web |
 | `getTitle()` / `setTitle(title:string)` | Titre de la fenêtre |
 | `getWidth()` / `setWidth(width:int)` | Largeur intérieure (pixels logiques) |
 | `getHeight()` / `setHeight(height:int)` | Hauteur intérieure (pixels logiques) |

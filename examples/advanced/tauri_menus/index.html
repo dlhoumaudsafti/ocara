@@ -1,0 +1,13 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Ocara — menus</title>
+<body style="font-family: sans-serif">
+<h1>Menus</h1>
+<p>Utilisez la barre de menus, ou un clic droit dans la page.</p>
+<p id="last">Aucune action pour l'instant.</p>
+<script>
+  window.ocara.on("action", (text) => {
+    document.getElementById("last").textContent = text;
+  });
+</script>
+</body>

@@ -3562,6 +3562,14 @@
         "docFile": "Tauri.md"
       },
       {
+        "name": "openDevTools",
+        "params": [],
+        "returns": "void",
+        "static": false,
+        "doc": "`openDevTools()` → `void` — Ouvre l'inspecteur web",
+        "docFile": "Tauri.md"
+      },
+      {
         "name": "pickFile",
         "params": [
           {
@@ -3604,6 +3612,32 @@
         "docFile": "Tauri.md"
       },
       {
+        "name": "setContextMenu",
+        "params": [
+          {
+            "name": "items",
+            "type": "menu_items()"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`setContextMenu(items:array<map<string,mixed>>)` → `void` — Menu du clic droit de la page ; `[]` le supprime",
+        "docFile": "Tauri.md"
+      },
+      {
+        "name": "setDevTools",
+        "params": [
+          {
+            "name": "enabled",
+            "type": "bool"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`setDevTools(enabled:bool)` → `void` — Autorise l'inspecteur web (avant `run()`)",
+        "docFile": "Tauri.md"
+      },
+      {
         "name": "setHeight",
         "params": [
           {
@@ -3614,6 +3648,19 @@
         "returns": "void",
         "static": false,
         "doc": "`getHeight()` / `setHeight(height:int)` — Hauteur intérieure (pixels logiques)",
+        "docFile": "Tauri.md"
+      },
+      {
+        "name": "setMenu",
+        "params": [
+          {
+            "name": "items",
+            "type": "menu_items()"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`setMenu(items:array<map<string,mixed>>)` → `void` — Barre de menus de la fenêtre (voir [Menus](#menus))",
         "docFile": "Tauri.md"
       },
       {

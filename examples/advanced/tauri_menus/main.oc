@@ -1,0 +1,62 @@
+// examples/advanced/tauri_menus/main.oc
+// Barre de menus et menu contextuel natifs : chaque entrée porte une action,
+// reçue par ui.listen(action, …) (une entrée cochable reçoit
+// {"checked": …}). Fichier → Quitter ferme la fenêtre.
+//
+// Depuis ce dossier (index.html est lu dans le répertoire courant) :
+//   ../../../target/release/ocara main.oc -o /tmp/tauri_menus && /tmp/tauri_menus
+
+architecture permissive
+
+import ocara.Tauri
+import ocara.IO
+
+const WINDOW:Tauri = use Tauri({ "title": "Menus", "width": 640, "height": 400, "url": "index.html" })
+
+function report(text:string): void {
+    IO::writeln(text)
+    WINDOW.emit("action", text)
+}
+
+function main(): void {
+    WINDOW.setMenu([
+        { "text": "Fichier", "items": [
+            { "text": "Nouveau", "action": "new", "shortcut": "CmdOrCtrl+N" },
+            { "text": "Ouvrir…", "action": "open", "shortcut": "CmdOrCtrl+O" },
+            { "separator": true },
+            { "text": "Quitter", "action": "quit", "shortcut": "CmdOrCtrl+Q" }
+        ] },
+        { "text": "Affichage", "items": [
+            { "text": "Mode sombre", "action": "dark", "checked": false },
+            { "text": "Inspecteur", "action": "inspect" }
+        ] }
+    ])
+
+    // Remplace le menu du clic droit de WebKit (`[]` le supprime).
+    WINDOW.setContextMenu([
+        { "text": "Copier le lien", "action": "copy" },
+        { "text": "Indisponible", "action": "never", "enabled": false }
+    ])
+    WINDOW.setDevTools(true)
+
+    WINDOW.listen("new", nameless(data:string): void {
+        report("Nouveau document")
+    })
+    WINDOW.listen("open", nameless(data:string): void {
+        report(`Ouvrir : ${WINDOW.pickFile([])}`)
+    })
+    WINDOW.listen("dark", nameless(data:string): void {
+        report(`Mode sombre : ${data}`)
+    })
+    WINDOW.listen("inspect", nameless(data:string): void {
+        WINDOW.openDevTools()
+    })
+    WINDOW.listen("copy", nameless(data:string): void {
+        report("Lien copié (menu contextuel)")
+    })
+    WINDOW.listen("quit", nameless(data:string): void {
+        WINDOW.close()
+    })
+
+    WINDOW.run()
+}

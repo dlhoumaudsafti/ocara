@@ -9,6 +9,7 @@
 //   ui.alert(title, text) / ui.confirm(title, text) → bool
 //   ui.pickFile(extensions: array<string>) → string / ui.saveFile(name) → string
 //   ui.notify(title, text)
+//   ui.setMenu(items) / ui.setContextMenu(items) / ui.setDevTools(enabled) / ui.openDevTools()
 //
 // Convention runtime : Tauri_<method>
 // ─────────────────────────────────────────────────────────────────────────────
@@ -78,6 +79,14 @@ pub fn tauri_class() -> ClassInfo {
     methods.insert("pickFile".to_string(), inst_m(vec![ ("extensions", Type::Array(Box::new(Type::String))) ], Type::String));
     methods.insert("saveFile".to_string(), inst_m(vec![ ("name", Type::String) ], Type::String));
     methods.insert("notify".to_string(), inst_m(vec![ ("title", Type::String), ("text", Type::String) ], Type::Void));
+
+    // Menus natifs : entrées `map<string, mixed>` (text, action, shortcut,
+    // enabled, checked, separator, items), clic → ui.listen(action, …)
+    let menu_items = || Type::Array(Box::new(Type::Map(Box::new(Type::String), Box::new(Type::Mixed))));
+    methods.insert("setMenu".to_string(), inst_m(vec![ ("items", menu_items()) ], Type::Void));
+    methods.insert("setContextMenu".to_string(), inst_m(vec![ ("items", menu_items()) ], Type::Void));
+    methods.insert("setDevTools".to_string(), inst_m(vec![ ("enabled", Type::Bool) ], Type::Void));
+    methods.insert("openDevTools".to_string(), inst_m(vec![], Type::Void));
 
     // Getters/setters et gestion fenêtre (parité runtime)
     methods.insert("getTitle".to_string(), inst_m(vec![], Type::String));

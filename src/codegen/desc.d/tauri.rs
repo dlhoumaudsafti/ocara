@@ -40,6 +40,30 @@ pub const TAURI_BUILTINS: &[BuiltinDesc] = &[
 		module: Some("Tauri"),
 	},
 	BuiltinDesc {
+		name: "Tauri_setMenu",
+		params: &[clt::I64, clt::I64], // this, items
+		returns: None,
+		module: Some("Tauri"),
+	},
+	BuiltinDesc {
+		name: "Tauri_setContextMenu",
+		params: &[clt::I64, clt::I64], // this, items
+		returns: None,
+		module: Some("Tauri"),
+	},
+	BuiltinDesc {
+		name: "Tauri_setDevTools",
+		params: &[clt::I64, clt::I64], // this, enabled
+		returns: None,
+		module: Some("Tauri"),
+	},
+	BuiltinDesc {
+		name: "Tauri_openDevTools",
+		params: &[clt::I64], // this
+		returns: None,
+		module: Some("Tauri"),
+	},
+	BuiltinDesc {
 		name: "Tauri_alert",
 		params: &[clt::I64, clt::I64, clt::I64], // this, title, text
 		returns: None,

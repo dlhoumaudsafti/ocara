@@ -17,7 +17,7 @@ crate-type = ["staticlib"]
 # de linker (--gc-sections y compris) ne peut alors éviter que même un simple
 # "Hello World" exige GTK/WebKit installés sur la machine cible.
 ocara_runtime = { path = "../runtime" }
-tauri      = { version = "~2.11", default-features = false, features = ["wry", "compression"] }
+tauri      = { version = "~2.11", default-features = false, features = ["wry", "compression", "devtools"] }
 semver     = "1"
 glob       = "0.3"
 serde_json = "=1.0.132"
