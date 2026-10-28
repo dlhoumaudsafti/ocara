@@ -96,7 +96,7 @@ Documentation détaillée des classes intégrées au runtime Ocara :
 | [AndroidCamera.md](builtins/AndroidCamera.md) | Android : photo JPEG sans aperçu |
 | [AndroidMicrophone.md](builtins/AndroidMicrophone.md) | Android : enregistrement du micro (AAC) |
 | [AndroidAudio.md](builtins/AndroidAudio.md) | Android : lecture d'un fichier audio |
-| [Tauri.md](builtins/Tauri.md) | ⚠️ **Partiellement fonctionnel** — fenêtre desktop native (Tauri v2) et appel de code Ocara depuis le JS de la page (`ui.handler`/`ui.handlers`) opérationnels ; événements/dialogues/notifications encore simulés |
+| [Tauri.md](builtins/Tauri.md) | Fenêtre desktop native (Tauri v2) : état de la fenêtre, appel de code Ocara depuis le JS de la page (`ui.handler`/`ui.handlers`), événements (`emit`/`listen`), boîtes de dialogue et notifications natives ; menus, plusieurs fenêtres et tray à venir |
 
 ---
 

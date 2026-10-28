@@ -35,8 +35,32 @@ pub const TAURI_BUILTINS: &[BuiltinDesc] = &[
 	},
 	BuiltinDesc {
 		name: "Tauri_notify",
-		params: &[clt::I64, clt::I64], // this, options
+		params: &[clt::I64, clt::I64, clt::I64], // this, title, text
 		returns: None,
+		module: Some("Tauri"),
+	},
+	BuiltinDesc {
+		name: "Tauri_alert",
+		params: &[clt::I64, clt::I64, clt::I64], // this, title, text
+		returns: None,
+		module: Some("Tauri"),
+	},
+	BuiltinDesc {
+		name: "Tauri_confirm",
+		params: &[clt::I64, clt::I64, clt::I64], // this, title, text
+		returns: Some(clt::I64), // bool
+		module: Some("Tauri"),
+	},
+	BuiltinDesc {
+		name: "Tauri_pickFile",
+		params: &[clt::I64, clt::I64], // this, extensions (array<string>)
+		returns: Some(clt::I64), // string
+		module: Some("Tauri"),
+	},
+	BuiltinDesc {
+		name: "Tauri_saveFile",
+		params: &[clt::I64, clt::I64], // this, name
+		returns: Some(clt::I64), // string
 		module: Some("Tauri"),
 	},
 // Getters/setters et gestion fenêtre (parité runtime)

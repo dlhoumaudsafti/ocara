@@ -50,11 +50,21 @@ mémoire sans effet** sur la vraie fenêtre (`runtime_tauri/src/lib.rs`).
    par `runtime_tauri`). Reste une fuite si un écouteur capture la fenêtre et
    que `run()` n'est jamais appelé ([memoire-tauri-listen-cycle](memoire-tauri-listen-cycle.md)).
 
+4. **Boîtes de dialogue et notifications natives**
+   (`runtime_tauri/src/dialogs.rs`, plugins officiels `tauri-plugin-dialog`
+   2.7 et `tauri-plugin-notification` 2.4, les dernières compatibles avec
+   Tauri 2.11 ; Tauri épinglé en `~2.11`). Noms standard d'`ocara.UI` :
+   `alert`, `confirm`, `pickFile`, `saveFile`, `notify(title, text)` (la forme
+   `notify(options)`, simulée, est remplacée) ; `dialog(options)` conservée,
+   désormais réelle. Depuis le thread de la boucle (handler, écouteur), la
+   réponse est attendue en faisant tourner la boucle GTK (une attente simple
+   bloquerait la boîte). Hors de `run()` : `TauriException` 102 ; levée en ABI
+   C (`__raise_builtin_exception`) pour la même raison que les écouteurs.
+   Vérifié sur une vraie fenêtre (confirm depuis un handler, alert, pickFile
+   et saveFile depuis un thread, notification GNOME).
+
 ## À faire
 
-4. **Boîtes de dialogue natives** (plugin officiel `dialog` : message,
-   confirmation, ouverture et enregistrement de fichier) et **notifications**
-   (plugin officiel `notification`), à la place des simulations.
 5. **Menus** : barre de menus et menu contextuel natifs ; contrôle du menu
    clic droit de WebKit et de l'inspecteur
    ([builtins-tauri-webkit-menu-inspecteur](builtins-tauri-webkit-menu-inspecteur.md)).

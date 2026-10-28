@@ -2298,9 +2298,11 @@ Le runtime Ocara fournit un ensemble de classes prédéfinies dans le namespace 
 
 #### Interface graphique (desktop)
 
-- **Tauri** — Fenêtre desktop native (Tauri v2/WebKitGTK) et pont IPC JS ↔ Ocara (classe d'instance ; voir [Tauri.md](builtins/Tauri.md) pour le détail du statut fonctionnel/simulé de chaque méthode)
-  - `handler()`, `handlers()`, `run()` — fonctionnel : commandes IPC JS → Ocara typées, ouverture de la vraie fenêtre
-  - `listen()`, `emit()`, `dialog()`, `notify()`, `getTitle()`/`setTitle()`, `getWidth()`/`setWidth()`, `getHeight()`/`setHeight()`, `getUrl()`/`setUrl()`, `open()`/`close()`/`isOpen()`, `focus()`/`hasFocus()`, `minimize()`/`maximize()`/`restore()`/`isMinimized()`/`isMaximized()` — encore simulés (état interne, sans effet sur la fenêtre réelle)
+- **Tauri** — Fenêtre desktop native (Tauri v2/WebKitGTK) et pont IPC JS ↔ Ocara (classe d'instance ; voir [Tauri.md](builtins/Tauri.md))
+  - `handler()`, `handlers()`, `run()` — commandes IPC JS → Ocara typées, ouverture de la vraie fenêtre (`run()` rend la main à sa fermeture)
+  - `listen()`, `emit()` — événements entre la page et Ocara (données en JSON)
+  - `getTitle()`/`setTitle()`, `getWidth()`/`setWidth()`, `getHeight()`/`setHeight()`, `getUrl()`/`setUrl()`, `open()`/`close()`/`isOpen()`, `focus()`/`hasFocus()`, `minimize()`/`maximize()`/`restore()`/`isMinimized()`/`isMaximized()` — état de la vraie fenêtre pendant `run()`
+  - `alert()`, `confirm()`, `pickFile()`, `saveFile()`, `dialog()`, `notify()` — boîtes de dialogue et notifications natives, pendant `run()`
 - **SDL** — Fenêtrage + rendu 2D + entrées + images + texte + manettes + audio via SDL3 (classe d'instance ; Paliers 1-3, voir [SDL.md](builtins/SDL.md)) — entièrement fonctionnel, rien de simulé
   - `pollEvent()`, `setDrawColor()`/`clear()`/`fillRect()`/`drawRect()`/`drawLine()`/`drawPoint()`/`present()`, `isOpen()`/`close()`, `getWidth()`/`getHeight()`/`getTitle()`/`setTitle()`, `SDL::ticks()`/`SDL::delay()` (statiques)
   - Palier 2 : `loadTexture()`/`textureWidth()`/`textureHeight()`/`drawTexture()`/`drawTextureScaled()`/`drawTextureRegion()` (SDL_image), `loadFont()`/`drawText()` (SDL_ttf)
@@ -2350,7 +2352,7 @@ Les classes d'exception permettent une gestion fine des erreurs avec `try/on`. T
 - **MySQLException** — Erreurs de requête/connexion MySQL/MariaDB
 - **DotEnvException** — Erreurs de chargement de fichier `.env`
 - **HTTPServerException** — Erreurs du serveur HTTP : démarrage (101, ex : port déjà utilisé), valeur non stockable en session (102)
-- **TauriException** — Erreurs d'enregistrement de handler IPC (`ui.handler`/`ui.handlers` avec un nom de commande déjà enregistré)
+- **TauriException** — Handler IPC déjà enregistré (101), boîte de dialogue ou notification hors de `run()` (102), notification refusée par le système (103)
 - **SDLException** — Erreurs SDL (fenêtre déjà ouverte, échec d'initialisation, appel depuis le mauvais thread) (3 codes d'erreur)
 - **ImageException** — Erreurs d'image (fichier illisible ou corrompu, format non pris en charge, dimensions, pixel hors de l'image, valeur invalide) (8 codes d'erreur)
 - **AndroidException** — Erreurs des builtins `Android*` : hors Android, permission refusée, argument invalide, matériel absent, E/S, échec Android, délai dépassé, état invalide (8 codes d'erreur)

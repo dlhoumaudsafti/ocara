@@ -6,7 +6,9 @@
 //   ui.listen(event: string, callback: function)
 //   ui.emit(event: string, data: mixed)
 //   ui.dialog(options: map<string, mixed>) → string
-//   ui.notify(options: map<string, mixed>)
+//   ui.alert(title, text) / ui.confirm(title, text) → bool
+//   ui.pickFile(extensions: array<string>) → string / ui.saveFile(name) → string
+//   ui.notify(title, text)
 //
 // Convention runtime : Tauri_<method>
 // ─────────────────────────────────────────────────────────────────────────────
@@ -70,11 +72,12 @@ pub fn tauri_class() -> ClassInfo {
         inst_m(vec![ ("options", Type::Map(Box::new(Type::String), Box::new(Type::Mixed))) ], Type::String),
     );
 
-    // notify
-    methods.insert(
-        "notify".to_string(),
-        inst_m(vec![ ("options", Type::Map(Box::new(Type::String), Box::new(Type::Mixed))) ], Type::Void),
-    );
+    // Boîtes de dialogue et notifications natives (noms standard d'ocara.UI)
+    methods.insert("alert".to_string(), inst_m(vec![ ("title", Type::String), ("text", Type::String) ], Type::Void));
+    methods.insert("confirm".to_string(), inst_m(vec![ ("title", Type::String), ("text", Type::String) ], Type::Bool));
+    methods.insert("pickFile".to_string(), inst_m(vec![ ("extensions", Type::Array(Box::new(Type::String))) ], Type::String));
+    methods.insert("saveFile".to_string(), inst_m(vec![ ("name", Type::String) ], Type::String));
+    methods.insert("notify".to_string(), inst_m(vec![ ("title", Type::String), ("text", Type::String) ], Type::Void));
 
     // Getters/setters et gestion fenêtre (parité runtime)
     methods.insert("getTitle".to_string(), inst_m(vec![], Type::String));

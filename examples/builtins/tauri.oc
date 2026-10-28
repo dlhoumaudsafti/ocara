@@ -6,8 +6,8 @@
 //     état de la fenêtre (getTitle, setWidth, isOpen, focus, minimize…, réel
 //     pendant run(), voir examples/advanced/tauri_window/), événements
 //     listen/emit (voir examples/advanced/tauri_events/) et le pont IPC
-//     JS -> Ocara ui.handler()/ui.handlers() ci-dessous.
-//   - Simulé (pas encore branché à la vraie fenêtre) : dialog/notify.
+//     JS -> Ocara ui.handler()/ui.handlers() ci-dessous, boîtes de dialogue
+//     (alert, confirm, pickFile, saveFile, dialog) et notifications natives.
 //     Ils sont montrés ici pour la surface d'API, mais n'ont aucun effet visible.
 //
 // Test rapide (compile-check seulement, n'ouvre pas de fenêtre — pas de run()) :
@@ -67,18 +67,14 @@ function main(): int {
         "version": "1.0.0"
     })
 
-    // ── Encore simulé (voir docs/builtins/Tauri.md) ─────────────────────
-    ui.notify({
-        "title": "Ocara Tauri",
-        "body": "Application démarrée avec succès."
+    // ── Boîtes de dialogue et notification : pendant run() (ici quand la
+    // page émet "ready") ; avant run(), elles lèvent TauriException 102 ──
+    ui.listen("ready", nameless(data:string): void {
+        ui.notify("Ocara Tauri", "Application démarrée avec succès.")
+        if ui.confirm("Bienvenue", "Ouvrir un fichier ?") {
+            IO::writeln(`Fichier choisi : ${ui.pickFile(["txt", "md"])}`)
+        }
     })
-
-    var answer:string = ui.dialog({
-        "type": "info",
-        "title": "Bienvenue",
-        "message": "L'application Tauri est prête."
-    })
-    IO::writeln(`Réponse dialogue : ${answer}`)
 
     ui.focus()
     ui.maximize()

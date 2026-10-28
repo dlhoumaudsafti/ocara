@@ -1,6 +1,6 @@
 # Builtin Tauri
 
-> ⚠️ **Statut : partiellement fonctionnel.** La fenêtre desktop réelle (basée sur Tauri v2 / WebKitGTK), son état (titre, taille, URL, réduction, agrandissement, focus, fermeture), le pont IPC JS → Ocara (`ui.handler()` / `ui.handlers()`) et les événements entre la page et Ocara (`emit` / `listen`) sont implémentés et fonctionnels. `dialog` et `notify` restent une simulation en mémoire, sans effet réel — voir la section [Ce qui est simulé](#ce-qui-est-simulé-pas-encore-branché) plus bas. Prérequis système (GTK/WebKit) : voir [README.md](../../README.md#dépendances-gui-natives-builtin-tauri).
+> **Statut :** la fenêtre desktop réelle (basée sur Tauri v2 / WebKitGTK), son état (titre, taille, URL, réduction, agrandissement, focus, fermeture), le pont IPC JS → Ocara (`ui.handler()` / `ui.handlers()`), les événements entre la page et Ocara (`emit` / `listen`), les boîtes de dialogue et les notifications natives sont fonctionnels. Menus, plusieurs fenêtres, icône de zone de notification et raccourcis globaux sont à venir ([roadmap](../roadmap.d/builtins-tauri.md)). Prérequis système (GTK/WebKit) : voir [README.md](../../README.md#dépendances-gui-natives-builtin-tauri).
 
 Ce builtin permet d'interfacer Ocara avec Tauri pour créer des applications desktop multiplateformes avec une interface web native (WebKitGTK sur Linux).
 
@@ -103,6 +103,36 @@ const stop = window.ocara.on("progress", (data) => console.log(data.step, data.t
 - `emit` est sans effet avant `run()` (aucune page chargée) ; plusieurs `listen` sur le même événement s'exécutent tous, dans l'ordre d'enregistrement.
 
 Exemple complet, qui se ferme seul : `examples/advanced/tauri_events/`.
+
+## Boîtes de dialogue et notifications
+
+Boîtes natives du système (plugin officiel `dialog` de Tauri) et notifications système (plugin `notification`), **pendant `run()`** : depuis un handler, un écouteur `listen` ou un autre thread. Chaque boîte bloque l'appelant jusqu'à la réponse de l'utilisateur, la fenêtre restant réactive.
+
+```ocara
+import ocara.Tauri
+import ocara.IO
+
+function main(): void {
+    var ui:Tauri = use Tauri({ "title": "Notes", "url": "index.html" })
+
+    ui.listen("export", nameless(data:string): void {
+        const path:string = ui.saveFile("notes.md")
+        if path equal "" {
+            return
+        }
+        if ui.confirm("Exporter", `Écrire les notes dans ${path} ?`) {
+            IO::writeln(`export vers ${path}`)
+            ui.notify("Notes", "Export terminé")
+        }
+    })
+
+    ui.run()
+}
+```
+
+- `pickFile(["png", "jpg"])` filtre par extension ; `pickFile([])` accepte tous les fichiers. `pickFile` et `saveFile` rendent `""` si l'utilisateur annule.
+- Avant `run()`, ces méthodes lèvent `TauriException` 102 (aucune fenêtre ouverte) ; une notification que le système refuse lève 103.
+- `dialog(options)`, forme d'origine, reste disponible : `type` `"info"`, `"warning"`, `"error"` (rend `"ok"`), `"confirm"` (rend `"ok"` ou `"cancel"`), `"open"`, `"save"` (rend le chemin), avec `title` et `message`.
 
 ## Appeler du code Ocara depuis le JS de la page (IPC)
 
@@ -243,6 +273,12 @@ Convention runtime : `Tauri_<méthode>`.
 | `run()` → `void` | Ouvre la vraie fenêtre (bloquant jusqu'à sa fermeture, thread principal requis) |
 | `listen(event:string, callback:Function<void(string)>)` → `void` | Appelle `callback` avec le texte JSON de chaque `window.ocara.emit(event, data)` de la page |
 | `emit(event:string, data:mixed)` → `void` | Envoie `data` (encodé en JSON) aux écouteurs `window.ocara.on(event, …)` de la page |
+| `alert(title:string, text:string)` → `void` | Message d'information |
+| `confirm(title:string, text:string)` → `bool` | Confirmation : vrai si l'utilisateur valide |
+| `pickFile(extensions:array<string>)` → `string` | Choix d'un fichier (`""` si annulé) |
+| `saveFile(name:string)` → `string` | Choix du chemin d'enregistrement, nom proposé `name` (`""` si annulé) |
+| `notify(title:string, text:string)` → `void` | Notification système |
+| `dialog(options:map<string,mixed>)` → `string` | Forme d'origine des boîtes (voir plus haut) |
 | `getTitle()` / `setTitle(title:string)` | Titre de la fenêtre |
 | `getWidth()` / `setWidth(width:int)` | Largeur intérieure (pixels logiques) |
 | `getHeight()` / `setHeight(height:int)` | Hauteur intérieure (pixels logiques) |
@@ -251,14 +287,3 @@ Convention runtime : `Tauri_<méthode>`.
 | `focus()` / `hasFocus()` → `bool` | Donne le focus / a le focus |
 | `minimize()` / `maximize()` / `restore()` | Réduit / agrandit / restaure |
 | `isMinimized()` / `isMaximized()` → `bool` | Réduite / agrandie |
-
-### Ce qui est simulé (pas encore branché)
-
-Ces méthodes existent et ne lèvent pas d'erreur, mais n'agissent pas sur la
-vraie fenêtre ni sur la page. Elles seront branchées par l'étape 1 du chantier
-interface native ([roadmap](../roadmap.d/builtins-tauri.md)).
-
-| Méthode | Description (simulée) |
-|---|---|
-| `dialog(options:map<string,mixed>)` → `string` | Ne montre aucune boîte de dialogue — retourne toujours `"ok"` |
-| `notify(options:map<string,mixed>)` → `void` | N'envoie aucune notification système — trace uniquement sur stdout |

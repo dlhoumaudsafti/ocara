@@ -19,10 +19,14 @@ pub(crate) fn state<R>(this: i64, f: impl FnOnce(&mut OcaraTauriWindow) -> R) ->
     Some(f(&mut w))
 }
 
+/// Application Tauri, pendant `run()`.
+pub(crate) fn app(this: i64) -> Option<tauri::AppHandle> {
+    state(this, |w| w.app.clone()).flatten()
+}
+
 /// Vraie fenêtre, si `run()` l'a ouverte et qu'elle existe encore.
 pub(crate) fn live(this: i64) -> Option<tauri::WebviewWindow> {
-    let app = state(this, |w| w.app.clone())??;
-    app.get_webview_window(MAIN_LABEL)
+    app(this)?.get_webview_window(MAIN_LABEL)
 }
 
 /// Taille intérieure réelle en pixels logiques (ceux de `use Tauri`).

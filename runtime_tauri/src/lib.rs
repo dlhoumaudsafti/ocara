@@ -10,6 +10,7 @@ use once_cell::sync::Lazy;
 
 use ocara_runtime::{alloc_str, ptr_to_str, free_str};
 
+mod dialogs;
 mod events;
 mod window;
 
@@ -117,31 +118,6 @@ pub extern "C" fn Tauri_init(this: i64, options_ptr: i64) {
         app: None,
     }));
     TAURI_WINDOWS.lock().unwrap().insert(this, win);
-}
-
-/// Ouvre une boîte de dialogue native
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_dialog(this: i64, options_ptr: i64) -> i64 {
-    let options = unsafe { ptr_to_str(options_ptr as i64).to_string() };
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(_win) = map.get(&this) {
-        // Simule une réponse utilisateur
-        let response = "ok".to_string();
-        println!("[Tauri_dialog] options: {} -> {}", options, response);
-        unsafe { alloc_str(&response) }
-    } else {
-        0
-    }
-}
-
-/// Envoie une notification système
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_notify(this: i64, options_ptr: i64) {
-    let options = unsafe { ptr_to_str(options_ptr as i64).to_string() };
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(_win) = map.get(&this) {
-        println!("[Tauri_notify] options: {}", options);
-    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -427,6 +403,7 @@ pub extern "C" fn Tauri_run(this: i64) {
         return;
     }
     clear_inherited_gtk_env();
+    dialogs::note_loop_thread();
     let (title, width, height, url, maximized, minimized) = {
         let map = TAURI_WINDOWS.lock().unwrap();
         match map.get(&this) {
@@ -611,6 +588,8 @@ pub extern "C" fn Tauri_run(this: i64) {
     // s'exécutait jamais.
     let parked = ocara_runtime::rc::park();
     match tauri::Builder::<tauri::Wry>::new()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(invoke_handler)
         .setup(setup)
         .build(context) {

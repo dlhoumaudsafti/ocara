@@ -3330,11 +3330,45 @@
         "static": true
       },
       {
+        "name": "alert",
+        "params": [
+          {
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "name": "text",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`alert(title:string, text:string)` → `void` — Message d'information",
+        "docFile": "Tauri.md"
+      },
+      {
         "name": "close",
         "params": [],
         "returns": "void",
         "static": false,
         "doc": "`open()` / `close()` / `isOpen()` → `bool` — Affiche au premier plan (même réduite) / ferme (`run()` rend la main) / fenêtre visible",
+        "docFile": "Tauri.md"
+      },
+      {
+        "name": "confirm",
+        "params": [
+          {
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "name": "text",
+            "type": "string"
+          }
+        ],
+        "returns": "bool",
+        "static": false,
+        "doc": "`confirm(title:string, text:string)` → `bool` — Confirmation : vrai si l'utilisateur valide",
         "docFile": "Tauri.md"
       },
       {
@@ -3347,7 +3381,7 @@
         ],
         "returns": "string",
         "static": false,
-        "doc": "`dialog(options:map<string,mixed>)` → `string` — Ne montre aucune boîte de dialogue — retourne toujours `\"ok\"`",
+        "doc": "`dialog(options:map<string,mixed>)` → `string` — Forme d'origine des boîtes (voir plus haut)",
         "docFile": "Tauri.md"
       },
       {
@@ -3506,13 +3540,17 @@
         "name": "notify",
         "params": [
           {
-            "name": "options",
-            "type": "map<string, mixed>"
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "name": "text",
+            "type": "string"
           }
         ],
         "returns": "void",
         "static": false,
-        "doc": "`notify(options:map<string,mixed>)` → `void` — N'envoie aucune notification système — trace uniquement sur stdout",
+        "doc": "`notify(title:string, text:string)` → `void` — Notification système",
         "docFile": "Tauri.md"
       },
       {
@@ -3521,6 +3559,19 @@
         "returns": "void",
         "static": false,
         "doc": "`open()` / `close()` / `isOpen()` → `bool` — Affiche au premier plan (même réduite) / ferme (`run()` rend la main) / fenêtre visible",
+        "docFile": "Tauri.md"
+      },
+      {
+        "name": "pickFile",
+        "params": [
+          {
+            "name": "extensions",
+            "type": "array<string>"
+          }
+        ],
+        "returns": "string",
+        "static": false,
+        "doc": "`pickFile(extensions:array<string>)` → `string` — Choix d'un fichier (`\"\"` si annulé)",
         "docFile": "Tauri.md"
       },
       {
@@ -3537,6 +3588,19 @@
         "returns": "void",
         "static": false,
         "doc": "`run()` → `void` — Ouvre la vraie fenêtre (bloquant jusqu'à sa fermeture, thread principal requis)",
+        "docFile": "Tauri.md"
+      },
+      {
+        "name": "saveFile",
+        "params": [
+          {
+            "name": "name",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": false,
+        "doc": "`saveFile(name:string)` → `string` — Choix du chemin d'enregistrement, nom proposé `name` (`\"\"` si annulé)",
         "docFile": "Tauri.md"
       },
       {
