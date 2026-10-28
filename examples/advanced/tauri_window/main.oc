@@ -1,0 +1,63 @@
+// examples/advanced/tauri_window/main.oc
+// État réel de la fenêtre Tauri pendant `run()` : un handler IPC (boucle de
+// Tauri) et un thread Ocara lisent et modifient la vraie fenêtre (titre,
+// taille, URL, réduction, agrandissement), puis la ferment ; `run()` rend
+// alors la main.
+//
+// Depuis ce dossier (index.html et second.html sont lus dans le répertoire
+// courant) :
+//   ../../../target/release/ocara main.oc -o /tmp/tauri_window && /tmp/tauri_window
+
+architecture permissive
+
+import ocara.Tauri
+import ocara.Thread
+import ocara.IO
+
+const WINDOW:Tauri = use Tauri({ "title": "Avant run", "width": 640, "height": 480, "url": "index.html" })
+
+class Window {
+    public static method describe(): string {
+        WINDOW.setTitle("Titre posé par un handler")
+        return `${WINDOW.getTitle()} — ${WINDOW.getWidth()}×${WINDOW.getHeight()}`
+    }
+}
+
+function main(): void {
+    WINDOW.handler("describe", Window::describe)
+
+    const driver:Thread = use Thread()
+    driver.run(nameless(): void {
+        Thread::sleep(2000)
+        IO::writeln(`titre : ${WINDOW.getTitle()}`)
+
+        WINDOW.setTitle("Titre posé par un thread")
+        WINDOW.setWidth(520)
+        WINDOW.setHeight(390)
+        Thread::sleep(500)
+        IO::writeln(`taille : ${WINDOW.getWidth()}×${WINDOW.getHeight()}`)
+
+        WINDOW.setUrl("second.html")
+        Thread::sleep(800)
+        IO::writeln(`url : ${WINDOW.getUrl()}`)
+
+        WINDOW.minimize()
+        Thread::sleep(800)
+        IO::writeln(`réduite : ${WINDOW.isMinimized()}`)
+        WINDOW.open()
+        Thread::sleep(800)
+        IO::writeln(`réduite après open : ${WINDOW.isMinimized()}`)
+
+        WINDOW.maximize()
+        Thread::sleep(800)
+        IO::writeln(`agrandie : ${WINDOW.isMaximized()}`)
+        WINDOW.restore()
+        Thread::sleep(500)
+
+        WINDOW.close()
+    })
+    driver.detach()
+
+    WINDOW.run()
+    IO::writeln(`run() a rendu la main, ouverte : ${WINDOW.isOpen()}`)
+}

@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Ocara — état de fenêtre</title>
+<body style="font-family: sans-serif">
+<h1>État de fenêtre</h1>
+<p id="handler">…</p>
+<script>
+  // Appelle Window::describe dès le chargement : le handler lit et modifie
+  // la vraie fenêtre depuis la boucle de Tauri.
+  window.addEventListener("load", async () => {
+    document.getElementById("handler").textContent = await window.ocara.invoke("describe", []);
+  });
+</script>
+</body>

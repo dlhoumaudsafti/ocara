@@ -2983,6 +2983,7 @@ name = "ocara_runtime_tauri"
 version = "1.0.0"
 dependencies = [
  "glob",
+ "gtk",
  "ocara_runtime",
  "once_cell",
  "semver",

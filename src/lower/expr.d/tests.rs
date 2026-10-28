@@ -544,6 +544,27 @@ mod tests {
         assert!(calls(&module, "__async_wrap_DoublingFetcher_fetch", "DoublingFetcher_fetch"));
     }
 
+    /// `obj.minimize()` sur une classe qui déclare `minimize` appelle cette
+    /// méthode, pas le sucre JSON (`JSON_minimize`) ; sur une chaîne, le
+    /// sucre JSON reste en place.
+    #[test]
+    fn json_sugar_does_not_hijack_a_class_method() {
+        let module = lower_src(
+            "class Window {\n\
+                 public method minimize(): void { }\n\
+             }\n\
+             function main(): int {\n\
+                 var w:Window = use Window()\n\
+                 w.minimize()\n\
+                 var s:string = \"{ }\"\n\
+                 var m:string = s.minimize()\n\
+                 return 0\n\
+             }\n",
+        );
+        assert!(calls(&module, "main", "Window_minimize"));
+        assert!(calls(&module, "main", "JSON_minimize"));
+    }
+
     /// Non-régression : une méthode D'INSTANCE non-async doit continuer à
     /// être appelée directement, jamais spawnée.
     #[test]

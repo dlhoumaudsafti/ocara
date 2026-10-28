@@ -1,6 +1,6 @@
 # Builtin Tauri
 
-> ⚠️ **Statut : partiellement fonctionnel.** La fenêtre desktop réelle (basée sur Tauri v2 / WebKitGTK) et le pont IPC JS → Ocara (`ui.handler()` / `ui.handlers()`) sont implémentés et fonctionnels. Le reste de l'API (`listen`, `emit`, `dialog`, `notify`, ainsi que les getters/setters d'état de fenêtre appelés *après* `run()`) reste une simulation en mémoire, sans effet sur la fenêtre réelle — voir la section [Ce qui est simulé](#ce-qui-est-simulé-pas-encore-branché) plus bas. Prérequis système (GTK/WebKit) : voir [README.md](../../README.md#dépendances-gui-natives-builtin-tauri).
+> ⚠️ **Statut : partiellement fonctionnel.** La fenêtre desktop réelle (basée sur Tauri v2 / WebKitGTK), son état (titre, taille, URL, réduction, agrandissement, focus, fermeture) et le pont IPC JS → Ocara (`ui.handler()` / `ui.handlers()`) sont implémentés et fonctionnels. `listen`, `emit`, `dialog` et `notify` restent une simulation en mémoire, sans effet réel — voir la section [Ce qui est simulé](#ce-qui-est-simulé-pas-encore-branché) plus bas. Prérequis système (GTK/WebKit) : voir [README.md](../../README.md#dépendances-gui-natives-builtin-tauri).
 
 Ce builtin permet d'interfacer Ocara avec Tauri pour créer des applications desktop multiplateformes avec une interface web native (WebKitGTK sur Linux).
 
@@ -31,7 +31,40 @@ ui.run()   // bloquant — ouvre la vraie fenêtre, rend la main à la fermeture
 - un **chemin de fichier local** (ex. `"index.html"`) : résolu depuis le répertoire courant du binaire compilé au moment de l'exécution ;
 - une **URL `http(s)://`** (ex. `"http://localhost:8080"`) : la fenêtre pointe alors vers un serveur déjà en cours d'exécution — typiquement un `ocara.HTTPServer` lancé sur son propre thread juste avant (voir [Exemple complet](#exemple-complet-serveur--fenêtre--ipc) et `examples/advanced/tauri_httpserver/`).
 
-`ui.run()` doit être appelé sur le **thread principal** (contrainte de Tauri/WebKitGTK) et bloque jusqu'à la fermeture de la fenêtre.
+`ui.run()` doit être appelé sur le **thread principal** (contrainte de Tauri/WebKitGTK). Il bloque jusqu'à la fermeture de la fenêtre, puis rend la main : le code qui le suit s'exécute.
+
+## État de la fenêtre
+
+Avant `run()`, les méthodes d'état règlent la fenêtre qui s'ouvrira. Pendant `run()`, elles lisent et modifient **la vraie fenêtre**, depuis un handler IPC comme depuis un autre thread Ocara :
+
+```ocara
+import ocara.Tauri
+import ocara.Thread
+import ocara.IO
+
+function main(): void {
+    var ui:Tauri = use Tauri({ "title": "Éditeur", "width": 800, "height": 600, "url": "index.html" })
+
+    const watcher:Thread = use Thread()
+    watcher.run(nameless(): void {
+        Thread::sleep(1000)
+        ui.setTitle("Éditeur — document.txt")
+        ui.setWidth(1024)
+        IO::writeln(`${ui.getWidth()}×${ui.getHeight()}`)
+    })
+    watcher.detach()
+
+    ui.run()
+    IO::writeln("fenêtre fermée")
+}
+```
+
+- `setUrl` accepte une URL complète ou un chemin relatif à la page courante (`"second.html"`).
+- `getWidth`/`getHeight` et `setWidth`/`setHeight` sont en pixels logiques, comme les options de `use Tauri`.
+- `open()` affiche la fenêtre au premier plan, même réduite ; `close()` la ferme et `run()` rend alors la main.
+- Après `run()`, `isOpen()` vaut `false`.
+
+Exemple complet, qui se ferme seul : `examples/advanced/tauri_window/`.
 
 ## Appeler du code Ocara depuis le JS de la page (IPC)
 
@@ -169,15 +202,21 @@ Convention runtime : `Tauri_<méthode>`.
 | `use Tauri(options:map<string,mixed>)` → `Tauri` | Constructeur — crée une fenêtre (`title`, `width`, `height`, `url`) |
 | `handler(name:string, method:mixed)` → `void` | Enregistre `method` (référence de méthode statique, ex. `Classe::methode`) comme commande IPC nommée `name` |
 | `handlers(map:mixed)` → `void` | Enregistre plusieurs commandes en une fois (`{"nom": Classe::methode, ...}`) — même registre anti-doublon que `handler` |
-| `run()` → `void` | Ouvre la vraie fenêtre (bloquant, thread principal requis) |
+| `run()` → `void` | Ouvre la vraie fenêtre (bloquant jusqu'à sa fermeture, thread principal requis) |
+| `getTitle()` / `setTitle(title:string)` | Titre de la fenêtre |
+| `getWidth()` / `setWidth(width:int)` | Largeur intérieure (pixels logiques) |
+| `getHeight()` / `setHeight(height:int)` | Hauteur intérieure (pixels logiques) |
+| `getUrl()` / `setUrl(url:string)` | Page affichée ; `setUrl` navigue (URL complète ou chemin relatif à la page courante) |
+| `open()` / `close()` / `isOpen()` → `bool` | Affiche au premier plan (même réduite) / ferme (`run()` rend la main) / fenêtre visible |
+| `focus()` / `hasFocus()` → `bool` | Donne le focus / a le focus |
+| `minimize()` / `maximize()` / `restore()` | Réduit / agrandit / restaure |
+| `isMinimized()` / `isMaximized()` → `bool` | Réduite / agrandie |
 
 ### Ce qui est simulé (pas encore branché)
 
-Ces méthodes existent et ne lèvent pas d'erreur, mais elles lisent/modifient un
-état Ocara interne **déconnecté de la vraie fenêtre WebKitGTK** créée par
-`run()` — les appeler avant `run()` n'a aucun effet sur la fenêtre qui
-s'ouvrira, et les appeler après `run()` (depuis un handler IPC, par exemple)
-ne change rien à l'affichage réel. À implémenter dans une prochaine itération.
+Ces méthodes existent et ne lèvent pas d'erreur, mais n'agissent pas sur la
+vraie fenêtre ni sur la page. Elles seront branchées par l'étape 1 du chantier
+interface native ([roadmap](../roadmap.d/builtins-tauri.md)).
 
 | Méthode | Description (simulée) |
 |---|---|
@@ -185,11 +224,3 @@ ne change rien à l'affichage réel. À implémenter dans une prochaine itérati
 | `emit(event:string, data:mixed)` → `void` | N'émet rien vers la vraie page — trace uniquement sur stdout |
 | `dialog(options:map<string,mixed>)` → `string` | Ne montre aucune boîte de dialogue — retourne toujours `"ok"` |
 | `notify(options:map<string,mixed>)` → `void` | N'envoie aucune notification système — trace uniquement sur stdout |
-| `getTitle()` / `setTitle(title:string)` | Lit/modifie un titre en mémoire, pas celui de la fenêtre réelle |
-| `getWidth()` / `setWidth(width:int)` | Idem pour la largeur |
-| `getHeight()` / `setHeight(height:int)` | Idem pour la hauteur |
-| `getUrl()` / `setUrl(url:string)` | Idem pour l'URL |
-| `open()` / `close()` / `isOpen()` → `bool` | État simulé, ne ferme/rouvre pas la vraie fenêtre |
-| `focus()` / `hasFocus()` → `bool` | État simulé |
-| `minimize()` / `maximize()` / `restore()` | État simulé |
-| `isMinimized()` / `isMaximized()` → `bool` | État simulé |

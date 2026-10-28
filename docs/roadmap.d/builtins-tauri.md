@@ -14,15 +14,30 @@ lectures/modifications de l'état de fenêtre après `run()` (titre, taille,
 URL, fermeture, focus, réduction, agrandissement) sont une **simulation en
 mémoire sans effet** sur la vraie fenêtre (`runtime_tauri/src/lib.rs`).
 
+## Fait (2026-10-28)
+
+1. **État des lieux** : seuls la fenêtre (`Tauri_run`) et l'IPC JS → Ocara
+   étaient réels. Les handlers IPC s'exécutent sur le thread principal, dans
+   la boucle de Tauri ; Tauri y traite directement un appel de fenêtre (pas
+   d'interblocage), et depuis un autre thread il le transmet à sa boucle.
+2. **État de fenêtre réel** (`runtime_tauri/src/window.rs`) : titre, taille,
+   URL, ouverture, fermeture, focus, réduction, agrandissement, restauration
+   agissent sur la vraie fenêtre pendant `run()`, depuis un handler ou un
+   autre thread ; avant `run()`, ils règlent la fenêtre à ouvrir. Vérifié
+   sur une vraie fenêtre (GNOME, X11) par `examples/advanced/tauri_window/`.
+   Corrigé au passage :
+   - `run()` terminait le processus à la fermeture (`Builder::run`) : le code
+     après `ui.run()` ne s'exécutait jamais ; `run_return` le rend désormais ;
+   - `ui.minimize()` était compilé en `JSON_minimize(ui)` : le sucre JSON
+     (`.encode()`, `.decode()`, `.pretty()`, `.minimize()`) s'appliquait à
+     tout récepteur, même une classe qui déclare la méthode
+     (`src/lower/expr.d/lower.rs`) ;
+   - GNOME ignore la désiconification et met en « demande l'attention » une
+     fenêtre présentée sans heure d'interaction : `open()`/`restore()`
+     appellent `present_with_time` de GTK avec l'heure du serveur X.
+
 ## À faire
 
-1. **État des lieux précis** de `runtime_tauri/src/lib.rs` : ce qui est
-   réel, ce qui est simulé, et comment le code Ocara (thread principal pris
-   par `run()`, gestionnaires IPC sur les threads de Tauri) peut agir sur la
-   fenêtre (`AppHandle`, `run_on_main_thread`).
-2. **État de fenêtre réel** : titre, taille, URL, fermeture, focus,
-   réduction, agrandissement, appliqués à la vraie fenêtre, y compris depuis
-   un gestionnaire pendant `run()`.
 3. **Événements réels** : `emit` (Ocara → page) et `listen` (page → Ocara),
    par le système d'événements de Tauri.
 4. **Boîtes de dialogue natives** (plugin officiel `dialog` : message,

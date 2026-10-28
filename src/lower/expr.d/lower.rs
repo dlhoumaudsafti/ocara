@@ -709,10 +709,13 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     // ── Cas spécial : méthodes JSON sur types primitifs ───────────────
                     // array/map.encode() → JSON_encode(obj)
                     // string.decode() / string.pretty() / string.minimize() → JSON_<method>(obj)
-                    let is_json_method = match field.as_str() {
-                        "encode" | "decode" | "pretty" | "minimize" => true,
-                        _ => false,
-                    };
+                    // Sauf si la classe du récepteur déclare elle-même la
+                    // méthode : `ui.minimize()` (Tauri) ou une classe
+                    // utilisateur `minimize()` étaient compilés en
+                    // `JSON_minimize(ui)`.
+                    let is_json_method = matches!(field.as_str(), "encode" | "decode" | "pretty" | "minimize")
+                        && !resolve_receiver_class(builder, object)
+                            .is_some_and(|cls| cls != "JSON" && class_defines_method(builder, &cls, field));
                     
                     if is_json_method {
                         let obj_val = lower_expr(builder, object);
@@ -2070,4 +2073,16 @@ pub fn lower_receiver(builder: &mut LowerBuilder, object: &Expr, member: &str) -
         builder.emit(Inst::Call { dest: None, func: "__null_receiver".into(), args: vec![val.clone(), name], ret_ty: IrType::Void });
     }
     val
+}
+
+/// Vrai si la classe `cls` ou l'un de ses parents déclare `method`.
+fn class_defines_method(builder: &LowerBuilder, cls: &str, method: &str) -> bool {
+    let mut current = Some(cls);
+    while let Some(class) = current {
+        if builder.fn_ret_types.contains_key(&format!("{class}_{method}")) {
+            return true;
+        }
+        current = builder.module.class_parents.get(class).map(String::as_str);
+    }
+    false
 }

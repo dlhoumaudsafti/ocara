@@ -3,9 +3,10 @@
 //
 // Statut (voir docs/builtins/Tauri.md pour le détail) :
 //   - Fonctionnel : création de fenêtre réelle (title/width/height/url) + run(),
-//     et le pont IPC JS -> Ocara ui.handler()/ui.handlers() ci-dessous.
-//   - Simulé (pas encore branché à la vraie fenêtre) : listen/emit/dialog/notify
-//     et les getters/setters d'état (getTitle, setWidth, isOpen, focus, ...).
+//     état de la fenêtre (getTitle, setWidth, isOpen, focus, minimize…, réel
+//     pendant run(), voir examples/advanced/tauri_window/) et le pont IPC
+//     JS -> Ocara ui.handler()/ui.handlers() ci-dessous.
+//   - Simulé (pas encore branché à la vraie fenêtre) : listen/emit/dialog/notify.
 //     Ils sont montrés ici pour la surface d'API, mais n'ont aucun effet visible.
 //
 // Test rapide (compile-check seulement, n'ouvre pas de fenêtre — pas de run()) :

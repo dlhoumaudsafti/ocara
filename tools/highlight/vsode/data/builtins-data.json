@@ -3334,7 +3334,7 @@
         "params": [],
         "returns": "void",
         "static": false,
-        "doc": "`open()` / `close()` / `isOpen()` → `bool` — État simulé, ne ferme/rouvre pas la vraie fenêtre",
+        "doc": "`open()` / `close()` / `isOpen()` → `bool` — Affiche au premier plan (même réduite) / ferme (`run()` rend la main) / fenêtre visible",
         "docFile": "Tauri.md"
       },
       {
@@ -3372,7 +3372,7 @@
         "params": [],
         "returns": "void",
         "static": false,
-        "doc": "`focus()` / `hasFocus()` → `bool` — État simulé",
+        "doc": "`focus()` / `hasFocus()` → `bool` — Donne le focus / a le focus",
         "docFile": "Tauri.md"
       },
       {
@@ -3380,7 +3380,7 @@
         "params": [],
         "returns": "int",
         "static": false,
-        "doc": "`getHeight()` / `setHeight(height:int)` — Idem pour la hauteur",
+        "doc": "`getHeight()` / `setHeight(height:int)` — Hauteur intérieure (pixels logiques)",
         "docFile": "Tauri.md"
       },
       {
@@ -3388,7 +3388,7 @@
         "params": [],
         "returns": "string",
         "static": false,
-        "doc": "`getTitle()` / `setTitle(title:string)` — Lit/modifie un titre en mémoire, pas celui de la fenêtre réelle",
+        "doc": "`getTitle()` / `setTitle(title:string)` — Titre de la fenêtre",
         "docFile": "Tauri.md"
       },
       {
@@ -3396,7 +3396,7 @@
         "params": [],
         "returns": "string",
         "static": false,
-        "doc": "`getUrl()` / `setUrl(url:string)` — Idem pour l'URL",
+        "doc": "`getUrl()` / `setUrl(url:string)` — Page affichée ; `setUrl` navigue (URL complète ou chemin relatif à la page courante)",
         "docFile": "Tauri.md"
       },
       {
@@ -3404,7 +3404,7 @@
         "params": [],
         "returns": "int",
         "static": false,
-        "doc": "`getWidth()` / `setWidth(width:int)` — Idem pour la largeur",
+        "doc": "`getWidth()` / `setWidth(width:int)` — Largeur intérieure (pixels logiques)",
         "docFile": "Tauri.md"
       },
       {
@@ -3442,7 +3442,7 @@
         "params": [],
         "returns": "bool",
         "static": false,
-        "doc": "`focus()` / `hasFocus()` → `bool` — État simulé",
+        "doc": "`focus()` / `hasFocus()` → `bool` — Donne le focus / a le focus",
         "docFile": "Tauri.md"
       },
       {
@@ -3450,7 +3450,7 @@
         "params": [],
         "returns": "bool",
         "static": false,
-        "doc": "`isMinimized()` / `isMaximized()` → `bool` — État simulé",
+        "doc": "`isMinimized()` / `isMaximized()` → `bool` — Réduite / agrandie",
         "docFile": "Tauri.md"
       },
       {
@@ -3458,7 +3458,7 @@
         "params": [],
         "returns": "bool",
         "static": false,
-        "doc": "`isMinimized()` / `isMaximized()` → `bool` — État simulé",
+        "doc": "`isMinimized()` / `isMaximized()` → `bool` — Réduite / agrandie",
         "docFile": "Tauri.md"
       },
       {
@@ -3466,7 +3466,7 @@
         "params": [],
         "returns": "bool",
         "static": false,
-        "doc": "`open()` / `close()` / `isOpen()` → `bool` — État simulé, ne ferme/rouvre pas la vraie fenêtre",
+        "doc": "`open()` / `close()` / `isOpen()` → `bool` — Affiche au premier plan (même réduite) / ferme (`run()` rend la main) / fenêtre visible",
         "docFile": "Tauri.md"
       },
       {
@@ -3491,7 +3491,7 @@
         "params": [],
         "returns": "void",
         "static": false,
-        "doc": "`minimize()` / `maximize()` / `restore()` — État simulé",
+        "doc": "`minimize()` / `maximize()` / `restore()` — Réduit / agrandit / restaure",
         "docFile": "Tauri.md"
       },
       {
@@ -3499,7 +3499,7 @@
         "params": [],
         "returns": "void",
         "static": false,
-        "doc": "`minimize()` / `maximize()` / `restore()` — État simulé",
+        "doc": "`minimize()` / `maximize()` / `restore()` — Réduit / agrandit / restaure",
         "docFile": "Tauri.md"
       },
       {
@@ -3520,7 +3520,7 @@
         "params": [],
         "returns": "void",
         "static": false,
-        "doc": "`open()` / `close()` / `isOpen()` → `bool` — État simulé, ne ferme/rouvre pas la vraie fenêtre",
+        "doc": "`open()` / `close()` / `isOpen()` → `bool` — Affiche au premier plan (même réduite) / ferme (`run()` rend la main) / fenêtre visible",
         "docFile": "Tauri.md"
       },
       {
@@ -3528,7 +3528,7 @@
         "params": [],
         "returns": "void",
         "static": false,
-        "doc": "`minimize()` / `maximize()` / `restore()` — État simulé",
+        "doc": "`minimize()` / `maximize()` / `restore()` — Réduit / agrandit / restaure",
         "docFile": "Tauri.md"
       },
       {
@@ -3536,7 +3536,7 @@
         "params": [],
         "returns": "void",
         "static": false,
-        "doc": "`run()` → `void` — Ouvre la vraie fenêtre (bloquant, thread principal requis)",
+        "doc": "`run()` → `void` — Ouvre la vraie fenêtre (bloquant jusqu'à sa fermeture, thread principal requis)",
         "docFile": "Tauri.md"
       },
       {
@@ -3549,7 +3549,7 @@
         ],
         "returns": "void",
         "static": false,
-        "doc": "`getHeight()` / `setHeight(height:int)` — Idem pour la hauteur",
+        "doc": "`getHeight()` / `setHeight(height:int)` — Hauteur intérieure (pixels logiques)",
         "docFile": "Tauri.md"
       },
       {
@@ -3562,7 +3562,7 @@
         ],
         "returns": "void",
         "static": false,
-        "doc": "`getTitle()` / `setTitle(title:string)` — Lit/modifie un titre en mémoire, pas celui de la fenêtre réelle",
+        "doc": "`getTitle()` / `setTitle(title:string)` — Titre de la fenêtre",
         "docFile": "Tauri.md"
       },
       {
@@ -3575,7 +3575,7 @@
         ],
         "returns": "void",
         "static": false,
-        "doc": "`getUrl()` / `setUrl(url:string)` — Idem pour l'URL",
+        "doc": "`getUrl()` / `setUrl(url:string)` — Page affichée ; `setUrl` navigue (URL complète ou chemin relatif à la page courante)",
         "docFile": "Tauri.md"
       },
       {
@@ -3588,7 +3588,7 @@
         ],
         "returns": "void",
         "static": false,
-        "doc": "`getWidth()` / `setWidth(width:int)` — Idem pour la largeur",
+        "doc": "`getWidth()` / `setWidth(width:int)` — Largeur intérieure (pixels logiques)",
         "docFile": "Tauri.md"
       }
     ],

@@ -10,6 +10,8 @@ use once_cell::sync::Lazy;
 
 use ocara_runtime::{alloc_str, ptr_to_str, free_str};
 
+mod window;
+
 /// Codes d'erreur TauriException (voir docs/builtins/Tauri.md)
 const ERR_TAURI_DUPLICATE_HANDLER: i64 = 101;
 
@@ -26,7 +28,7 @@ struct HandlerInfo {
 }
 
 // Structure représentant une fenêtre Tauri côté Ocara
-struct OcaraTauriWindow {
+pub(crate) struct OcaraTauriWindow {
     title: String,
     width: i64,
     height: i64,
@@ -46,12 +48,14 @@ struct OcaraTauriWindow {
     // extern "C" fn(json_args_ptr: i64) -> i64 (pointeur vers une string JSON
     // "{"ok":true,"value":...}" ou "{"ok":false,"error":"..."}").
     handlers: HashMap<String, HandlerInfo>, // command_name → (trampoline_ptr, noms de paramètres ordonnés)
-    // TODO: Ajouter les handles natifs Tauri si besoin
+    /// Application Tauri pendant `run()` : les méthodes de fenêtre agissent
+    /// alors sur la vraie fenêtre (voir window.rs).
+    app: Option<tauri::AppHandle>,
 }
 
 // Table globale des fenêtres créées (clé = pointeur Ocara)
 // Convention du projet : once_cell::sync::Lazy plutôt que lazy_static (cf. dotenv.rs)
-static TAURI_WINDOWS: Lazy<Mutex<HashMap<i64, Arc<Mutex<OcaraTauriWindow>>>>> = Lazy::new(|| {
+pub(crate) static TAURI_WINDOWS: Lazy<Mutex<HashMap<i64, Arc<Mutex<OcaraTauriWindow>>>>> = Lazy::new(|| {
     Mutex::new(HashMap::new())
 });
 
@@ -95,6 +99,7 @@ pub extern "C" fn Tauri_init(this: i64, options_ptr: i64) {
         has_focus: true,
         event_callbacks: HashMap::new(),
         handlers: HashMap::new(),
+        app: None,
     }));
     TAURI_WINDOWS.lock().unwrap().insert(this, win);
 }
@@ -146,202 +151,6 @@ pub extern "C" fn Tauri_notify(this: i64, options_ptr: i64) {
     let map = TAURI_WINDOWS.lock().unwrap();
     if let Some(_win) = map.get(&this) {
         println!("[Tauri_notify] options: {}", options);
-    }
-}
-
-// ─────────────────────────────────────────────────────────────
-// Méthodes d'accès et gestion de fenêtre (parité avec autres builtins)
-// ─────────────────────────────────────────────────────────────
-
-/// Récupère le titre de la fenêtre
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_getTitle(this: i64) -> i64 {
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        let title = win.lock().unwrap().title.clone();
-        unsafe { alloc_str(&title) }
-    } else {
-        0
-    }
-}
-
-/// Définit le titre de la fenêtre
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_setTitle(this: i64, title_ptr: i64) {
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        let title = unsafe { ptr_to_str(title_ptr).to_string() };
-        win.lock().unwrap().title = title;
-    }
-}
-
-/// Récupère la largeur de la fenêtre
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_getWidth(this: i64) -> i64 {
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        win.lock().unwrap().width
-    } else {
-        800
-    }
-}
-
-/// Définit la largeur de la fenêtre
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_setWidth(this: i64, width: i64) {
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        win.lock().unwrap().width = width;
-    }
-}
-
-/// Récupère la hauteur de la fenêtre
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_getHeight(this: i64) -> i64 {
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        win.lock().unwrap().height
-    } else {
-        600
-    }
-}
-
-/// Définit la hauteur de la fenêtre
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_setHeight(this: i64, height: i64) {
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        win.lock().unwrap().height = height;
-    }
-}
-
-/// Récupère l'URL courante
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_getUrl(this: i64) -> i64 {
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        let url = win.lock().unwrap().url.clone();
-        unsafe { alloc_str(&url) }
-    } else {
-        0
-    }
-}
-
-/// Définit l'URL de la fenêtre
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_setUrl(this: i64, url_ptr: i64) {
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        let url = unsafe { ptr_to_str(url_ptr).to_string() };
-        win.lock().unwrap().url = url;
-    }
-}
-
-/// Ouvre la fenêtre (si minimisée/fermée)
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_open(this: i64) {
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        let mut w = win.lock().unwrap();
-        w.is_open = true;
-        w.is_minimized = false;
-    }
-}
-
-/// Ferme la fenêtre
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_close(this: i64) {
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        let mut w = win.lock().unwrap();
-        w.is_open = false;
-    }
-}
-
-/// Vérifie si la fenêtre est ouverte
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_isOpen(this: i64) -> i64 {
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        if win.lock().unwrap().is_open { 1 } else { 0 }
-    } else {
-        0
-    }
-}
-
-/// Met la fenêtre au premier plan
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_focus(this: i64) {
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        let mut w = win.lock().unwrap();
-        w.has_focus = true;
-    }
-}
-
-/// Minimise la fenêtre
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_minimize(this: i64) {
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        let mut w = win.lock().unwrap();
-        w.is_minimized = true;
-        w.is_maximized = false;
-    }
-}
-
-/// Maximiser la fenêtre
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_maximize(this: i64) {
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        let mut w = win.lock().unwrap();
-        w.is_maximized = true;
-        w.is_minimized = false;
-    }
-}
-
-/// Restaure la fenêtre (si minimisée/maximisée)
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_restore(this: i64) {
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        let mut w = win.lock().unwrap();
-        w.is_minimized = false;
-        w.is_maximized = false;
-    }
-}
-
-/// Vérifie si la fenêtre a le focus
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_hasFocus(this: i64) -> i64 {
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        if win.lock().unwrap().has_focus { 1 } else { 0 }
-    } else {
-        0
-    }
-}
-
-/// Vérifie si la fenêtre est minimisée
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_isMinimized(this: i64) -> i64 {
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        if win.lock().unwrap().is_minimized { 1 } else { 0 }
-    } else {
-        0
-    }
-}
-
-/// Vérifie si la fenêtre est maximisée
-#[unsafe(no_mangle)]
-pub extern "C" fn Tauri_isMaximized(this: i64) -> i64 {
-    let map = TAURI_WINDOWS.lock().unwrap();
-    if let Some(win) = map.get(&this) {
-        if win.lock().unwrap().is_maximized { 1 } else { 0 }
-    } else {
-        0
     }
 }
 
@@ -627,12 +436,12 @@ pub extern "C" fn Tauri_run(this: i64) {
         return;
     }
     clear_inherited_gtk_env();
-    let (title, width, height, url) = {
+    let (title, width, height, url, maximized, minimized) = {
         let map = TAURI_WINDOWS.lock().unwrap();
         match map.get(&this) {
             Some(win) => {
                 let w = win.lock().unwrap();
-                (w.title.clone(), w.width, w.height, w.url.clone())
+                (w.title.clone(), w.width, w.height, w.url.clone(), w.is_maximized, w.is_minimized)
             }
             None => {
                 eprintln!("[Tauri_run] fenêtre introuvable pour ce handle, abandon.");
@@ -782,22 +591,35 @@ pub extern "C" fn Tauri_run(this: i64) {
     // `window.ocara.invoke` : voir build_ipc_shim_script pour le détail.
     let shim_script = build_ipc_shim_script(this);
     let setup = move |app: &mut tauri::App<tauri::Wry>| -> Result<(), Box<dyn std::error::Error>> {
-        tauri::WebviewWindowBuilder::new(app, "main", webview_url)
+        let window = tauri::WebviewWindowBuilder::new(app, window::MAIN_LABEL, webview_url)
             .title(&title)
             .inner_size(width as f64, height as f64)
+            .maximized(maximized)
             .initialization_script(&shim_script)
             .build()?;
+        if minimized {
+            let _ = window.minimize();
+        }
+        window::track_size(this, &window);
+        let handle = app.handle().clone();
+        window::state(this, |w| w.app = Some(handle));
         Ok(())
     };
 
     // Garé pendant toute la boucle d'événements : les autres threads (serveur
     // HTTP) peuvent collecter leurs cycles ; un handler Ocara se recompte.
+    // `run_return` et non `run` : `run` termine le processus à la fermeture
+    // de la dernière fenêtre, et le code Ocara qui suit `ui.run()` ne
+    // s'exécutait jamais.
     let parked = ocara_runtime::rc::park();
-    if let Err(e) = tauri::Builder::<tauri::Wry>::new()
+    match tauri::Builder::<tauri::Wry>::new()
         .invoke_handler(invoke_handler)
         .setup(setup)
-        .run(context) {
-        eprintln!("[Tauri_run] erreur au lancement : {e}");
+        .build(context) {
+        Ok(app) => {
+            app.run_return(|_, _| {});
+        }
+        Err(e) => eprintln!("[Tauri_run] erreur au lancement : {e}"),
     }
     drop(parked);
 
