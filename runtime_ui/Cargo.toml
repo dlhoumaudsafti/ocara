@@ -1,0 +1,15 @@
+[package]
+name    = "ocara_runtime_ui"
+version = "1.0.0"
+edition = "2024"
+
+# Partie commune aux deux backends d'`ocara.UI` (desktop : runtime_tauri,
+# Android : runtime_android/ui), liée dans chacun (rlib) : arbre et état des
+# nœuds, actions liées par `ui.on`, événements, valeur `UIEvent`. Le runtime
+# Ocara est appelé en ABI C (pas de copie d'ocara_runtime, voir
+# runtime/src/native.rs).
+[lib]
+name = "ocara_runtime_ui"
+
+[dependencies]
+serde_json = "1"

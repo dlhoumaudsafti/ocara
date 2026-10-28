@@ -2,10 +2,11 @@
 //! événements Kotlin → Ocara (bouton retour), barres système, orientation,
 //! plein écran, écran maintenu allumé, vibration, partage, boîtes de
 //! dialogue et messages brefs (noms standard d'`ocara.UI` : alert, confirm,
-//! toast).
+//! toast). Backend Android d'`ocara.UI` : ui.rs.
 #![allow(non_snake_case)]
 
 mod events;
+mod ui;
 
 use ocara_runtime_android_common::ffi::str_arg;
 use ocara_runtime_android_common::java::{invoke, Arg, Ret};

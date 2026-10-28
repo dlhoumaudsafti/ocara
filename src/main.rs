@@ -172,7 +172,9 @@ fn run() {
     let obj_path = core::cli::object_path(&args.output);
     // Ne lier libocara_runtime_tauri.a + GTK/WebKit que si le programme importe
     // réellement ocara.Tauri (voir la doc dans src/codegen/link.rs).
+    // `ocara.UI` sur desktop : fenêtre Tauri et moteur de rendu (runtime_tauri/src/ui).
     let needs_tauri = ir_module.imports.iter().any(|m| m == "Tauri");
+    let needs_ui = ir_module.imports.iter().any(|m| m == "UI");
     let needs_sdl = ir_module.imports.iter().any(|m| m == "SDL");
     let needs_image = ir_module.imports.iter().any(|m| m == "Image");
 
@@ -243,7 +245,7 @@ fn run() {
         return;
     }
 
-    match link(&obj_bytes, &obj_path, &args.output, args.release, needs_tauri, needs_sdl, needs_image) {
+    match link(&obj_bytes, &obj_path, &args.output, args.release, needs_tauri || needs_ui, needs_sdl, needs_image) {
         Ok(()) => {
             println!("compilation réussie → {}", args.output.display());
         }

@@ -6,16 +6,14 @@ web…) et les **actions** que déclenchent leurs événements. Le même fichier
 sert le desktop (Tauri) et Android (Compose) ; le code Ocara lie chaque
 action à une méthode (`ui.on("search", GarageController::search)`).
 
-Le fichier est lu **à la compilation**. Une erreur (YAML invalide, type ou
+Le fichier est lu **à la compilation** (`use UI("x.oc.ui")`). Une erreur (YAML invalide, type ou
 propriété inconnue, valeur hors de son domaine, `id` en double, style non
 déclaré…) est une erreur de compilation, située à la ligne et à la colonne
 du `.oc.ui`. Le compilateur en tire un arbre JSON normalisé, embarqué dans
 le binaire et interprété par le moteur de rendu de la plateforme.
 
-> État : le schéma, sa validation et les deux moteurs de rendu (desktop et
-> Android) sont en place, visibles par les aperçus ci-dessous. Le
-> branchement dans un programme (`use UI("x.oc.ui")`, `ui.on`) arrive avec
-> l'étape 5 de [la fiche `ocara.UI`](roadmap.d/langage-builtin-ui-multiplateforme.md).
+> Un programme affiche un `.oc.ui` avec le builtin [`ocara.UI`](builtins/UI.md)
+> (`use UI("x.oc.ui")`, `ui.on`, `get`/`set`).
 
 ## Vérifier un fichier
 

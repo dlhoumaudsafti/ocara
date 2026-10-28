@@ -1456,10 +1456,11 @@ MultiplicativeExpr ::= UnaryExpr ( ( "*" | "/" | "%" ) UnaryExpr )*
 UnaryExpr    ::= ( "not" | "-" | "resolve" | "++" | "--" ) UnaryExpr
                | PostfixExpr
 PostfixExpr  ::= PrimaryExpr PostfixTail*
-PostfixTail  ::= "." Identifier ( "(" ArgList? ")" )?   (* sans appel sur une map<string, V> : clé, §7.4 *)
+PostfixTail  ::= "." MemberName ( "(" ArgList? ")" )?   (* sans appel sur une map<string, V> : clé, §7.4 *)
                | "(" ArgList? ")"
                | "[" Expression "]"
                | "++" | "--"
+MemberName   ::= Identifier | "on"                       (* `ui.on(…)`, ocara.UI *)
 
 PrimaryExpr  ::= Literal
                | "self"
@@ -1488,6 +1489,7 @@ NamedArg       ::= Identifier ":" Expression
 
 - **Priorité de `to`/`until`** : les opérateurs de plage ont une précédence inférieure à l'addition — `0 until n+1` est `0 until (n+1)`.
 - **Annotation de type postfix** : dans un contexte `match` ou `switch`, l'accès `expr.field:type` est syntaxiquement autorisé ; l'annotation de type est ignorée sémantiquement (hint visuel uniquement).
+- **`on` après un point** : le mot-clé `on` (`try … on e`) est aussi un nom de membre après `.`, pour `ui.on("action", Classe::methode)` (`ocara.UI`) ; il reste réservé partout ailleurs.
 - **L'appel de fonction** sans receveur est une `PostfixExpr` dont le `PrimaryExpr` est un `Identifier` suivi de `( ArgList? )`.
 - **Arguments nommés** (`f(name: expr)`) : un appel est soit entièrement positionnel, soit entièrement nommé — jamais un mélange (voir §14.6).
 - **Méthodes d'instance des types primitifs** : `string`/`array<T>`/`map<K,V>` ont les méthodes de `String`/`Array`/`Map` en instance (`s.trim()` ≡ `String::trim(s)`), et ces types ainsi que `int`/`float`/`bool` ont les conversions de `Convert` sous un nom sans préfixe de type source (`s.toInt()` ≡ `Convert::strToInt(s)`, `n.toStr()`, `arr.toStr(sep)`... — liste complète dans `docs/builtins/Convert.md`). Résolu sur le type **statique** du receveur (pas sur `mixed`) ; ce sont les seules méthodes de `int`/`float`/`bool`.
@@ -4258,10 +4260,11 @@ AdditiveExpr ::= MultiplicativeExpr ( ( "+" | "-" ) MultiplicativeExpr )*
 MultiplicativeExpr ::= UnaryExpr ( ( "*" | "/" | "%" ) UnaryExpr )*
 UnaryExpr   ::= ( "not" | "-" | "resolve" | "++" | "--" ) UnaryExpr | PostfixExpr
 PostfixExpr ::= PrimaryExpr PostfixTail*
-PostfixTail ::= "." Identifier ( "(" ArgList? ")" )?   (* sans appel sur une map<string, V> : clé, §7.4 *)
+PostfixTail ::= "." MemberName ( "(" ArgList? ")" )?   (* sans appel sur une map<string, V> : clé, §7.4 *)
               | "(" ArgList? ")"
               | "[" Expression "]"
               | "++" | "--"
+MemberName  ::= Identifier | "on"                       (* `ui.on(…)`, ocara.UI *)
 
 PrimaryExpr ::= Literal
               | "self"

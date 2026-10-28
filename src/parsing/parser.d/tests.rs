@@ -16,6 +16,14 @@ mod tests {
         Parser::new(tokens).parse_expr().expect("parse error")
     }
 
+    // ── `on` après un point : `ui.on("action", Classe::methode)` (ocara.UI)
+    #[test]
+    fn on_is_a_member_name_after_a_dot() {
+        let Expr::Call { callee, .. } = parse_expr("ui.on(\"search\", C::search)") else { panic!("appel attendu") };
+        let Expr::Field { field, .. } = callee.as_ref() else { panic!("membre attendu") };
+        assert_eq!(field, "on");
+    }
+
     // ── enum : virgules, `case` (docs/roadmap.d/langage-enum-cases-backing-methods.md)
 
     fn parse_err(src: &str) -> String {

@@ -1368,6 +1368,10 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     builder.emit(Inst::Alloc { dest: dest.clone(), class: "__fat_ptr".into() });
                     builder.emit(Inst::SetField { obj: dest.clone(), field: "func".into(), src: func_addr, offset: 0 });
                     builder.emit(Inst::SetField { obj: dest.clone(), field: "env".into(),  src: zero,      offset: 8 });
+                    // Closure allouée à chaque lecture : temporaire de
+                    // l'instruction, comme `System::OS` (sinon `f(H::show)` ou
+                    // `ui.on("a", H::show)` la laissait fuir).
+                    crate::lower::stmt::rc::track(builder, &dest);
                 } else {
                     // Fallback : charge le global manglé comme pointeur
                     let idx = builder.module.intern_string(&key);

@@ -291,6 +291,10 @@ if ! ./ci/ui_engine.sh; then
     fail=1
     failed="$failed ui/engine"
 fi
+if ! ./ci/ui_app.sh; then
+    fail=1
+    failed="$failed ui/app"
+fi
 
 rm -f "$TMP"
 

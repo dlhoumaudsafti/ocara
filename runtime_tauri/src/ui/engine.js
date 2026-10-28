@@ -329,6 +329,24 @@
       return p[prop];
     },
 
+    /// État complet (page rechargée : celui gardé par l'hôte).
+    restore: function (saved) {
+      for (var id in saved) {
+        state[id] = state[id] || {};
+        for (var prop in saved[id]) state[id][prop] = saved[id][prop];
+      }
+      render();
+    },
+
+    /// Message bref en bas de la fenêtre.
+    toast: function (text) {
+      var t = el("div", "oc-toast");
+      t.textContent = text;
+      document.body.appendChild(t);
+      setTimeout(function () { t.classList.add("oc-toast-out"); }, 2600);
+      setTimeout(function () { t.remove(); }, 3000);
+    },
+
     navigate: function (screen) {
       if (!tree.screens[screen] || screen === current) return;
       history.push(current);

@@ -1,0 +1,6 @@
+UIException 101: action 'missing' absente du .oc.ui (actions : ["back","open_car","search"])
+ready: action=ready index=-1
+placeholder: Rechercher
+value: Clio
+UIException 102: id 'nope' absent du .oc.ui (id : car_title, cars, search)
+run terminé

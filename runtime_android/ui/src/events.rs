@@ -31,7 +31,7 @@ extern "C" fn receive(event: *const u8, event_len: usize, data: *const u8, data_
 }
 
 /// Lance le thread des callbacks et branche le récepteur (une fois).
-fn start() {
+pub(crate) fn start() {
     QUEUE.get_or_init(|| {
         let (tx, rx) = mpsc::channel::<(String, String)>();
         std::thread::spawn(move || {
@@ -45,6 +45,10 @@ fn start() {
 }
 
 fn dispatch(event: &str, data: &str) {
+    // Messages du moteur d'`ocara.UI` (OcaraUIEngine.kt).
+    if event == "__ui" {
+        return crate::ui::receive(data);
+    }
     let callbacks: Vec<i64> = LISTENERS.lock().unwrap().iter()
         .filter(|(name, _)| name == event)
         .map(|&(_, callback)| callback)

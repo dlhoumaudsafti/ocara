@@ -1,0 +1,46 @@
+// Interface native décrite par garage.oc.ui (docs/builtins/UI.md) : la même
+// source s'affiche dans une fenêtre Tauri (desktop) et en Compose (Android).
+architecture permissive
+
+import ocara.UI
+import ocara.UIEvent
+import ocara.IO
+
+class GarageController {
+    public static method search(ui:UI, event:UIEvent): void {
+        var query:string = ui.get("search", "value")
+        var cars:array<map<string, mixed>> = []
+        for car in GarageController::all() {
+            var brand:string = car["brand"]
+            // Marque qui contient la recherche (sans tenir compte de la casse).
+            if query equal "" or brand.lower().split(query.lower()).len() greater 1 {
+                cars.push(car)
+            }
+        }
+        ui.setItems("cars", cars)
+        ui.toast(`${cars.len()} voiture(s)`)
+    }
+
+    public static method openCar(ui:UI, event:UIEvent): void {
+        var car:map<string, mixed> = event.value()
+        ui.set("car_title", "value", `${car["brand"]} ${car["model"]}`)
+        ui.navigate("details")
+    }
+
+    public static method all(): array<map<string, mixed>> {
+        return [
+            {"brand": "Renault", "model": "Clio"},
+            {"brand": "Peugeot", "model": "208"},
+            {"brand": "Citroën", "model": "C3"},
+        ]
+    }
+}
+
+function main(): void {
+    const ui:UI = use UI("garage.oc.ui")
+    ui.on("search", GarageController::search)
+    ui.on("open_car", GarageController::openCar)
+    ui.setItems("cars", GarageController::all())
+    ui.run()
+    IO::writeln("fermé")
+}

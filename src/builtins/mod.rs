@@ -38,6 +38,7 @@ pub mod unittest;
 pub mod sqlite;
 pub mod mysql;
 pub mod tauri;
+pub mod ui;
 pub mod sdl;
 pub mod image;
 pub mod android;
@@ -64,6 +65,9 @@ pub fn builtin_class(name: &str) -> Option<ClassInfo> {
         "Directory"   => Some(directory::class()),
         "JSON"        => Some(json::class()),
         "Tauri"       => Some(tauri::tauri_class()),
+        "UI"          => Some(ui::class()),
+        "UIEvent"     => Some(ui::event_class()),
+        "UIException" => Some(exception::ui_exception_class()),
         "SDL"         => Some(sdl::sdl_class()),
         "Image"       => Some(image::class()),
         "HTTPRequest" => Some(httprequest::class()),
@@ -134,6 +138,9 @@ pub fn all_builtins() -> Vec<(&'static str, ClassInfo)> {
         ("HTTPServerRequest", httpserver::request_class()),
         ("HTTPServerSession", httpserver::session_class()),
         ("Tauri", tauri::tauri_class()),
+        ("UI", ui::class()),
+        ("UIEvent", ui::event_class()),
+        ("UIException", exception::ui_exception_class()),
         ("SDL", sdl::sdl_class()),
         ("Image", image::class()),
         ("HTML",        html::class()),

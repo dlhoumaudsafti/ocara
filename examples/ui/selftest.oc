@@ -1,0 +1,36 @@
+architecture permissive
+
+import ocara.UI
+import ocara.UIEvent
+import ocara.IO
+
+// Auto-test d'`ocara.UI` (ci/ui_app.sh) : le gestionnaire `ready` pilote l'interface
+// (get, set, setItems, navigate, erreurs) puis la ferme. Ouvre une fenêtre.
+class Checks {
+    public static method ready(ui:UI, event:UIEvent): void {
+        IO::writeln(`ready: action=${event.action()} index=${event.index()}`)
+        IO::writeln(`placeholder: ${ui.get("search", "placeholder")}`)
+        ui.set("search", "value", "Clio")
+        IO::writeln(`value: ${ui.get("search", "value")}`)
+        ui.setItems("cars", [{"brand": "Renault", "model": "Clio"}])
+        ui.navigate("details")
+        try {
+            ui.set("nope", "value", 1)
+        } on e is UIException {
+            IO::writeln(`UIException ${e.code}: ${e.message}`)
+        }
+        ui.close()
+    }
+}
+
+function main(): void {
+    const ui:UI = use UI("garage.oc.ui")
+    ui.on("ready", Checks::ready)
+    try {
+        ui.on("missing", Checks::ready)
+    } on e is UIException {
+        IO::writeln(`UIException ${e.code}: ${e.message}`)
+    }
+    ui.run()
+    IO::writeln("run terminé")
+}

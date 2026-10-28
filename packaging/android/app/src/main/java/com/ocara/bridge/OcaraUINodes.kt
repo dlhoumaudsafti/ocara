@@ -31,6 +31,12 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -69,6 +75,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -294,7 +301,8 @@ private fun Node(node: JSONObject, ctx: Ctx, modifier: Modifier) {
             if (value == null) LinearProgressIndicator(m)
             else LinearProgressIndicator(progress = { value.toFloat() }, modifier = m)
         }
-        "input", "date", "time" -> Input(type, p, id, ctx, enabled, m)
+        "input" -> Input(type, p, id, ctx, enabled, m)
+        "date", "time" -> DateTimeField(type, p, id, enabled, m)
         "checkbox", "switch" -> {
             val checked = if (p.containsKey("bind")) bound(p, ctx) == "true" else p.flag("checked", false)
             val toggle = { value: Boolean ->
@@ -448,14 +456,10 @@ private fun Input(type: String, p: Map<String, Any?>, id: String?, ctx: Ctx, ena
     val keyboard = when {
         kind == "password" -> KeyboardType.Password
         kind == "email" -> KeyboardType.Email
-        kind == "number" || type != "input" -> KeyboardType.Number
+        kind == "number" -> KeyboardType.Number
         else -> KeyboardType.Text
     }
-    val placeholder = p.text("placeholder") ?: when (type) {
-        "date" -> "AAAA-MM-JJ"
-        "time" -> "HH:MM"
-        else -> null
-    }
+    val placeholder = p.text("placeholder")
     OutlinedTextField(
         value = value,
         onValueChange = { text ->
@@ -473,6 +477,59 @@ private fun Input(type: String, p: Map<String, Any?>, id: String?, ctx: Ctx, ena
         keyboardOptions = KeyboardOptions(keyboardType = keyboard, imeAction = if (multiline) ImeAction.Default else ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { OcaraUIEngine.fire(p, "onSubmit", id, value) }),
     )
+}
+
+/** Date (`AAAA-MM-JJ`) ou heure (`HH:MM`) choisie dans la boîte native de Material 3. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DateTimeField(type: String, p: Map<String, Any?>, id: String?, enabled: Boolean, modifier: Modifier) {
+    var open by remember { mutableStateOf(false) }
+    val value = p.text("value") ?: ""
+    val choose = { text: String ->
+        open = false
+        pick(p, id, text)
+    }
+    Box(modifier) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            modifier = Modifier.fillMaxWidth(),
+            enabled = enabled,
+            readOnly = true,
+            placeholder = { Text(if (type == "date") "AAAA-MM-JJ" else "HH:MM") },
+            singleLine = true,
+        )
+        // Le champ est en lecture seule : un appui ouvre la boîte de choix.
+        Box(Modifier.matchParentSize().clickable(enabled = enabled && p["readonly"] != true) { open = true })
+    }
+    if (!open) return
+    val dismiss = { open = false }
+    if (type == "date") {
+        val utc = java.util.TimeZone.getTimeZone("UTC")
+        val format = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT).apply { timeZone = utc }
+        val initial = runCatching { format.parse(value)?.time }.getOrNull()
+        val state = rememberDatePickerState(initialSelectedDateMillis = initial)
+        DatePickerDialog(
+            onDismissRequest = dismiss,
+            confirmButton = {
+                TextButton({ state.selectedDateMillis?.let { choose(format.format(java.util.Date(it))) } ?: dismiss() }) {
+                    Text(stringResource(android.R.string.ok))
+                }
+            },
+            dismissButton = { TextButton(dismiss) { Text(stringResource(android.R.string.cancel)) } },
+        ) { DatePicker(state) }
+    } else {
+        val parts = value.split(":").mapNotNull { it.toIntOrNull() }
+        val state = rememberTimePickerState(parts.getOrElse(0) { 12 }, parts.getOrElse(1) { 0 }, is24Hour = true)
+        AlertDialog(
+            onDismissRequest = dismiss,
+            confirmButton = {
+                TextButton({ choose("%02d:%02d".format(state.hour, state.minute)) }) { Text(stringResource(android.R.string.ok)) }
+            },
+            dismissButton = { TextButton(dismiss) { Text(stringResource(android.R.string.cancel)) } },
+            text = { TimePicker(state) },
+        )
+    }
 }
 
 private fun options(p: Map<String, Any?>): List<Pair<String, String>> {

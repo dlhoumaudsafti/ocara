@@ -12,7 +12,7 @@ use crate::parsing::{lexer::Lexer, parser::Parser};
 
 /// Les modules `ocara.*` sont livrés avec le runtime.
 pub const OCARA_BUILTINS: &[&str] = &[
-    "IO", "Math", "String", "Array", "Map", "JSON", "Tauri", "SDL", "Image",
+    "IO", "Math", "String", "Array", "Map", "JSON", "Tauri", "UI", "UIEvent", "SDL", "Image",
     "Convert", "System", "Regex", "HTTPRequest", "HTTPResponse", "HTTPServer", "HTTPServerRequest", "HTTPServerSession", "SQLite", "MySQL", "MariaDB", "DotEnv", "YAML", "Thread", "Mutex",
     "DateTime", "Date", "Time", "UnitTest", "HTMLComponent", "HTML",
     "File", "Directory", "Exception", "FileException", "DirectoryException", "IOException", "SystemException",
@@ -20,7 +20,7 @@ pub const OCARA_BUILTINS: &[&str] = &[
     "DateTimeException", "DateException", "TimeException",
     "ThreadException", "MutexException",
     "UnitTestException", "HTTPServerException", "SQLiteException", "MySQLException", "MariaDBException", "DotEnvException", "YAMLException",
-    "SDLException", "TauriException", "ImageException", "AndroidException",
+    "SDLException", "TauriException", "ImageException", "AndroidException", "UIException",
     "AndroidPermissions", "AndroidNotifications", "AndroidSensors", "AndroidFiles", "AndroidCamera", "AndroidMicrophone", "AndroidAudio", "AndroidUI",
 ];
 

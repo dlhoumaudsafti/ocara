@@ -35,6 +35,7 @@ use super::desc::{
     DOTENV_BUILTINS,
     YAML_BUILTINS,
     TAURI_BUILTINS,
+    UI_BUILTINS,
     SDL_BUILTINS,
     IMAGE_BUILTINS,
     ANDROID_BUILTINS,
@@ -85,6 +86,7 @@ pub fn builtins() -> &'static [BuiltinDesc] {
         all.extend_from_slice(DOTENV_BUILTINS);
         all.extend_from_slice(YAML_BUILTINS);
         all.extend_from_slice(TAURI_BUILTINS);
+        all.extend_from_slice(UI_BUILTINS);
         all.extend_from_slice(SDL_BUILTINS);
         all.extend_from_slice(IMAGE_BUILTINS);
         all.extend_from_slice(ANDROID_BUILTINS);

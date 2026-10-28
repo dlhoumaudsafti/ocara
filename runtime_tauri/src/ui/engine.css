@@ -92,3 +92,9 @@ textarea.oc-input { min-height: 80px; resize: vertical; }
    boutons, textes, cases et icônes gardent leur taille (comme Compose). */
 .oc-column > :is(.oc-button, .oc-text, .oc-heading, .oc-checkbox, .oc-switch, .oc-icon, .oc-image),
 .oc-card > :is(.oc-button, .oc-text, .oc-heading, .oc-checkbox, .oc-switch, .oc-icon, .oc-image) { align-self: flex-start; }
+.oc-toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); max-width: 80%;
+  padding: 10px 16px; border-radius: 8px; background: #323232; color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .3); transition: opacity .4s;
+}
+.oc-toast-out { opacity: 0; }

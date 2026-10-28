@@ -1,0 +1,160 @@
+//! Backend Android d'`ocara.UI` : l'arbre du `.oc.ui` est affiché par le
+//! moteur Compose (`OcaraUIEngine.kt`) dans l'Activity ; ses messages
+//! reviennent par `OcaraBridge.nativeEvent("__ui", …)` (events.rs). État,
+//! actions et thread des gestionnaires : crate `runtime_ui`. Une seule
+//! interface est affichée à la fois.
+
+use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::{Condvar, Mutex};
+
+use serde_json::Value;
+
+use ocara_runtime_android_common::java::{invoke, Arg, Ret};
+use ocara_runtime_ui as core;
+use ocara_runtime_ui::ffi::{raise, str_arg};
+
+const SOURCE: &str = "UI";
+const ENGINE: &str = "com.ocara.bridge.OcaraUIEngine";
+const PLATFORM: &str = "com.ocara.bridge.OcaraUI";
+
+unsafe extern "C" {
+    /// runtime/src/rc.rs : finaliseur des objets `UI` (masque `W`).
+    fn __rc_register_window_finalizer(finalizer: extern "C" fn(i64));
+}
+
+/// Interface affichée (destinataire des messages du moteur).
+static SHOWN: AtomicI64 = AtomicI64::new(0);
+/// Vrai tant que `run()` attend la fermeture.
+static RUNNING: Mutex<bool> = Mutex::new(false);
+static CLOSED: Condvar = Condvar::new();
+
+fn engine(method: &str, args: &[Arg]) {
+    invoke(SOURCE, ENGINE, method, args, Ret::Void);
+}
+
+extern "C" fn finalize(this: i64) {
+    core::release(this);
+    let _ = SHOWN.compare_exchange(this, 0, Ordering::SeqCst, Ordering::SeqCst);
+}
+
+/// Message du moteur (`nativeEvent("__ui", json)`), thread des événements.
+pub(crate) fn receive(data: &str) {
+    let this = SHOWN.load(Ordering::SeqCst);
+    if this != 0 {
+        let message: Value = serde_json::from_str(data).unwrap_or(Value::Null);
+        core::post(this, &message);
+    }
+}
+
+/// Action sans gestionnaire : `close`, et `back` sur l'écran de départ,
+/// ferment l'app (comportement attendu du bouton retour).
+fn default_action(this: i64, action: &str) {
+    if matches!(action, "close" | "back") {
+        UI_close(this);
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_init(this: i64, tree: i64) {
+    unsafe { __rc_register_window_finalizer(finalize) };
+    crate::events::start();
+    core::init(this, &str_arg(tree), default_action);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_on(this: i64, action: i64, handler: i64) {
+    core::on(this, &str_arg(action), handler);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_get(this: i64, id: i64, prop: i64) -> i64 {
+    core::get(this, &str_arg(id), &str_arg(prop))
+}
+
+fn send_set(this: i64, id: &str, prop: &str, value: &Value) {
+    if SHOWN.load(Ordering::SeqCst) == this {
+        engine("set", &[Arg::Str(id), Arg::Str(prop), Arg::Str(&value.to_string())]);
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_set(this: i64, id: i64, prop: i64, value: i64) {
+    let (id, prop) = (str_arg(id), str_arg(prop));
+    let value = core::set(this, &id, &prop, value);
+    send_set(this, &id, &prop, &value);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_setItems(this: i64, id: i64, rows: i64) {
+    let id = str_arg(id);
+    let value = core::set(this, &id, "items", rows);
+    send_set(this, &id, "items", &value);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_navigate(this: i64, screen: i64) {
+    let screen = str_arg(screen);
+    core::check_screen(this, &screen);
+    if SHOWN.load(Ordering::SeqCst) == this {
+        engine("navigate", &[Arg::Str(&screen)]);
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_back(this: i64) {
+    if SHOWN.load(Ordering::SeqCst) == this {
+        engine("goBack", &[]);
+    }
+}
+
+/// `ui.run()` : affiche l'interface (état posé avant compris) et attend sa
+/// fermeture (`ui.close()`, action `close`, retour sur l'écran de départ).
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_run(this: i64) {
+    let tree = core::tree(this).unwrap_or(Value::Null);
+    SHOWN.store(this, Ordering::SeqCst);
+    *RUNNING.lock().unwrap() = true;
+    engine("show", &[Arg::Str(&tree.to_string()), Arg::Str(&core::state(this).to_string())]);
+    let mut running = RUNNING.lock().unwrap();
+    while *running {
+        running = CLOSED.wait(running).unwrap();
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_close(_this: i64) {
+    invoke(SOURCE, PLATFORM, "close", &[], Ret::Void);
+    *RUNNING.lock().unwrap() = false;
+    CLOSED.notify_all();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_toast(_this: i64, text: i64) {
+    invoke(SOURCE, PLATFORM, "toast", &[Arg::Str(&str_arg(text))], Ret::Void);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_alert(_this: i64, title: i64, text: i64) {
+    invoke(SOURCE, PLATFORM, "alert", &[Arg::Str(&str_arg(title)), Arg::Str(&str_arg(text))], Ret::Void);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_confirm(_this: i64, title: i64, text: i64) -> i64 {
+    invoke(SOURCE, PLATFORM, "confirm", &[Arg::Str(&str_arg(title)), Arg::Str(&str_arg(text))], Ret::Bool).bool()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_pickFile(_this: i64, _extensions: i64) -> i64 {
+    raise(core::ERR_UNAVAILABLE, "pickFile : pas encore disponible sur Android".to_string())
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_saveFile(_this: i64, _name: i64) -> i64 {
+    raise(core::ERR_UNAVAILABLE, "saveFile : pas encore disponible sur Android".to_string())
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_notify(_this: i64, title: i64, text: i64) {
+    invoke(SOURCE, "com.ocara.bridge.OcaraNotifications", "show",
+        &[Arg::Str(&str_arg(title)), Arg::Str(&str_arg(text))], Ret::Int);
+}

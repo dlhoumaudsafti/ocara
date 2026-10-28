@@ -118,7 +118,7 @@ class MainActivity : ComponentActivity() {
     try {
       val json = JSONObject(file.readText())
       val tree = json.optJSONObject("tree") ?: json
-      OcaraUIEngine.show(tree.toString())
+      OcaraUIEngine.show(tree.toString(), "{}")
       json.optString("screen").takeIf { it.isNotEmpty() }?.let { OcaraUIEngine.navigate(it) }
       val updates = json.optJSONArray("set") ?: JSONArray()
       for (i in 0 until updates.length()) {

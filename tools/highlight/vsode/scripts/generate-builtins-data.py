@@ -33,6 +33,8 @@ CLASSES = [
     ("HTTPServerRequest", "httpserver", "request_class"),
     ("HTTPServerSession", "httpserver", "session_class"),
     ("Tauri", "tauri", "tauri_class"),
+    ("UI", "ui", "class"),
+    ("UIEvent", "ui", "event_class"),
     ("SDL", "sdl", "sdl_class"),
     ("Image", "image", "class"),
     ("AndroidPermissions", "android", "permissions_class"),
@@ -103,12 +105,13 @@ def extract_param_tuples(vec_arg):
     return out
 
 def simplify_type_text(t, local_vars):
-    # Aplatit sur une seule ligne + retire les virgules finales avant )/] :
-    # nécessaire pour les types multi-lignes imbriqués (ex: MySQL::query).
+    # Aplatit sur une seule ligne + retire les virgules finales avant )/]/} :
+    # nécessaire pour les types multi-lignes imbriqués (ex: MySQL::query,
+    # le `Type::Function { …, }` d'un helper comme `handler_ty()`).
     t = re.sub(r'\s+', '', t)
     t = re.sub(r'\.clone\(\)', '', t)
     for _ in range(4):
-        t2 = re.sub(r',\s*([\)\]])', r'\1', t)
+        t2 = re.sub(r',\s*([\)\]\}])', r'\1', t)
         if t2 == t:
             break
         t = t2
@@ -201,7 +204,13 @@ def parse_file(class_name, mod_name, fn_name):
     # `{ EXPR }` uniquement (largement suffisant en pratique) — un corps plus
     # complexe retombe sur le fallback "texte brut" de `simplify_type_text`,
     # comme avant l'ajout de cette résolution.
-    for fm in re.finditer(r'fn\s+(\w+)\s*\(\s*\)\s*->\s*Type\s*\{\s*(Type::[^;]+?);?\s*\}', full_text):
+    # Corps sur une ligne (`{ Type::String }`), ou sur plusieurs : jusqu'au
+    # `}` de la fonction, en début de ligne (celui d'un `Type::Function { … }`
+    # est indenté).
+    for fm in re.finditer(r'fn\s+(\w+)\s*\(\s*\)\s*->\s*Type\s*\{[ \t]*(Type::[^\n;]+?);?[ \t]*\}|fn\s+(\w+)\s*\(\s*\)\s*->\s*Type\s*\{\s*\n(\s*Type::.+?);?\s*\n\}', full_text, re.S):
+        if fm.group(3):
+            local_vars[fm.group(3) + "()"] = fm.group(4).strip()
+            continue
         local_vars[fm.group(1) + "()"] = fm.group(2).strip()
 
     # ── Fonctions helper -> is_static fixe (définies au niveau du FICHIER,

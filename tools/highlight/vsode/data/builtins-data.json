@@ -2928,7 +2928,7 @@
           },
           {
             "name": "f",
-            "type": "Type::Function{ret_ty:Box::new(Type::Int),param_tys:vec![Type::Named(\"HTTPServerRequest\".into())]"
+            "type": "Function<int(HTTPServerRequest)>"
           }
         ],
         "returns": "void",
@@ -2945,7 +2945,7 @@
           },
           {
             "name": "f",
-            "type": "Type::Function{ret_ty:Box::new(Type::Int),param_tys:vec![Type::Named(\"HTTPServerRequest\".into())]"
+            "type": "Function<int(HTTPServerRequest)>"
           }
         ],
         "returns": "void",
@@ -3791,6 +3791,257 @@
         "static": false,
         "doc": "`getWidth()` / `setWidth(width:int)` — Largeur intérieure (pixels logiques)",
         "docFile": "Tauri.md"
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "UI",
+    "methods": [
+      {
+        "name": "__init__",
+        "params": [
+          {
+            "name": "path",
+            "type": "string"
+          }
+        ],
+        "returns": "UI",
+        "static": true
+      },
+      {
+        "name": "alert",
+        "params": [
+          {
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "name": "text",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`ui.alert(title, text)` — boîte native, bloquante — `AlertDialog`, bloquante",
+        "docFile": "UI.md"
+      },
+      {
+        "name": "back",
+        "params": [],
+        "returns": "void",
+        "static": false,
+        "doc": "`back` — écran précédent ; sur l'écran de départ : rien (desktop), fermeture de l'app (Android) — le gestionnaire est appelé à la place sur l'écran de départ",
+        "docFile": "UI.md"
+      },
+      {
+        "name": "close",
+        "params": [],
+        "returns": "void",
+        "static": false,
+        "doc": "`close` — ferme la fenêtre (l'app sur Android) — le gestionnaire décide (`ui.close()`)",
+        "docFile": "UI.md"
+      },
+      {
+        "name": "confirm",
+        "params": [
+          {
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "name": "text",
+            "type": "string"
+          }
+        ],
+        "returns": "bool",
+        "static": false,
+        "doc": "`ui.confirm(title, text)` → `bool` — idem, vrai si validée — idem",
+        "docFile": "UI.md"
+      },
+      {
+        "name": "get",
+        "params": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "prop",
+            "type": "string"
+          }
+        ],
+        "returns": "mixed",
+        "static": false,
+        "doc": "`ui.get(id, prop)` → `mixed` — valeur courante : saisie de l'utilisateur, valeur posée par `set`, sinon celle du `.oc.ui`, sinon `null`",
+        "docFile": "UI.md"
+      },
+      {
+        "name": "navigate",
+        "params": [
+          {
+            "name": "screen",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`ui.navigate(screen)` — affiche l'écran (`UIException` 103 s'il n'est pas déclaré)",
+        "docFile": "UI.md"
+      },
+      {
+        "name": "notify",
+        "params": [
+          {
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "name": "text",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`ui.notify(title, text)` — notification système — notification (permission `notifications` requise, voir [AndroidNotifications](AndroidNotifications.md))",
+        "docFile": "UI.md"
+      },
+      {
+        "name": "on",
+        "params": [
+          {
+            "name": "action",
+            "type": "string"
+          },
+          {
+            "name": "handler",
+            "type": "Function<void(UI, UIEvent)>"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "Actions : `ui.on(action, handler)`\n\n`handler` est une méthode statique `(ui:UI, event:UIEvent): void`, comme\nun gestionnaire de route d'`HTTPServer`. L'action doit être déclarée dans le\n`.oc.ui` (`onClick: search`…) ; sinon `UIException` 101. Plusieurs\ngestionnaires d'une même action sont appelés dans l'ordre.\n\nActions particulières :\n\n| Action | Sans gestionnaire | Avec `ui.on` |\n|--------|-------------------|--------------|\n| `back` | écran précédent ; sur l'écran de départ : rien (desktop), fermeture de l'app (Android) | le gestionnaire est appelé à la place sur l'écran de départ |\n| `close` | ferme la fenêtre (l'app sur Android) | le gestionnaire décide (`ui.close()`) |\n| `ready` | — | interface affichée (page chargée, premier rendu Compose) |\n\nLes gestionnaires s'exécutent sur **un thread Ocara dédié, l'un après\nl'autre** : un gestionnaire lent ne gèle pas l'interface, et deux\ngestionnaires ne tournent jamais en même temps. Une exception non rattrapée\nest signalée sur la sortie d'erreur ; les actions suivantes sont traitées.",
+        "docFile": "UI.md",
+        "docHeading": "Actions : `ui.on(action, handler)`"
+      },
+      {
+        "name": "pickFile",
+        "params": [
+          {
+            "name": "extensions",
+            "type": "array<string>"
+          }
+        ],
+        "returns": "string",
+        "static": false,
+        "doc": "`ui.pickFile(extensions)` → `string` — sélecteur natif, `\"\"` si annulé — `UIException` 104 (pas encore)",
+        "docFile": "UI.md"
+      },
+      {
+        "name": "run",
+        "params": [],
+        "returns": "void",
+        "static": false,
+        "doc": "`ui.run()` — affiche l'interface et bloque jusqu'à sa fermeture",
+        "docFile": "UI.md"
+      },
+      {
+        "name": "saveFile",
+        "params": [
+          {
+            "name": "name",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": false,
+        "doc": "`ui.saveFile(name)` → `string` — idem — `UIException` 104 (pas encore)",
+        "docFile": "UI.md"
+      },
+      {
+        "name": "set",
+        "params": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "prop",
+            "type": "string"
+          },
+          {
+            "name": "value",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`ui.set(id, prop, value)` — change une propriété (`value`, `text`, `checked`, `visible`, `enabled`…) ; le nœud est réaffiché",
+        "docFile": "UI.md"
+      },
+      {
+        "name": "setItems",
+        "params": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "rows",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`ui.setItems(id, rows)` — éléments d'une `list` (`array<map<string, mixed>>`, lus par `bind`)",
+        "docFile": "UI.md"
+      },
+      {
+        "name": "toast",
+        "params": [
+          {
+            "name": "text",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`ui.toast(text)` — message bref en bas de la fenêtre — `Toast`",
+        "docFile": "UI.md"
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "UIEvent",
+    "methods": [
+      {
+        "name": "action",
+        "params": [],
+        "returns": "string",
+        "static": false
+      },
+      {
+        "name": "id",
+        "params": [],
+        "returns": "string",
+        "static": false,
+        "doc": "Exemple :\n\n```ocara\nIO::writeln(t.id())   // 1, 2, 3, …\n```",
+        "docFile": "Thread.md"
+      },
+      {
+        "name": "index",
+        "params": [],
+        "returns": "int",
+        "static": false
+      },
+      {
+        "name": "value",
+        "params": [],
+        "returns": "mixed",
+        "static": false,
+        "doc": "Exemple :\n\n```ocara\nvar car:map<string, mixed> = event.value()\n```",
+        "docFile": "UI.md"
       }
     ],
     "consts": []
@@ -5414,7 +5665,7 @@
         "params": [
           {
             "name": "handler",
-            "type": "Type::Function{ret_ty:Box::new(Type::String),param_tys:vec![Type::Map(Box::new(Type::String),Box::new(Type::Mixed))],}"
+            "type": "Function<string(map<string, mixed>)>"
           }
         ],
         "returns": "void",
@@ -6112,7 +6363,7 @@
           },
           {
             "name": "f",
-            "type": "Type::Function{ret_ty:Box::new(Type::Void),param_tys:vec![Type::Named(\"SQLite\".to_string())],}"
+            "type": "Function<void(SQLite)>"
           }
         ],
         "returns": "void",
@@ -6324,7 +6575,7 @@
           },
           {
             "name": "f",
-            "type": "Type::Function{ret_ty:Box::new(Type::Void),param_tys:vec![Type::Named(\"MySQL\".to_string())],}"
+            "type": "Function<void(MySQL)>"
           }
         ],
         "returns": "void",

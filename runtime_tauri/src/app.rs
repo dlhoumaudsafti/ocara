@@ -39,6 +39,9 @@ struct DiskAssets {
 impl<R: tauri::Runtime> tauri::Assets<R> for DiskAssets {
     fn get(&self, key: &tauri::utils::assets::AssetKey) -> Option<std::borrow::Cow<'_, [u8]>> {
         let rel = key.as_ref().trim_start_matches('/');
+        if rel == crate::ui::PAGE {
+            return Some(std::borrow::Cow::Owned(crate::ui::page().into_bytes()));
+        }
         let rel = if rel.is_empty() { "index.html" } else { rel };
         std::fs::read(self.base_dir.join(rel)).ok().map(std::borrow::Cow::Owned)
     }
@@ -96,6 +99,12 @@ pub(crate) fn build_window<M: Manager<tauri::Wry>>(manager: &M, this: i64, label
     if let Some((width, height)) = config.min_size {
         builder = builder.min_inner_size(width as f64, height as f64);
     }
+    if config.center {
+        builder = builder.center();
+    }
+    if let Some(tree) = &config.ui_tree {
+        builder = builder.initialization_script(&crate::ui::boot_script(tree));
+    }
     let window = builder.build()?;
     if config.minimized {
         let _ = window.minimize();
@@ -128,7 +137,7 @@ fn authority() -> tauri::ipc::RuntimeAuthority {
     let mut names: Vec<String> = TAURI_WINDOWS.lock().unwrap().values()
         .flat_map(|win| win.lock().unwrap().handlers.keys().cloned().collect::<Vec<_>>())
         .collect();
-    names.extend([events::EVENT_COMMAND.to_string(), menus::CONTEXT_COMMAND.to_string()]);
+    names.extend([events::EVENT_COMMAND.to_string(), menus::CONTEXT_COMMAND.to_string(), crate::ui::EVENT_COMMAND.to_string()]);
     let any_origin = tauri::utils::acl::ExecutionContext::Remote {
         url: "http://*:*/*".parse().expect("motif ACL http://*:*/* invalide"),
     };
@@ -166,6 +175,11 @@ fn invoke(invoke: tauri::ipc::Invoke<tauri::Wry>) -> bool {
     };
     if command == menus::CONTEXT_COMMAND {
         menus::show_context_menu(this);
+        invoke.resolver.resolve(serde_json::Value::Null);
+        return true;
+    }
+    if command == crate::ui::EVENT_COMMAND {
+        crate::ui::receive(this, &args_json);
         invoke.resolver.resolve(serde_json::Value::Null);
         return true;
     }

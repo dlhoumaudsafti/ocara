@@ -480,6 +480,7 @@ pub fn lower_program_with(program: &Program, source_file: &str, coverage: bool) 
         "UnitTestException",
         "HTTPServerException",
         "TauriException",
+        "UIException",
         "SDLException",
         "ImageException",
         "AndroidException",
@@ -501,6 +502,8 @@ pub fn lower_program_with(program: &Program, source_file: &str, coverage: bool) 
     module.class_layouts.insert("Thread".to_string(), opaque_layout.clone());
     module.class_layouts.insert("Mutex".to_string(), opaque_layout.clone());
     module.class_layouts.insert("Tauri".to_string(), opaque_layout.clone());
+    // `UI` : une fenêtre Tauri sur desktop (même finaliseur, rc_layout.rs).
+    module.class_layouts.insert("UI".to_string(), opaque_layout.clone());
     module.class_layouts.insert("HTMLComponent".to_string(), opaque_layout);
     super::rc_layout::compute_rc_objects(&mut module, program);
     

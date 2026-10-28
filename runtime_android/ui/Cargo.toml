@@ -4,6 +4,7 @@ version = "1.0.0"
 edition = "2024"
 
 # Lié dans le .so Android seulement si le programme importe ocara.AndroidUI
+# ou ocara.UI (backend Compose, src/ui.rs)
 # (src/codegen/link.rs, `link_android`).
 [lib]
 name       = "ocara_runtime_android_ui"
@@ -11,3 +12,5 @@ crate-type = ["staticlib"]
 
 [dependencies]
 ocara_runtime_android_common = { path = "../common" }
+ocara_runtime_ui = { path = "../../runtime_ui" }
+serde_json = "1"

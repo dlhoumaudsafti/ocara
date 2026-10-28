@@ -376,7 +376,14 @@ impl Parser {
                 // accès de champ ou appel de méthode : `expr.ident` / `expr.ident(...)`
                 TokenKind::Dot => {
                     self.advance();
-                    let (field, _) = self.eat_ident()?;
+                    // `on` (mot-clé de `try … on`) reste un nom de membre après
+                    // un point : `ui.on("action", Classe::methode)` (ocara.UI).
+                    let field = if self.check_exact(&TokenKind::On) {
+                        self.advance();
+                        "on".to_string()
+                    } else {
+                        self.eat_ident()?.0
+                    };
 
                     if self.check_exact(&TokenKind::LParen) {
                         // appel de méthode

@@ -264,9 +264,14 @@ fn desugar_expr(expr: &mut Expr, map: &mut ConstMap) -> Result<(), DesugarError>
             }
         }
 
-        Expr::New { args, .. } => {
+        Expr::New { class, args, span, .. } => {
             for a in args.iter_mut() {
                 desugar_expr(a, map)?;
+            }
+            // `use UI("x.oc.ui")` : l'interface est lue ici aussi (core::ui_file).
+            if class == "UI" {
+                let path = args.first().and_then(|a| resolve_const_string(a, map));
+                crate::core::ui_file::desugar_new(args, span, path)?;
             }
         }
 

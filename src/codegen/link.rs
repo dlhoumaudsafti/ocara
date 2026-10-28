@@ -349,10 +349,19 @@ fn android_clang_prefix(triple: &str) -> Result<&'static str, LinkerError> {
 /// (`libocara_runtime_android_<domaine>.a`, `make build-android-features`),
 /// cherchées dans le dossier de `runtime_lib` : un domaine non importé n'entre
 /// pas dans le `.so`.
+/// `ocara.UI` utilise l'archive de `ocara.AndroidUI` (backend Compose,
+/// runtime_android/ui), une seule fois si les deux sont importés.
 pub fn android_feature_libs(imports: &[String], runtime_lib: &Path) -> Vec<std::path::PathBuf> {
-    crate::builtins::android::ANDROID_BUILTINS.iter()
-        .filter(|(name, _)| imports.iter().any(|m| m == name))
-        .map(|(_, domain)| runtime_lib.with_file_name(format!("libocara_runtime_android_{domain}.a")))
+    let imported = |name: &str| imports.iter().any(|m| m == name);
+    let mut domains: Vec<&str> = crate::builtins::android::ANDROID_BUILTINS.iter()
+        .filter(|(name, _)| imported(name))
+        .map(|(_, domain)| *domain)
+        .collect();
+    if imported("UI") && !domains.contains(&"ui") {
+        domains.push("ui");
+    }
+    domains.into_iter()
+        .map(|domain| runtime_lib.with_file_name(format!("libocara_runtime_android_{domain}.a")))
         .collect()
 }
 

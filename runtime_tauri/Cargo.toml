@@ -8,6 +8,7 @@ name       = "ocara_runtime_tauri"
 crate-type = ["staticlib"]
 
 [dependencies]
+ocara_runtime_ui = { path = "../runtime_ui" }
 # Crate séparé du runtime principal (ocara_runtime) : voir la doc en tête de
 # src/codegen/link.rs. Tauri/GTK/WebKit ne sont liés dans le binaire final que
 # pour les programmes qui importent réellement ocara.Tauri — les isoler dans un

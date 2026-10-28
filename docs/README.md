@@ -98,6 +98,7 @@ Documentation détaillée des classes intégrées au runtime Ocara :
 | [AndroidMicrophone.md](builtins/AndroidMicrophone.md) | Android : enregistrement du micro (AAC) |
 | [AndroidAudio.md](builtins/AndroidAudio.md) | Android : lecture d'un fichier audio |
 | [AndroidUI.md](builtins/AndroidUI.md) | Android : bouton retour, barres système, orientation, plein écran, vibration, partage, boîtes de dialogue |
+| [UI.md](builtins/UI.md) | Interface native desktop (Tauri) et Android (Compose) depuis un même fichier `.oc.ui` : actions liées par `ui.on`, état des nœuds (`get`/`set`/`setItems`), navigation, boîtes de dialogue |
 | [Tauri.md](builtins/Tauri.md) | Fenêtre desktop native (Tauri v2) : état de la fenêtre, appel de code Ocara depuis le JS de la page (`ui.handler`/`ui.handlers`), événements (`emit`/`listen`), boîtes de dialogue, notifications, menus natifs, plusieurs fenêtres, zone de notification et raccourcis globaux |
 
 ---

@@ -16,6 +16,7 @@ mod events;
 mod menus;
 mod shortcuts;
 mod tray;
+mod ui;
 mod window;
 
 /// Codes d'erreur TauriException (voir docs/builtins/Tauri.md)
@@ -75,6 +76,7 @@ pub(crate) struct OcaraTauriWindow {
     always_on_top: bool,
     transparent: bool,
     resizable: bool,
+    center: bool,
     min_size: Option<(i64, i64)>,
     /// Icône de zone de notification (tray.rs) et raccourcis globaux
     /// (shortcuts.rs, `(raccourci, action)`).
@@ -82,6 +84,9 @@ pub(crate) struct OcaraTauriWindow {
     tray: Option<tauri::tray::TrayIcon>,
     tray_checks: Vec<tauri::menu::CheckMenuItem<tauri::Wry>>,
     shortcuts: Vec<(String, String)>,
+    /// Objet `UI` : arbre normalisé du `.oc.ui`, affiché par le moteur
+    /// (ui/mod.rs) au lieu d'une page à `url`.
+    ui_tree: Option<String>,
 }
 
 /// Réglages de construction d'une fenêtre (app.rs, `build_window`).
@@ -97,7 +102,9 @@ pub(crate) struct WindowConfig {
     pub(crate) always_on_top: bool,
     pub(crate) transparent: bool,
     pub(crate) resizable: bool,
+    pub(crate) center: bool,
     pub(crate) min_size: Option<(i64, i64)>,
+    pub(crate) ui_tree: Option<String>,
 }
 
 impl OcaraTauriWindow {
@@ -114,7 +121,9 @@ impl OcaraTauriWindow {
             always_on_top: self.always_on_top,
             transparent: self.transparent,
             resizable: self.resizable,
+            center: self.center,
             min_size: self.min_size,
+            ui_tree: self.ui_tree.clone(),
         }
     }
 }
@@ -136,12 +145,13 @@ pub(crate) fn options_of(options_ptr: i64) -> serde_json::Value {
 
 unsafe extern "C" {
     /// runtime/src/rc.rs : finaliseur appelé à la libération d'un objet `Tauri`.
-    fn __rc_register_window_finalizer(finalizer: extern "C" fn(i64));
+    pub(crate) fn __rc_register_window_finalizer(finalizer: extern "C" fn(i64));
 }
 
 /// Libération de l'objet `Tauri` : son état et les callbacks `listen` retenus.
 pub(crate) extern "C" fn finalize_window(this: i64) {
     tray::remove(this);
+    ocara_runtime_ui::release(this);
     let closed = TAURI_WINDOWS.lock().unwrap().remove(&this);
     if let Some(win) = closed {
         events::release_listeners(&win.lock().unwrap().event_callbacks);
@@ -161,7 +171,12 @@ pub(crate) extern "C" fn finalize_window(this: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn Tauri_init(this: i64, options_ptr: i64) {
     unsafe { __rc_register_window_finalizer(finalize_window) };
-    let options = options_of(options_ptr);
+    register_window(this, &options_of(options_ptr), None);
+}
+
+/// État d'une fenêtre d'après ses options (JSON de `use Tauri`, ou fenêtre
+/// d'un `.oc.ui`, alors `ui_tree` : arbre affiché par le moteur d'`ocara.UI`).
+pub(crate) fn register_window(this: i64, options: &serde_json::Value, ui_tree: Option<String>) {
     let text = |key: &str, default: &str| options.get(key).and_then(|v| v.as_str()).unwrap_or(default).to_string();
     let int = |key: &str| options.get(key).and_then(|v| v.as_i64());
     let flag = |key: &str, default: bool| options.get(key).and_then(|v| v.as_bool()).unwrap_or(default);
@@ -169,7 +184,7 @@ pub extern "C" fn Tauri_init(this: i64, options_ptr: i64) {
         title: text("title", "Ocara App"),
         width: int("width").unwrap_or(800),
         height: int("height").unwrap_or(600),
-        url: text("url", "index.html"),
+        url: if ui_tree.is_some() { ui::PAGE.to_string() } else { text("url", "index.html") },
         is_open: true,
         is_minimized: false,
         is_maximized: false,
@@ -182,17 +197,19 @@ pub extern "C" fn Tauri_init(this: i64, options_ptr: i64) {
         menu_checks: Vec::new(),
         context_checks: Vec::new(),
         context_menu: None,
-        devtools: false,
+        devtools: flag("devtools", false),
         label: String::new(),
         decorations: flag("decorations", true),
         always_on_top: flag("alwaysOnTop", false),
         transparent: flag("transparent", false),
         resizable: flag("resizable", true),
+        center: flag("center", false),
         min_size: int("minWidth").zip(int("minHeight")),
         tray_spec: None,
         tray: None,
         tray_checks: Vec::new(),
         shortcuts: Vec::new(),
+        ui_tree,
     }));
     TAURI_WINDOWS.lock().unwrap().insert(this, win);
 }

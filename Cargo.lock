@@ -3277,6 +3277,8 @@ name = "ocara_runtime_android_ui"
 version = "1.0.0"
 dependencies = [
  "ocara_runtime_android_common",
+ "ocara_runtime_ui",
+ "serde_json",
 ]
 
 [[package]]
@@ -3304,6 +3306,7 @@ dependencies = [
  "glob",
  "gtk",
  "ocara_runtime",
+ "ocara_runtime_ui",
  "once_cell",
  "semver",
  "serde_json",
@@ -3312,6 +3315,13 @@ dependencies = [
  "tauri-plugin-global-shortcut",
  "tauri-plugin-notification",
  "url",
+]
+
+[[package]]
+name = "ocara_runtime_ui"
+version = "1.0.0"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]

@@ -47,12 +47,20 @@ object OcaraUIEngine {
         if (Looper.myLooper() == Looper.getMainLooper()) action() else main.post(action)
     }
 
-    /** Affiche l'arbre `treeJson` (écran `start`) à la place du contenu de l'app. */
+    /**
+     * Affiche l'arbre `treeJson` (écran `start`) à la place du contenu de
+     * l'app ; `stateJson` : état posé avant (`{ id: { prop: valeur } }`).
+     */
     @JvmStatic
-    fun show(treeJson: String) {
+    fun show(treeJson: String, stateJson: String) {
         val parsed = JSONObject(treeJson)
+        val saved = JSONObject(stateJson)
         onMain {
             state.clear()
+            for (id in saved.keys()) {
+                val props = saved.getJSONObject(id)
+                for (prop in props.keys()) state[key(id, prop)] = props.get(prop)
+            }
             backStack.clear()
             backStack.add(parsed.getString("start"))
             tree.value = parsed
@@ -86,6 +94,10 @@ object OcaraUIEngine {
         val screens = tree.value?.optJSONObject("screens") ?: return@onMain
         if (screens.has(screen) && backStack.lastOrNull() != screen) backStack.add(screen)
     }
+
+    /** `ui.back()` depuis Ocara. */
+    @JvmStatic
+    fun goBack() = onMain { back() }
 
     /** Écran précédent ; sur l'écran de départ, l'action `back` va à Ocara. */
     fun back() {
