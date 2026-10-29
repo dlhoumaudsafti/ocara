@@ -207,7 +207,9 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
   - **écrans** : ajout, renommage, écran de démarrage ; écrans inclus (`screens.includes`) et
     **variantes de taille** (`x.md.oc.ui`) ouverts en un clic, variante manquante créée par copie ;
   - **vérification** par le compilateur (`ocara x.oc.ui`) à l'ouverture et à chaque
-    enregistrement : erreurs listées sous l'aperçu et posées sur les nœuds concernés.
+    enregistrement : erreurs listées sous l'aperçu et posées sur les nœuds concernés. Un fichier
+    inclus (`screens.includes`) est vérifié à travers le fichier racine qui l'inclut, cherché dans
+    l'espace de travail : ses styles, sa fenêtre et son menu servent aussi à l'aperçu.
 
 ## Réglages
 

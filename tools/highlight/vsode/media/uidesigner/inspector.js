@@ -4,7 +4,7 @@
 
 import {
     S, getIn, edit, setProp, typeSpec, allProps, inItem, screens, rootLayout, screenPath, startScreen,
-    removeNode, refresh, vscode,
+    removeNode, refresh, vscode, styles,
 } from './model.js';
 import { editor, menuEditor, h } from './editors.js';
 import { LABEL } from './palette.js';
@@ -88,7 +88,7 @@ function nodePanel(path) {
     out.push(typeRow);
 
     const required = spec?.required || [];
-    const named = node.style && S.model.styles?.[node.style];
+    const named = node.style && styles()[node.style];
     const row = p => field(p, path, node, { required: required.includes(p.name), inherited: named?.[p.name] });
     const own = (spec?.own || []).filter(p => !['children', 'node'].includes(p.kind) && (p.kind !== 'field' || inItem(path)));
     const common = Object.fromEntries(S.catalog.common.map(p => [p.name, p]));
@@ -220,6 +220,20 @@ function menuPanel() {
     return [header('Menu de l\'application', 'menu'), r];
 }
 
+/** Fichier inclus : fenêtre, styles et menu sont ceux du fichier racine. */
+function rootNotice(owner) {
+    const open = h('button', 'd-mini', `Ouvrir ${S.context.root}`);
+    open.addEventListener('click', () => vscode.postMessage({ type: 'open', file: S.context.root, designer: true }));
+    const names = owner === 'styles' ? Object.keys(S.context.styles || {}).join(', ') : '';
+    const tools = h('div', 'd-pad');
+    tools.appendChild(open);
+    return [
+        header(owner === 'window' ? 'Fenêtre' : owner === 'styles' ? 'Styles' : 'Menu', owner),
+        h('p', 'd-muted d-pad', `Ce fichier est inclus par ${S.context.root} : ${owner} y est déclaré.${names ? ` Styles disponibles : ${names}.` : ''}`),
+        tools,
+    ];
+}
+
 export function renderInspector() {
     const root = document.getElementById('inspector');
     const focus = document.activeElement?.closest?.('[data-key]')?.dataset.key;
@@ -229,7 +243,8 @@ export function renderInspector() {
     let parts;
     const sel = S.selection;
     const node = sel && getIn(S.model, sel);
-    if (S.tab === 'window') { parts = windowPanel(); } else if (S.tab === 'styles') { parts = stylesPanel(); } else if (S.tab === 'menu') { parts = menuPanel(); } else if (node && typeof node === 'object' && node.type) {
+    const owner = { window: 'window', styles: 'styles', menu: 'menu' }[S.tab];
+    if (owner && S.context && S.model[owner] === undefined) { parts = rootNotice(owner); } else if (S.tab === 'window') { parts = windowPanel(); } else if (S.tab === 'styles') { parts = stylesPanel(); } else if (S.tab === 'menu') { parts = menuPanel(); } else if (node && typeof node === 'object' && node.type) {
         parts = nodePanel(sel);
     } else if (!rootLayout() && S.screen) {
         parts = screenPanel(S.screen);

@@ -9,6 +9,8 @@ export const S = {
     model: null, file: '', includes: [], variants: [], problems: [], error: undefined,
     screen: '', selection: null, platform: 'tauri', theme: 'light', width: 360,
     tab: 'props', clipboard: null, collapsed: {},
+    /** Fichier inclus : fichier racine qui l'inclut (`root`), ses `styles`, `window`, `menu`. */
+    context: null,
 };
 
 const listeners = [];
@@ -46,6 +48,12 @@ export function allProps(type) {
     const spec = typeSpec(type);
     return spec ? [...spec.own, ...S.catalog.common, ...S.catalog.style] : [...S.catalog.common, ...S.catalog.style];
 }
+
+// ── fichier racine (écrans inclus) ─────────────────────────────────────────
+
+/** Styles visibles : ceux du fichier racine, puis ceux du fichier. */
+export function styles() { return { ...(S.context?.styles || {}), ...(S.model?.styles || {}) }; }
+export function windowProps() { return S.model?.window || S.context?.window || {}; }
 
 // ── écrans ─────────────────────────────────────────────────────────────────
 

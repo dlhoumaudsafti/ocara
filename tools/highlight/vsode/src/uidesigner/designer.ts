@@ -66,6 +66,7 @@ export class UiDesigner implements vscode.CustomTextEditorProvider {
         panel.webview.options = { enableScripts: true, localResourceRoots: roots };
         panel.webview.html = html(panel.webview, media);
         let problems: Problem[] = [];
+        let root: RootContext | undefined;
 
         const post = () => {
             const { doc } = parse(document.getText());
@@ -77,10 +78,12 @@ export class UiDesigner implements vscode.CustomTextEditorProvider {
                 includes: this.includes(document, doc.toJS()),
                 variants: this.variants(document),
                 problems,
+                context: root && { root: path.relative(folder.fsPath, root.file), styles: root.model?.styles, window: root.model?.window, menu: root.model?.menu },
             });
         };
         const check = async () => {
-            problems = await this.check(document);
+            root = await findRoot(document.uri.fsPath);
+            problems = await this.check(document, root?.file);
             post();
         };
         const subscriptions = [
@@ -177,10 +180,14 @@ export class UiDesigner implements vscode.CustomTextEditorProvider {
         await vscode.commands.executeCommand('vscode.openWith', vscode.Uri.file(target), VIEW_TYPE);
     }
 
-    /** Erreurs du compilateur sur le fichier enregistré, rattachées aux nœuds. */
-    private async check(document: vscode.TextDocument): Promise<Problem[]> {
+    /** Erreurs du compilateur sur le fichier enregistré, rattachées aux nœuds.
+     *  Fichier inclus (`rootFile`) : c'est le fichier racine qui est vérifié
+     *  (styles, `id` et actions partagés), et seules les erreurs de ce
+     *  fichier-ci sont gardées. */
+    private async check(document: vscode.TextDocument, rootFile?: string): Promise<Problem[]> {
         const dir = path.dirname(document.uri.fsPath);
-        const result = await runTool('compilerPath', 'ocara', [document.uri.fsPath], dir, document.uri);
+        const target = rootFile ?? document.uri.fsPath;
+        const result = await runTool('compilerPath', 'ocara', [target], path.dirname(target), document.uri);
         if (result.launchError) { return [{ severity: 'warning', message: `vérification indisponible (${result.launchError})`, line: 0, file: '' }]; }
         const { doc } = parse(document.getText());
         const model = doc.toJS();
@@ -190,7 +197,9 @@ export class UiDesigner implements vscode.CustomTextEditorProvider {
             while (p.length && typeof p.reduce((o: any, k) => o?.[k], model)?.type !== 'string') { p.pop(); }
             return p.length ? p : undefined;
         };
-        return parseToolMessages(result.stdout + result.stderr, dir).map(m => {
+        const messages = parseToolMessages(result.stdout + result.stderr, path.dirname(target))
+            .filter(m => !rootFile || path.resolve(m.file) === path.resolve(document.uri.fsPath));
+        return messages.map(m => {
             const own = path.resolve(m.file) === path.resolve(document.uri.fsPath);
             const offset = own && m.line < document.lineCount ? document.offsetAt(new vscode.Position(m.line, m.col)) : -1;
             return {
@@ -221,6 +230,35 @@ export class UiDesigner implements vscode.CustomTextEditorProvider {
             return {};
         }
     }
+}
+
+interface RootContext { file: string; model: any }
+
+/** Fichier racine d'un `.oc.ui` inclus (`screens.includes`, inclusions en
+ *  chaîne comprises), cherché dans l'espace de travail ; `undefined` pour un
+ *  fichier qui n'est inclus nulle part. */
+async function findRoot(file: string): Promise<RootContext | undefined> {
+    const parents = new Map<string, { file: string; model: any }>();
+    for (const uri of await vscode.workspace.findFiles('**/*.oc.ui', '**/{node_modules,target}/**', 2000)) {
+        let model: any;
+        try { model = parse(fs.readFileSync(uri.fsPath, 'utf8')).doc.toJS(); } catch { continue; }
+        const includes = model?.screens?.includes;
+        if (!Array.isArray(includes)) { continue; }
+        for (const inc of includes) {
+            if (typeof inc !== 'string') { continue; }
+            const child = path.resolve(path.dirname(uri.fsPath), inc);
+            // Un défaut plutôt qu'une variante de taille (`x.md.oc.ui`) quand les deux incluent le fichier.
+            const known = parents.get(child);
+            if (!known || /\.[a-z]+\.oc\.ui$/.test(path.basename(known.file))) { parents.set(child, { file: uri.fsPath, model }); }
+        }
+    }
+    let current = parents.get(path.resolve(file));
+    const seen = new Set<string>();
+    while (current && parents.has(current.file) && !seen.has(current.file)) {
+        seen.add(current.file);
+        current = parents.get(current.file);
+    }
+    return current;
 }
 
 function activeUri(): vscode.Uri | undefined {

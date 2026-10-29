@@ -4,7 +4,7 @@
 // Les champs texte valident à la sortie du champ ou sur Entrée (une étape
 // d'annulation par valeur, pas par frappe).
 
-import { S, actions } from './model.js';
+import { S, actions, styles } from './model.js';
 import { icon } from './canvas.js';
 
 export function h(tag, cls, text) {
@@ -225,7 +225,7 @@ export function editor(spec, value, set, ctx = {}) {
         case 'icon': return iconPicker(value, set);
         case 'action': return textInput(value, set, { list: 'actionList', placeholder: 'nom d\'action', pattern: /^[A-Za-z_][A-Za-z0-9_]*$/ });
         case 'id': return textInput(value, set, { placeholder: 'identifiant', pattern: /^[A-Za-z_][A-Za-z0-9_]*$/ });
-        case 'style': return select(Object.keys(S.model.styles || {}), value, set, '— aucun —');
+        case 'style': return select(Object.keys(styles()), value, set, '— aucun —');
         case 'field': return textInput(value, set, { placeholder: 'champ de l\'élément (a.b)' });
         case 'strings': {
             const t = h('textarea', 'd-input');

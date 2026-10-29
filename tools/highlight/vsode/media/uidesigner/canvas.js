@@ -3,7 +3,7 @@
 // élément marqué du chemin de son nœud (`data-path`) pour la sélection et le
 // glisser-déposer. Les champs ne réagissent pas : un clic sélectionne.
 
-import { S, getIn, key, startsWith, layoutPath, screenPath, startScreen, rootLayout, isContainer, hasSlot, axisOf } from './model.js';
+import { S, getIn, key, startsWith, styles, windowProps, layoutPath, screenPath, startScreen, rootLayout, isContainer, hasSlot, axisOf } from './model.js';
 
 const FLEX_ALIGN = { start: 'flex-start', center: 'center', end: 'flex-end', stretch: 'stretch' };
 const px = v => (typeof v === 'number' ? v + 'px' : v);
@@ -18,7 +18,7 @@ function el(tag, cls, text) {
 
 /** Propriétés effectives : style nommé, nœud, surcharge de la plateforme affichée. */
 function props(node) {
-    const named = node.style && S.model.styles && S.model.styles[node.style];
+    const named = node.style && styles()[node.style];
     const out = {};
     for (const layer of [named || {}, node, node[S.platform] || {}]) {
         for (const k in layer) { if (k !== 'tauri' && k !== 'android') { out[k] = layer[k]; } }
@@ -235,8 +235,13 @@ export function nodeAt(x, y) {
 export function renderCanvas() {
     const canvas = document.getElementById('canvas');
     const frame = document.getElementById('frame');
+    // Défilement de l'écran et des conteneurs `scroll` gardé d'un rendu à
+    // l'autre : sélectionner un nœud en bas de l'écran ne remonte pas la vue.
+    const scrolled = [...canvas.querySelectorAll('.oc-screen, [data-path]')]
+        .filter(e => e.scrollTop || e.scrollLeft)
+        .map(e => [e.dataset.path || 'screen', e.scrollTop, e.scrollLeft]);
     canvas.replaceChildren();
-    const win = S.model?.window || {};
+    const win = windowProps();
     // Taille d'une vraie fenêtre : `height: fill` et `scroll` s'y comportent
     // comme dans l'application (l'écran défile dans le cadre).
     frame.style.width = S.width + 'px';
@@ -262,4 +267,8 @@ export function renderCanvas() {
         body.appendChild(slot);
     }
     canvas.appendChild(body);
+    for (const [path, top, left] of scrolled) {
+        const e = path === 'screen' ? body : [...canvas.querySelectorAll('[data-path]')].find(x => x.dataset.path === path);
+        if (e) { e.scrollTop = top; e.scrollLeft = left; }
+    }
 }
