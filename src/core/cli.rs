@@ -11,6 +11,8 @@ pub struct CliArgs {
     pub check:   bool,
     /// true = aperçu HTML d'un `.oc.ui` (src/core/ui_schema.d/preview.rs)
     pub preview: bool,
+    /// true = schéma JSON des `.oc.ui` sur la sortie (json_schema.rs), sans fichier d'entrée
+    pub ui_schema: bool,
     /// true = produire le fichier .o mais ne pas linker
     pub no_link: bool,
     /// true = strip les symboles du binaire produit (via le linker)
@@ -75,6 +77,7 @@ pub fn print_help() {
     println!("  ocara <fichier.oc.ui> [--dump]   Valide une interface .oc.ui (--dump : arbre JSON normalisé)");
     println!("  ocara <fichier.oc.ui> --preview [-o page.html]");
     println!("                Aperçu de l'interface dans un navigateur (moteur de rendu desktop)");
+    println!("  ocara --ui-schema   Schéma JSON des fichiers .oc.ui (complétion dans les éditeurs)");
     println!();
     println!("Options :");
     println!("  -o <sortie>   Fichier de sortie (défaut : out)");
@@ -150,6 +153,7 @@ pub fn parse(args: &[String]) -> Result<CliArgs, String> {
     let mut dump    = false;
     let mut check   = false;
     let mut preview = false;
+    let mut ui_schema = false;
     let mut no_link = false;
     let mut release = false;
     let mut profile = false;
@@ -175,6 +179,7 @@ pub fn parse(args: &[String]) -> Result<CliArgs, String> {
             "--dump"    => dump    = true,
             "--check"   => check   = true,
             "--preview" => preview = true,
+            "--ui-schema" => ui_schema = true,
             "--no-link" => no_link = true,
             "--release" => release = true,
             "--profile" => profile = true,
@@ -203,13 +208,13 @@ pub fn parse(args: &[String]) -> Result<CliArgs, String> {
     }
     let input = match input {
         Some(input) => input,
-        None if lsp => PathBuf::new(),
+        None if lsp || ui_schema => PathBuf::new(),
         None => return Err("aucun fichier d'entrée (.oc)".to_string()),
     };
-    if !lsp && same_path(&input, &output) {
+    if !lsp && !ui_schema && same_path(&input, &output) {
         return Err(format!("la sortie -o {} est le fichier source lui-même : il serait écrasé", output.display()));
     }
-    Ok(CliArgs { input, output, dump, check, preview, no_link, release, profile, leak_check, coverage, check_architecture, coverage_points, architecture_report, src_dir, target, android_runtime, android_runtime_sdl, android_jni_bridge, android_ndk, when, lsp })
+    Ok(CliArgs { input, output, dump, check, preview, ui_schema, no_link, release, profile, leak_check, coverage, check_architecture, coverage_points, architecture_report, src_dir, target, android_runtime, android_runtime_sdl, android_jni_bridge, android_ndk, when, lsp })
 }
 
 /// `System::OS=android` (ou `OS=android`) → (`OS`, `android`), constante et

@@ -53,6 +53,9 @@
 
   OcaraUI.navigate("list");
   check("navigation", q(".oc-bar-title").textContent === "Liste" && q(".oc-bar button"));
+  var placements = function (visible) {
+    return sent.filter(function (m) { return m.webview === "page" && m.visible === visible; });
+  };
   OcaraUI.set("people", "items", [{ name: "Ada", city: "Londres" }, { name: "Alan", city: "Wilmslow" }]);
   var rows = node("people").querySelectorAll(".oc-list-item");
   check("liste remplie", rows.length === 2 && rows[1].textContent.indexOf("Wilmslow") >= 0);
@@ -63,6 +66,7 @@
   OcaraUI.set("summary", "value", "2 éléments");
   check("set texte", node("summary").textContent === "2 éléments");
 
+  // Rectangle de la vue web : envoyé à l'image suivante (requestAnimationFrame).
   var count = sent.length;
   Array.prototype.find.call(document.querySelectorAll("button"), function (b) { return b.textContent === "Retour"; }).click();
   check("back prédéfini", q(".oc-bar-title").textContent === "Formulaire" && sent.length === count);
@@ -70,8 +74,23 @@
   OcaraUI.back();
   check("back au départ → hôte", last().action === "back");
 
+  // Vue web : rectangle envoyé à l'image suivante (requestAnimationFrame).
+  OcaraUI.navigate("list");
+  setTimeout(function () {
+    var shown = placements(true)[0] || {};
+    check("webview placée", shown.width > 0 && Math.round(shown.height) === 140);
+    OcaraUI.back();
+    setTimeout(function () {
+      check("webview masquée hors de son écran", placements(false).length >= 1);
+      finish();
+    }, 100);
+  }, 100);
+  return;
+
+  function finish() {
   var out = document.createElement("pre");
   out.id = "oc-test";
   out.textContent = failures.length ? "UI-ENGINE-FAIL: " + failures.join(" | ") : "UI-ENGINE-OK";
   document.body.appendChild(out);
+  }
 })();

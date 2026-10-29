@@ -9,6 +9,8 @@
 //   ui.navigate(screen) / ui.back() / ui.run() / ui.close()
 //   ui.toast(text) / ui.alert(title, text) / ui.confirm(title, text) → bool
 //   ui.pickFile(extensions) → string / ui.saveFile(name) → string / ui.notify(title, text)
+//   ui.tauri() → Tauri (desktop ; UIException 104 sur Android)
+//   ui.postMessage(id, data) / ui.eval(id, script) → string / ui.webBack(id) / webForward(id) / reload(id)
 //
 //   event.action() / event.id() → string, event.value() → mixed, event.index() → int
 //
@@ -73,6 +75,14 @@ pub fn class() -> ClassInfo {
     methods.insert("confirm".to_string(), inst_m(vec![("title", Type::String), ("text", Type::String)], Type::Bool));
     methods.insert("pickFile".to_string(), inst_m(vec![("extensions", Type::Array(Box::new(Type::String)))], Type::String));
     methods.insert("saveFile".to_string(), inst_m(vec![("name", Type::String)], Type::String));
+    // Spécificités desktop : la fenêtre Tauri de l'interface (`import ocara.Tauri`).
+    methods.insert("tauri".to_string(), inst_m(vec![], Type::Named("Tauri".into())));
+    // Composant `webview`
+    methods.insert("postMessage".to_string(), inst_m(vec![("id", Type::String), ("data", Type::Mixed)], Type::Void));
+    methods.insert("eval".to_string(), inst_m(vec![("id", Type::String), ("script", Type::String)], Type::String));
+    methods.insert("webBack".to_string(), inst_m(vec![("id", Type::String)], Type::Void));
+    methods.insert("webForward".to_string(), inst_m(vec![("id", Type::String)], Type::Void));
+    methods.insert("reload".to_string(), inst_m(vec![("id", Type::String)], Type::Void));
     methods.insert("notify".to_string(), inst_m(vec![("title", Type::String), ("text", Type::String)], Type::Void));
     class_of(methods)
 }

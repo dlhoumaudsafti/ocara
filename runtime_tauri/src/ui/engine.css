@@ -87,7 +87,12 @@ textarea.oc-input { min-height: 80px; resize: vertical; }
 .oc-icon-button:hover, .oc-variant-secondary:hover, .oc-variant-text:hover { background: color-mix(in srgb, var(--oc-primary) 12%, transparent); }
 .oc-button:focus-visible { outline: 2px solid var(--oc-primary); outline-offset: 2px; }
 .oc-disabled, .oc-button:disabled { opacity: .45; pointer-events: none; }
-.oc-webview { min-height: 120px; border: 1px dashed var(--oc-line); border-radius: 8px; }
+.oc-webview {
+  min-height: 120px; border: 1px dashed var(--oc-line); border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; color: var(--oc-muted);
+}
+/* Place d'une vue web (couverte par la vraie vue) : sa source, pour l'aperçu. */
+.oc-webview::after { content: "webview " attr(data-src); font: 12px monospace; }
 /* Dans une colonne, champs, listes et conteneurs prennent la largeur ;
    boutons, textes, cases et icônes gardent leur taille (comme Compose). */
 .oc-column > :is(.oc-button, .oc-text, .oc-heading, .oc-checkbox, .oc-switch, .oc-icon, .oc-image),

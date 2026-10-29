@@ -15,7 +15,9 @@ class Checks {
         ui.setItems("cars", [{"brand": "Renault", "model": "Clio"}])
         ui.navigate("details")
         try {
-            ui.set("nope", "value", 1)
+            // Nom calculé : vérifié à l'exécution (un littéral l'est à la compilation).
+            var unknown:string = "nope"
+            ui.set(unknown, "value", 1)
         } on e is UIException {
             IO::writeln(`UIException ${e.code}: ${e.message}`)
         }
@@ -27,7 +29,8 @@ function main(): void {
     const ui:UI = use UI("garage.oc.ui")
     ui.on("ready", Checks::ready)
     try {
-        ui.on("missing", Checks::ready)
+        var missing:string = "missing"
+        ui.on(missing, Checks::ready)
     } on e is UIException {
         IO::writeln(`UIException ${e.code}: ${e.message}`)
     }

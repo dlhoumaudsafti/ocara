@@ -143,18 +143,70 @@ pub extern "C" fn UI_confirm(_this: i64, title: i64, text: i64) -> i64 {
     invoke(SOURCE, PLATFORM, "confirm", &[Arg::Str(&str_arg(title)), Arg::Str(&str_arg(text))], Ret::Bool).bool()
 }
 
+/// `ui.pickFile(extensions)` : sélecteur du système ; le document est copié
+/// dans le cache de l'app (chemin rendu), `""` si annulé.
 #[unsafe(no_mangle)]
-pub extern "C" fn UI_pickFile(_this: i64, _extensions: i64) -> i64 {
-    raise(core::ERR_UNAVAILABLE, "pickFile : pas encore disponible sur Android".to_string())
+pub extern "C" fn UI_pickFile(_this: i64, extensions: i64) -> i64 {
+    let wanted = match ocara_runtime_ui::ffi::to_json(extensions) {
+        Value::Array(items) => items.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(","),
+        _ => String::new(),
+    };
+    let path = invoke(SOURCE, "com.ocara.bridge.OcaraFilePicker", "pickFile", &[Arg::Str(&wanted)], Ret::Str);
+    let path = match path {
+        ocara_runtime_android_common::java::Value::Str(path) => path,
+        _ => String::new(),
+    };
+    ocara_runtime_ui::ffi::string(&path)
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn UI_saveFile(_this: i64, _name: i64) -> i64 {
-    raise(core::ERR_UNAVAILABLE, "saveFile : pas encore disponible sur Android".to_string())
+    raise(core::ERR_UNAVAILABLE, "saveFile : pas de chemin de fichier sur Android (AndroidFiles::saveToDownloads)".to_string())
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn UI_notify(_this: i64, title: i64, text: i64) {
     invoke(SOURCE, "com.ocara.bridge.OcaraNotifications", "show",
         &[Arg::Str(&str_arg(title)), Arg::Str(&str_arg(text))], Ret::Int);
+}
+
+/// `ui.tauri()` : pas de fenêtre Tauri sur Android (spécificités : `AndroidUI::…`).
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_tauri(_this: i64) -> i64 {
+    raise(core::ERR_UNAVAILABLE, "ui.tauri() : desktop seulement (sur Android : AndroidUI::…)".to_string())
+}
+
+const WEBVIEWS: &str = "com.ocara.bridge.OcaraUIWebViews";
+
+/// `ui.postMessage(id, data)` : message à la page d'un composant `webview`.
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_postMessage(_this: i64, id: i64, data: i64) {
+    let data = ocara_runtime_ui::ffi::to_json(data).to_string();
+    invoke(SOURCE, WEBVIEWS, "postMessage", &[Arg::Str(&str_arg(id)), Arg::Str(&data)], Ret::Void);
+}
+
+/// `ui.eval(id, script)` → `string`.
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_eval(_this: i64, id: i64, script: i64) -> i64 {
+    let text = invoke(SOURCE, WEBVIEWS, "eval", &[Arg::Str(&str_arg(id)), Arg::Str(&str_arg(script))], Ret::Str);
+    let text = match text {
+        ocara_runtime_android_common::java::Value::Str(text) => text,
+        _ => String::new(),
+    };
+    ocara_runtime_ui::ffi::string(&text)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_webBack(_this: i64, id: i64) {
+    invoke(SOURCE, WEBVIEWS, "goBack", &[Arg::Str(&str_arg(id))], Ret::Void);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_webForward(_this: i64, id: i64) {
+    invoke(SOURCE, WEBVIEWS, "goForward", &[Arg::Str(&str_arg(id))], Ret::Void);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_reload(_this: i64, id: i64) {
+    invoke(SOURCE, WEBVIEWS, "reload", &[Arg::Str(&str_arg(id))], Ret::Void);
 }

@@ -206,7 +206,7 @@ fn duplicate_key() {
 
 #[test]
 fn webview_single_source() {
-    single_error(&screen("    - { type: webview, url: \"http://x\", html: \"<p>\" }\n"), 4, "une seule source");
+    single_error(&screen("    - { type: webview, id: w, url: \"http://x\", html: \"<p>\" }\n"), 4, "une seule source");
 }
 
 #[test]
@@ -252,4 +252,30 @@ fn components_example_is_valid() {
     let spec = ok(include_str!("../../examples/ui/components.oc.ui"));
     assert_eq!(spec.tree["start"], "form");
     assert_eq!(spec.ids["people"], "list");
+}
+
+#[test]
+fn local_images_are_embedded() {
+    let dir = std::env::temp_dir().join(format!("ocara_ui_images_{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("logo.png"), b"\x89PNG").unwrap();
+    let file = dir.join("t.oc.ui");
+    let source = screen("    - { type: image, src: logo.png, label: Logo }\n    - { type: image, src: \"https://x.org/a.png\", label: A }\n");
+    let spec = check_source(&file, &source).expect("arbre attendu");
+    let children = &spec.tree["screens"]["main"]["layout"]["children"];
+    assert_eq!(children[0]["src"], "data:image/png;base64,iVBORw==");
+    assert_eq!(children[1]["src"], "https://x.org/a.png");
+    let errors = check_source(&file, &screen("    - { type: image, src: absent.png, label: A }\n")).unwrap_err();
+    std::fs::remove_dir_all(&dir).ok();
+    assert_eq!(errors[0].line, 4);
+    assert!(errors[0].message.contains("absent.png"), "{}", errors[0].message);
+}
+
+/// Le schéma livré avec l'extension VS Code suit les tables du compilateur
+/// (`ocara --ui-schema > tools/highlight/vsode/schemas/oc-ui.schema.json`).
+#[test]
+fn editor_schema_is_up_to_date() {
+    let shipped: serde_json::Value = serde_json::from_str(include_str!("../../tools/highlight/vsode/schemas/oc-ui.schema.json")).unwrap();
+    assert!(shipped == crate::core::ui_schema::json_schema::schema(),
+        "schéma périmé : ocara --ui-schema > tools/highlight/vsode/schemas/oc-ui.schema.json");
 }

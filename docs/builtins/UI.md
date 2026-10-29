@@ -65,8 +65,22 @@ Exemple complet : [examples/ui/garage.oc](../../examples/ui/garage.oc).
 
 Le fichier est lu **à la compilation** : une erreur du `.oc.ui` est une
 erreur de compilation à sa ligne, et l'arbre normalisé est embarqué dans le
-binaire (rien à livrer à côté, APK compris). `path` est un littéral ou une
-constante ; un chemin relatif part du dossier du fichier `.oc`.
+binaire (rien à livrer à côté, APK compris ; les images locales aussi, voir
+[docs/oc-ui.md](../oc-ui.md)). `path` est un littéral ou une constante ; un
+chemin relatif part du dossier du fichier `.oc`.
+
+Sur la variable initialisée par `use UI(…)`, les appels avec un littéral sont
+vérifiés dès la compilation : action de `ui.on`, `id` de `get`/`set` (d'une
+`list` pour `setItems`, d'une `webview` pour `postMessage`/`eval`…), écran
+de `navigate`. Ailleurs (gestionnaire qui reçoit `ui:UI`, nom calculé), la
+vérification se fait à l'exécution (`UIException` 101 à 103).
+
+**Rechargement à chaud** : un programme compilé sans `--release` surveille
+son `.oc.ui` pendant `ui.run()` (desktop) ; chaque modification est
+revalidée par le compilateur et l'interface est réaffichée, état,
+gestionnaires et écran courant gardés. Une erreur s'affiche sur la sortie
+d'erreur et l'interface reste telle quelle. Le binaire de debug contient
+alors le chemin du `.oc.ui` et du compilateur ; un build `--release` non.
 
 ## Actions : `ui.on(action, handler)`
 
@@ -128,9 +142,40 @@ permis depuis n'importe quel thread (gestionnaires compris).
 | `ui.toast(text)` | message bref en bas de la fenêtre | `Toast` |
 | `ui.alert(title, text)` | boîte native, bloquante | `AlertDialog`, bloquante |
 | `ui.confirm(title, text)` → `bool` | idem, vrai si validée | idem |
-| `ui.pickFile(extensions)` → `string` | sélecteur natif, `""` si annulé | `UIException` 104 (pas encore) |
-| `ui.saveFile(name)` → `string` | idem | `UIException` 104 (pas encore) |
+| `ui.pickFile(extensions)` → `string` | sélecteur natif, `""` si annulé | sélecteur de documents du système ; le document est copié dans le cache de l'app, chemin rendu ; `""` si annulé |
+| `ui.saveFile(name)` → `string` | idem | `UIException` 104 : pas de chemin de fichier écrivable hors de l'app (enregistrer avec [AndroidFiles](AndroidFiles.md)`::saveToDownloads`) |
 | `ui.notify(title, text)` | notification système | notification (permission `notifications` requise, voir [AndroidNotifications](AndroidNotifications.md)) |
+
+## Vue web
+
+Le nœud `webview` (`id` obligatoire) est une **vraie vue web isolée**, sans
+`<iframe>` : WebKit posé sur la fenêtre au rectangle du nœud (desktop
+Linux), `WebView` d'Android. Contenu : `url`, `file` (relatif au dossier du
+programme) ou `html` ; `ui.set(id, "url", …)` recharge.
+
+| Méthode / événement | Rôle |
+|---------------------|------|
+| `onMessage` (`.oc.ui`) | la page a appelé `window.ocara.post(data)` ; `event.value()` : la donnée (JSON décodé) |
+| `onLoad`, `onError` | page chargée (`value` : son URL), échec (`{url, message}`) ; `ui.get(id, "url")`, `ui.get(id, "canGoBack")` suivent la page |
+| `ui.postMessage(id, data)` | `window.ocara.onMessage(callback)` dans la page |
+| `ui.eval(id, script)` → `string` | résultat du script (JSON pour un objet), attendu |
+| `ui.webBack(id)`, `ui.webForward(id)`, `ui.reload(id)` | historique de la vue |
+| `allow` (`.oc.ui`) | hôtes permis ; un lien hors liste s'ouvre dans le navigateur du système |
+
+Sur Android, le bouton retour remonte d'abord l'historique de la vue web.
+Limites actuelles : pas encore de vue posée sous Windows et macOS (la place
+du nœud reste vide) ; sur desktop, une fenêtre `decorations: false` qui
+contient une vue web ne se redimensionne plus par ses bords ; sur Android,
+pour une `url`, `window.ocara` est disponible dès le début du chargement
+(un script de la page exécuté plus tôt peut appeler `ocaraNative.post`).
+
+## Spécificités de plateforme
+
+`ui.tauri()` → `Tauri` (desktop, `import ocara.Tauri`) : la fenêtre de
+l'interface, pour ce qu'`ocara.UI` ne standardise pas (toujours au premier
+plan, zone de notification, raccourcis globaux…). Sur Android :
+`UIException` 104 ; les spécificités passent par les méthodes statiques
+d'[AndroidUI](AndroidUI.md).
 
 ## Plateformes
 
@@ -153,7 +198,7 @@ Les spécificités de chaque plateforme restent dans [Tauri](Tauri.md) et
 | 101 | `ui.on` : action absente du `.oc.ui` |
 | 102 | `get`/`set`/`setItems` : `id` absent du `.oc.ui` |
 | 103 | `navigate` : écran absent du `.oc.ui` |
-| 104 | service pas encore disponible sur cette plateforme |
+| 104 | service indisponible sur cette plateforme (`ui.tauri()` et `saveFile` sur Android) |
 | 105 | arbre d'interface invalide (binaire altéré) |
 
 ## Voir aussi

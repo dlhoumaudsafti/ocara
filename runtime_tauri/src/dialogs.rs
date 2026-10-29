@@ -59,7 +59,7 @@ fn running_app(this: i64, what: &str) -> tauri::AppHandle {
 /// Attend la réponse d'une boîte. Sur le thread de la boucle (handler,
 /// callback `listen`), un blocage simple empêcherait la boîte de s'afficher :
 /// la boucle GTK tourne le temps de l'attente.
-fn wait<T>(answer: mpsc::Receiver<T>) -> Option<T> {
+pub(crate) fn wait<T>(answer: mpsc::Receiver<T>) -> Option<T> {
     #[cfg(target_os = "linux")]
     if on_loop_thread() {
         loop {

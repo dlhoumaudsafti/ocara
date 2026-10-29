@@ -3860,6 +3860,23 @@
         "docFile": "UI.md"
       },
       {
+        "name": "eval",
+        "params": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "script",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": false,
+        "doc": "`ui.eval(id, script)` → `string` — résultat du script (JSON pour un objet), attendu",
+        "docFile": "UI.md"
+      },
+      {
         "name": "get",
         "params": [
           {
@@ -3934,7 +3951,37 @@
         ],
         "returns": "string",
         "static": false,
-        "doc": "`ui.pickFile(extensions)` → `string` — sélecteur natif, `\"\"` si annulé — `UIException` 104 (pas encore)",
+        "doc": "`ui.pickFile(extensions)` → `string` — sélecteur natif, `\"\"` si annulé — sélecteur de documents du système ; le document est copié dans le cache de l'app, chemin rendu ; `\"\"` si annulé",
+        "docFile": "UI.md"
+      },
+      {
+        "name": "postMessage",
+        "params": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "data",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`ui.postMessage(id, data)` — `window.ocara.onMessage(callback)` dans la page",
+        "docFile": "UI.md"
+      },
+      {
+        "name": "reload",
+        "params": [
+          {
+            "name": "id",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`ui.webBack(id)`, `ui.webForward(id)`, `ui.reload(id)` — historique de la vue",
         "docFile": "UI.md"
       },
       {
@@ -3955,7 +4002,7 @@
         ],
         "returns": "string",
         "static": false,
-        "doc": "`ui.saveFile(name)` → `string` — idem — `UIException` 104 (pas encore)",
+        "doc": "`ui.saveFile(name)` → `string` — idem — `UIException` 104 : pas de chemin de fichier écrivable hors de l'app (enregistrer avec [AndroidFiles](AndroidFiles.md)`::saveToDownloads`)",
         "docFile": "UI.md"
       },
       {
@@ -3997,6 +4044,12 @@
         "docFile": "UI.md"
       },
       {
+        "name": "tauri",
+        "params": [],
+        "returns": "Tauri",
+        "static": false
+      },
+      {
         "name": "toast",
         "params": [
           {
@@ -4007,6 +4060,32 @@
         "returns": "void",
         "static": false,
         "doc": "`ui.toast(text)` — message bref en bas de la fenêtre — `Toast`",
+        "docFile": "UI.md"
+      },
+      {
+        "name": "webBack",
+        "params": [
+          {
+            "name": "id",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`ui.webBack(id)`, `ui.webForward(id)`, `ui.reload(id)` — historique de la vue",
+        "docFile": "UI.md"
+      },
+      {
+        "name": "webForward",
+        "params": [
+          {
+            "name": "id",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`ui.webBack(id)`, `ui.webForward(id)`, `ui.reload(id)` — historique de la vue",
         "docFile": "UI.md"
       }
     ],

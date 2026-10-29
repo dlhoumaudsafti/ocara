@@ -205,6 +205,8 @@ pub fn required_props(ty: &str) -> &'static [&'static str] {
         "iconButton" => &["icon", "label"],
         "list" => &["item"],
         "radio" | "select" => &["options"],
+        // L'hôte désigne la vue web par son `id` (ui.postMessage, ui.eval…).
+        "webview" => &["id"],
         _ => &[],
     }
 }

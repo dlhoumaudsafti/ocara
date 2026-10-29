@@ -818,6 +818,12 @@
         "view": "ocara.benchmark",
         "contents": "Ouvrez un script Ocara (.oc) pour mesurer son temps d'exécution, son pic mémoire, détecter une fuite ou le profiler par fonction."
       }
+    ],
+    "yamlValidation": [
+      {
+        "fileMatch": "*.oc.ui",
+        "url": "./schemas/oc-ui.schema.json"
+      }
     ]
   },
   "scripts": {

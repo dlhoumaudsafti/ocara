@@ -71,6 +71,18 @@ pub fn init(this: i64, tree_json: &str, default_action: DefaultAction) -> Value 
     tree
 }
 
+/// Rechargement à chaud : nouvel arbre, état et gestionnaires gardés.
+pub fn reload(this: i64, tree: Value) {
+    let mut nodes = HashMap::new();
+    for screen in tree.get("screens").and_then(Value::as_object).into_iter().flat_map(|s| s.values()) {
+        collect_nodes(&screen["layout"], &mut nodes);
+    }
+    with(this, |ui| {
+        ui.tree = tree;
+        ui.nodes = nodes;
+    });
+}
+
 /// Libération de l'objet `UI` : gestionnaires rendus.
 pub fn release(this: i64) {
     let removed = UIS.lock().unwrap().as_mut().and_then(|uis| uis.remove(&this));
@@ -116,6 +128,24 @@ pub fn get(this: i64, id: &str, prop: &str) -> i64 {
             .cloned()
     }).flatten().unwrap_or(Value::Null);
     ffi::from_json(&value)
+}
+
+/// Propriétés effectives du nœud `id` : celles du `.oc.ui`, puis l'état posé.
+pub fn props(this: i64, id: &str) -> Map<String, Value> {
+    with(this, |ui| {
+        let mut props = ui.nodes.get(id).cloned().unwrap_or_default();
+        if let Some(state) = ui.state.get(id) {
+            props.extend(state.clone());
+        }
+        props
+    }).unwrap_or_default()
+}
+
+/// Déclenche l'action liée à `event` (`onLoad`…) du nœud `id`, s'il en a une.
+pub fn fire(this: i64, id: &str, event: &str, value: Value) {
+    if let Some(Value::String(action)) = props(this, id).get(event) {
+        post(this, &serde_json::json!({ "action": action, "id": id, "value": value }));
+    }
 }
 
 /// `ui.set(id, prop, valeur)` : garde la valeur et la rend en JSON, à

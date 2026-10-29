@@ -34,3 +34,7 @@ tauri-plugin-global-shortcut = "~2.3"
 # ignore la désiconification demandée par Tauri. Même version que Tauri.
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
+# Composant `webview` d'ocara.UI (src/ui/webview.rs) : vraies vues WebKit
+# posées sur la page du moteur. Mêmes versions que wry (Tauri 2.11).
+webkit2gtk = { version = "=2.0.2", features = ["v2_38"] }
+javascriptcore-rs = { version = "=1.1.2", features = ["v2_28"] }

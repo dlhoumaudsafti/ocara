@@ -257,8 +257,11 @@
       case "slider": e = slider(node, p); break;
       case "button": case "iconButton": e = button(node, p); break;
       case "webview":
-        // Vraie vue web isolée, posée par l'hôte (étape 6) : réserve sa place.
-        e = el("div", "oc-webview"); break;
+        // Vraie vue web isolée, posée par l'hôte au rectangle de ce nœud
+        // (`placeWebviews`) : ici, seulement la place réservée.
+        e = el("div", "oc-webview");
+        e.dataset.src = p.url || p.file || (p.html != null ? "html" : "");
+        break;
       default: e = el("div");
     }
     decorate(e, p, axis, ["column", "row", "stack", "grid", "card", "list"].indexOf(node.type) >= 0);
@@ -273,6 +276,46 @@
     }
     return e;
   }
+
+  var placed = {};     // id de webview → dernier rectangle envoyé
+  var placing = false;
+
+  /// Rectangle de chaque composant `webview` affiché, envoyé à l'hôte qui y
+  /// pose une vraie vue web ; `visible: false` pour celui qui a disparu.
+  function placeWebviews() {
+    placing = false;
+    var main = document.querySelector(".oc-screen");
+    var area = main ? main.getBoundingClientRect() : null;
+    var seen = {};
+    document.querySelectorAll(".oc-webview[data-id]").forEach(function (e) {
+      var r = e.getBoundingClientRect();
+      var visible = !e.closest("[hidden]") && r.width > 0 && r.height > 0 && !!area
+        && r.bottom > area.top && r.top < area.bottom;
+      var message = { webview: e.dataset.id, x: r.left, y: r.top, width: r.width, height: r.height, visible: visible };
+      seen[e.dataset.id] = true;
+      var key = JSON.stringify(message);
+      if (placed[e.dataset.id] !== key) {
+        placed[e.dataset.id] = key;
+        send(message);
+      }
+    });
+    for (var id in placed) {
+      if (!seen[id] && placed[id] !== "hidden") {
+        placed[id] = "hidden";
+        send({ webview: id, x: 0, y: 0, width: 0, height: 0, visible: false });
+      }
+    }
+  }
+
+  function schedulePlacement() {
+    if (placing) return;
+    placing = true;
+    requestAnimationFrame(placeWebviews);
+  }
+
+  window.addEventListener("resize", schedulePlacement);
+  document.addEventListener("scroll", schedulePlacement, true);
+  var layoutObserver = window.ResizeObserver ? new ResizeObserver(schedulePlacement) : null;
 
   function render() {
     mounted = {};
@@ -294,6 +337,12 @@
     var body = el("main", "oc-screen");
     body.appendChild(build(screen.layout, {}, "column"));
     root.appendChild(body);
+    if (layoutObserver) {
+      layoutObserver.disconnect();
+      layoutObserver.observe(body);
+      document.querySelectorAll(".oc-webview").forEach(function (e) { layoutObserver.observe(e); });
+    }
+    schedulePlacement();
   }
 
   var OcaraUI = window.OcaraUI = {
@@ -321,12 +370,21 @@
       }
       var fresh = build(m.node, m.ctx, m.axis);
       m.el.replaceWith(fresh);
+      schedulePlacement();
     },
 
     get: function (id, prop) {
       var m = mounted[id];
       var p = m ? props(m.node) : (state[id] || {});
       return p[prop];
+    },
+
+    /// Nouvel arbre (rechargement à chaud) : état et écran courant gardés.
+    reload: function (t) {
+      tree = t;
+      if (!tree.screens[current]) current = tree.start;
+      history = history.filter(function (s) { return tree.screens[s]; });
+      render();
     },
 
     /// État complet (page rechargée : celui gardé par l'hôte).

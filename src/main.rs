@@ -42,6 +42,11 @@ fn run() {
         return;
     }
 
+    if args.ui_schema {
+        println!("{}", serde_json::to_string_pretty(&core::ui_schema::json_schema::schema()).unwrap_or_default());
+        return;
+    }
+
     if args.input.to_string_lossy().ends_with(".oc.ui") {
         check_ui_file(&args);
         return;

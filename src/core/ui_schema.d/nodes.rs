@@ -86,6 +86,9 @@ impl Checker<'_> {
         }
         let written: Vec<&str> = entries.iter().map(|&(_, name, _)| name).collect();
         self.node_rules(node, ty, &written, &out);
+        if ty == "image" {
+            self.embed_image(node, &mut out);
+        }
         Some(Json::Object(out))
     }
 

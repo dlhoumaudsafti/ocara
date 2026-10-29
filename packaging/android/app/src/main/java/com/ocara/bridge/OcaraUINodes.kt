@@ -363,8 +363,7 @@ private fun Node(node: JSONObject, ctx: Ctx, modifier: Modifier) {
         "iconButton" -> IconButton({ OcaraUIEngine.fire(p, "onClick", id) }, m, enabled) {
             NamedIcon(ctx, p.text("icon"), p.text("label"), Modifier, null)
         }
-        // Vraie vue web (étape 6) : la place est réservée.
-        "webview" -> Box(m.height(120.dp).border(1.dp, MaterialTheme.colorScheme.outline))
+        "webview" -> OcaraWebNode(id, p, if (p["height"] == null) m.height(240.dp) else m)
     }
 }
 
@@ -436,7 +435,15 @@ private fun NamedIcon(ctx: Ctx, name: String?, label: String?, modifier: Modifie
 
 @Composable
 private fun Picture(src: String, p: Map<String, Any?>, modifier: Modifier) {
-    val bitmap = remember(src) { BitmapFactory.decodeFile(OcaraBridge.file(src).path)?.asImageBitmap() }
+    // Image embarquée par le compilateur (`data:…;base64,`) ou fichier du programme.
+    val bitmap = remember(src) {
+        if (src.startsWith("data:")) {
+            val bytes = android.util.Base64.decode(src.substringAfter(","), android.util.Base64.DEFAULT)
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+        } else {
+            BitmapFactory.decodeFile(OcaraBridge.file(src).path)?.asImageBitmap()
+        }
+    }
     val scale = when (p.text("fit")) {
         "cover" -> ContentScale.Crop
         "fill" -> ContentScale.FillBounds

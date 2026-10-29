@@ -182,6 +182,15 @@ commun (Material Icons) : `add`, `back`, `check`, `close`, `delete`,
 `refresh`, `search`, `share`, `star`. Le dessin des icônes utilisées est
 copié dans l'arbre (`icons`) : il est le même sur les deux plateformes.
 
+### Images embarquées
+
+Le `src` local d'une `image` (relatif au `.oc.ui` ; png, jpg, gif, webp,
+svg ; 4 Mo au plus) est lu à la compilation et embarqué dans l'arbre (URI
+`data:`) : le binaire, APK compris, n'a aucun fichier à livrer à côté. Un
+fichier absent est une erreur de compilation. Une URL `https://…` reste
+telle quelle (chargée par le desktop seulement). Le SVG n'est pas affiché
+sur Android.
+
 ### Valeurs
 
 - **Longueurs** : nombres en pixels logiques (px CSS sur desktop, dp sur
@@ -227,6 +236,14 @@ Les événements (`onClick`, `onChange`, `onSubmit`, `onSelect`, `onFocus`,
 `separator: true`, `items` (sous-menu). Une entrée a un `text`, sauf un
 séparateur.
 
+## Éditeur
+
+`ocara --ui-schema` produit le schéma JSON des `.oc.ui` depuis les tables
+du compilateur ; l'extension VS Code d'Ocara l'associe aux fichiers `.oc.ui`
+(complétion et validation à la frappe avec l'extension YAML de Red Hat,
+`redhat.vscode-yaml`). La validation qui fait foi reste celle du
+compilateur (styles déclarés, `id` uniques, `bind`, images).
+
 ## Limites du YAML accepté
 
 Un seul document par fichier ; pas d'ancres ni d'alias (`&nom`, `*nom`) ;
@@ -235,7 +252,8 @@ une clé en double dans une table est une erreur.
 ## Arbre normalisé
 
 `--dump` affiche ce que le binaire embarque : `window`, `styles`, `start`,
-`screens` (chaque écran : `title`, `layout`), `menu`, `icons`, plus `ids`
+`screens` (chaque écran : `title`, `layout`), `menu`, `icons`, `source`
+(build de debug : chemins pour le rechargement à chaud), plus `ids`
 (chaque `id` et le type de son nœud) et `actions` (liste triée), qui
 servent à vérifier les `ui.on` et les `get`/`set`.
 

@@ -19,6 +19,7 @@ const PREVIEW_BOOT: &str = r#"(function () {
   OcaraUI.start(TREE, {
     platform: "tauri",
     send: function (message) {
+      if (message.webview) return; // rectangle des vues web : sans hôte ici
       console.log("ocara.UI", JSON.stringify(message));
       log.textContent = (JSON.stringify(message) + "\n" + log.textContent).split("\n").slice(0, 12).join("\n");
     },

@@ -92,4 +92,9 @@ screens:
           children:
             - { type: card, height: 60, background: "#e0f2f1", children: [] }
             - { type: text, value: "Superposé", align: center, padding: 18 }
+        - type: webview
+          id: page
+          height: 140
+          onMessage: page_message
+          html: "<body style='font:15px sans-serif'><b>Vue web isolée</b><p><button onclick='ocara.post(\"clic\")'>Envoyer à Ocara</button></p></body>"
         - { type: button, text: "Retour", icon: back, variant: text, onClick: back }

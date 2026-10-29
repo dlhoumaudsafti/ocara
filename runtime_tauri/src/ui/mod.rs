@@ -10,6 +10,16 @@ use ocara_runtime_ui::ffi::str_arg;
 
 use crate::window::live;
 
+#[cfg(target_os = "linux")]
+mod webview;
+#[cfg(not(target_os = "linux"))]
+#[path = "webview_stub.rs"]
+mod webview;
+
+mod reload;
+
+pub(crate) use webview::release as release_webviews;
+
 /// Page du moteur, servie par `DiskAssets` (app.rs).
 pub(crate) const PAGE: &str = "__ocara_ui.html";
 
@@ -42,6 +52,9 @@ pub(crate) fn receive(this: i64, args_json: &str) {
     let message: Value = args.get("message").and_then(Value::as_str)
         .and_then(|m| serde_json::from_str(m).ok())
         .unwrap_or(Value::Null);
+    if message.get("webview").is_some() {
+        return webview::place(this, &message);
+    }
     if message.get("action").and_then(Value::as_str) == Some("ready") {
         eval(this, &format!("OcaraUI.restore({})", core::state(this)));
     }
@@ -96,6 +109,7 @@ pub extern "C" fn UI_set(this: i64, id: i64, prop: i64, value: i64) {
     let (id, prop) = (str_arg(id), str_arg(prop));
     let value = core::set(this, &id, &prop, value);
     send_set(this, &id, &prop, &value);
+    webview::apply(this, &id, &prop);
 }
 
 /// `ui.setItems(id, rows)` : éléments d'une `list`.
@@ -126,6 +140,7 @@ pub extern "C" fn UI_toast(this: i64, text: i64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn UI_run(this: i64) {
+    reload::watch(this);
     crate::app::Tauri_run(this);
 }
 
@@ -157,4 +172,39 @@ pub extern "C" fn UI_saveFile(this: i64, name: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn UI_notify(this: i64, title: i64, text: i64) {
     crate::dialogs::Tauri_notify(this, title, text);
+}
+
+/// `ui.postMessage(id, data)` : message à la page d'un composant `webview`.
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_postMessage(this: i64, id: i64, data: i64) {
+    webview::post_message(this, &str_arg(id), &ocara_runtime_ui::ffi::to_json(data));
+}
+
+/// `ui.eval(id, script)` → `string` : résultat du script dans la page.
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_eval(this: i64, id: i64, script: i64) -> i64 {
+    ocara_runtime_ui::ffi::string(&webview::eval(this, &str_arg(id), &str_arg(script)))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_webBack(this: i64, id: i64) {
+    webview::navigate(this, &str_arg(id), "back");
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_webForward(this: i64, id: i64) {
+    webview::navigate(this, &str_arg(id), "forward");
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_reload(this: i64, id: i64) {
+    webview::navigate(this, &str_arg(id), "reload");
+}
+
+/// `ui.tauri()` → `Tauri` : l'objet `UI` est lui-même la fenêtre Tauri ;
+/// référence supplémentaire rendue à l'appelant.
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_tauri(this: i64) -> i64 {
+    ocara_runtime::rc::__rc_retain(this);
+    this
 }

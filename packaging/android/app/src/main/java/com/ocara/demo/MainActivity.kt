@@ -1,6 +1,7 @@
 package com.ocara.demo
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.graphics.Color
 import android.os.Bundle
@@ -29,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.ocara.bridge.OcaraBridge
+import com.ocara.bridge.OcaraFilePicker
 import com.ocara.bridge.OcaraInterface
 import com.ocara.bridge.OcaraPermissions
 import com.ocara.bridge.OcaraUI
@@ -98,6 +100,7 @@ class MainActivity : ComponentActivity() {
 
   override fun onDestroy() {
     OcaraUI.release()
+    OcaraFilePicker.release()
     OcaraBridge.detach(this)
     super.onDestroy()
   }
@@ -129,6 +132,14 @@ class MainActivity : ComponentActivity() {
     } catch (e: Exception) {
       Log.e("ocara.UI", "aperçu impossible ($file) : ${e.message}")
     }
+  }
+
+  /** Document choisi par `ui.pickFile` (ocara.UI). */
+  @Deprecated("Remplacée par les ActivityResult API, mais seule voie pour un choix lancé hors de l'UI")
+  override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+    @Suppress("DEPRECATION")
+    super.onActivityResult(requestCode, resultCode, data)
+    OcaraFilePicker.onResult(requestCode, resultCode, data)
   }
 
   /** Réponse à `AndroidPermissions::request`, attendue par le programme Ocara. */

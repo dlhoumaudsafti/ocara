@@ -155,6 +155,11 @@ fn update_const(map: &mut ConstMap, name: &str, value: &Expr) {
     } else {
         map.remove(name);
     }
+    // Variable `ui` d'un `use UI(…)` : son arbre, pour vérifier ses appels.
+    match crate::core::ui_file::tree_of(value) {
+        Some(tree) => map.insert(crate::core::ui_file::ui_key(name), tree),
+        None => map.remove(&crate::core::ui_file::ui_key(name)),
+    };
 }
 
 fn desugar_stmt(stmt: &mut Stmt, map: &mut ConstMap) -> Result<(), DesugarError> {
@@ -248,10 +253,17 @@ fn desugar_expr(expr: &mut Expr, map: &mut ConstMap) -> Result<(), DesugarError>
 
         Expr::Field { object, .. } => desugar_expr(object, map)?,
 
-        Expr::Call { callee, args, .. } => {
+        Expr::Call { callee, args, span } => {
             desugar_expr(callee, map)?;
             for a in args.iter_mut() {
                 desugar_expr(a, map)?;
+            }
+            if let Expr::Field { object, field, .. } = callee.as_ref() {
+                if let Expr::Ident(var, _) = object.as_ref() {
+                    if let Some(tree) = map.get(&crate::core::ui_file::ui_key(var)) {
+                        crate::core::ui_file::check_call(tree, field, args, span)?;
+                    }
+                }
             }
         }
 

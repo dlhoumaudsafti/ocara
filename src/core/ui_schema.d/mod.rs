@@ -17,6 +17,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 mod icons;
+mod images;
+pub mod json_schema;
 mod nodes;
 pub mod preview;
 pub mod schema;
@@ -30,7 +32,8 @@ use serde_json::{json, Map, Value as Json};
 
 use crate::core::diagnostics::Diagnostic;
 use schema::Ty;
-use values::{is_ident, suggest, text};
+use values::{is_ident, text};
+pub use values::suggest;
 use yaml::{Kind, Node};
 
 /// `.oc.ui` validé.

@@ -151,6 +151,7 @@ unsafe extern "C" {
 /// Libération de l'objet `Tauri` : son état et les callbacks `listen` retenus.
 pub(crate) extern "C" fn finalize_window(this: i64) {
     tray::remove(this);
+    ui::release_webviews(this);
     ocara_runtime_ui::release(this);
     let closed = TAURI_WINDOWS.lock().unwrap().remove(&this);
     if let Some(win) = closed {
