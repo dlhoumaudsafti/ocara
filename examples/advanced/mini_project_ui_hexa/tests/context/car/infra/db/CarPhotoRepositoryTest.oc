@@ -1,0 +1,53 @@
+import ocara.UnitTest
+import ocara.Directory
+import ocara.File
+import context.car.infra.db.CarPhotoRepository
+import tests.support.Fixture
+
+class CarPhotoRepositoryTest extends UnitTest {
+
+    public method reserveTest(): int {
+        Fixture::reset()
+        const car_id:int = Fixture::car("PHOTO-RESERVE", "Peugeot", "308", 12000.0)
+        const id:int = CarPhotoRepository::reserve(car_id)
+
+        self::assertTrue(id greater 0)
+        Fixture::cleanup()
+        return 0
+    }
+
+    public method setPathTest(): int {
+        Fixture::reset()
+        const car_id:int = Fixture::car("PHOTO-SET-PATH", "Peugeot", "308", 12000.0)
+        const id:int = CarPhotoRepository::reserve(car_id)
+        const path:string = "uploads/car-" + car_id.toStr() + "-" + id.toStr() + ".gif"
+        CarPhotoRepository::setPath(id, path)
+
+        const photos:array<string> = CarPhotoRepository::forCar(car_id)
+        self::assertEquals(1, photos.len())
+        self::assertEquals(path, photos[0])
+        Fixture::cleanup()
+        return 0
+    }
+
+    public method deleteForCarTest(): int {
+        Fixture::reset()
+        const car_id:int = Fixture::car("PHOTO-REPOSITORY", "Peugeot", "308", 12000.0)
+        Directory::createRecursive("./uploads")
+        const id:int = CarPhotoRepository::reserve(car_id)
+        const path:string = "uploads/car-" + car_id.toStr() + "-" + id.toStr() + ".gif"
+        File::writeBytes("./" + path, [71, 73, 70, 56, 57, 97])
+        CarPhotoRepository::setPath(id, path)
+
+        const photos:array<string> = CarPhotoRepository::forCar(car_id)
+        self::assertEquals(1, photos.len())
+        self::assertEquals(path, photos[0])
+        self::assertTrue(File::exists("./" + path))
+
+        CarPhotoRepository::deleteForCar(car_id)
+        self::assertFalse(File::exists("./" + path))
+        self::assertEquals(0, CarPhotoRepository::forCar(car_id).len())
+        Fixture::cleanup()
+        return 0
+    }
+}

@@ -108,10 +108,29 @@ object OcaraUIEngine {
         onMain { state[key(id, prop)] = value }
     }
 
+    /**
+     * Écran déjà ouvert plus tôt : on y revient (pile raccourcie). L'écran
+     * affiché lui-même : son `onShow` est relancé (rechargement).
+     */
     @JvmStatic
     fun navigate(screen: String) = onMain {
         val screens = tree.value?.optJSONObject("screens") ?: return@onMain
-        if (screens.has(screen) && backStack.lastOrNull() != screen) backStack.add(screen)
+        if (!screens.has(screen)) return@onMain
+        if (backStack.lastOrNull() == screen) {
+            screens.getJSONObject(screen).optString("onShow").takeIf { it.isNotEmpty() }?.let { shown(it, screen) }
+            return@onMain
+        }
+        val at = backStack.indexOf(screen)
+        if (at >= 0) {
+            while (backStack.size > at + 1) backStack.removeAt(backStack.size - 1)
+        } else {
+            backStack.add(screen)
+        }
+    }
+
+    /** Action `onShow` de l'écran affiché (valeur : son nom). */
+    fun shown(action: String, screen: String) {
+        send(JSONObject().put("action", action).put("id", JSONObject.NULL).put("value", screen))
     }
 
     /** `ui.back()` depuis Ocara. */

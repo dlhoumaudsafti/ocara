@@ -25,6 +25,11 @@ unsafe extern "C" {
 
 const MESSAGE_MAX: usize = 1024;
 
+/// Rend une référence à une valeur Ocara.
+pub fn release(val: i64) {
+    unsafe { __rc_release(val) }
+}
+
 /// Texte d'une chaîne Ocara, vide pour `null`.
 pub fn str_arg(val: i64) -> String {
     if val == 0 {

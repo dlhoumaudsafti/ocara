@@ -102,7 +102,7 @@ screens:
 |-----|---------|
 | `window` | fenêtre principale (ci-dessous) |
 | `styles` | styles nommés : `nom: { propriétés de présentation }` |
-| `screens` | écrans nommés : `nom: { title, layout }` |
+| `screens` | écrans nommés : `nom: { title, layout, onShow }` (`onShow` : action lancée à chaque affichage de l'écran, valeur : son nom) |
 | `start` | écran affiché au lancement ; facultatif s'il n'y a qu'un écran |
 | `layout` | à la place de `screens` : un seul écran, nommé `main` |
 | `menu` | menu de l'application (entrées décrites plus bas) |
@@ -140,7 +140,7 @@ Un nœud est une table dont `type` est l'un des types ci-dessous.
 | `checkbox`, `switch` | `checked`, `bind`, `onChange` | |
 | `radio`, `select` | `options`, `value`, `onChange` | `options` |
 | `slider` | `min` (< `max`), `max`, `step`, `value`, `onChange` | |
-| `date`, `time` | `value` (ISO), `onChange` | |
+| `date`, `time` | `value` (ISO), `placeholder`, `onChange` | |
 | `button` | `text`, `icon`, `variant` (`primary`, `secondary`, `text`), `onClick` | |
 | `iconButton` | `icon`, `onClick` | `icon`, `label` |
 | `android.fab` | `icon`, `text` (bouton étendu), `onClick` | `icon`, `label` |
@@ -151,6 +151,7 @@ Propriétés communes à tous les nœuds :
 
 | Propriété | Valeur |
 |-----------|--------|
+| `binds` | dans un gabarit `item` : `{ propriété: champ }`, propriétés lues dans l'élément (voir plus bas) |
 | `id` | identifiant (lettres, chiffres, `_`), unique dans le fichier ; seuls les nœuds qui en ont un sont accessibles depuis Ocara |
 | `style` | nom d'un style déclaré sous `styles` |
 | `visible`, `enabled` | booléen |
@@ -231,6 +232,21 @@ champ` affiche le champ de chaque élément fourni par `ui.setItems`
 (`bind: user.name` pour un champ imbriqué). Hors d'un gabarit `item`, `bind`
 est une erreur.
 
+`binds` fait de même pour n'importe quelle propriété du nœud :
+
+```yaml
+item:
+  type: card
+  children:
+    - { type: text, bind: reference }
+    - { type: text, bind: estimated, binds: { color: badge_color, visible: has_estimate } }
+    - { type: iconButton, icon: delete, label: "Supprimer", onClick: delete_car }
+```
+
+Un `onClick` d'un nœud placé dans un élément de liste porte l'élément
+(`value`) et son rang (`index`), comme `onSelect`, sans déclencher
+l'`onSelect` de la liste.
+
 ### Surcharges de plateforme
 
 `tauri:` et `android:` reprennent les propriétés du nœud, pour cette
@@ -273,6 +289,11 @@ changées par `ui.setVars(vars)` : textes de langue, nom de l'utilisateur…
 - { type: heading, value: "${cars_title}" }
 - { type: input, id: search, placeholder: "${search}" }
 ```
+
+Les valeurs passées à `ui.set` et les textes de `toast`, `alert`,
+`confirm` et `notify` sont remplis de la même façon :
+`ui.set("flash", "value", "${flash_saved}")` affiche le message dans la
+langue courante.
 
 Une variable sans valeur reste affichée telle quelle (`${nom}`) et un
 avertissement l'indique ; `$${` écrit un `${` littéral. Les variables
@@ -373,8 +394,14 @@ Contrat commun :
   (l'état côté Ocara reste à jour, `get` n'a pas à interroger l'interface) ;
   chaque action déclarée en `{ action, id, value, index }` (`index` pour
   `onSelect`, `value` : l'élément de la liste) ; `ready` à l'affichage ;
+- `navigate` vers un écran déjà ouvert plus tôt y revient (les écrans
+  ouverts après lui sont retirés) ; vers l'écran affiché, il relance son
+  `onShow` (rechargement des données) ;
 - `back` est traité par le moteur (écran précédent, bouton retour Android) ;
   sur l'écran de départ, il remonte en action `back`.
+
+`OCARA_UI_TRACE=1` affiche sur la sortie d'erreur chaque message reçu du
+moteur (desktop) ; sur Android, ils sont dans `adb logcat -s ocara.UI`.
 
 Les tests du moteur desktop (`ci/ui_engine.sh`, Chrome sans écran) font
 partie de `make regression`.

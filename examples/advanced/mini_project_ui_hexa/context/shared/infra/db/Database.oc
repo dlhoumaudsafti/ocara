@@ -1,0 +1,100 @@
+namespace context.shared.infra.db
+// examples/advanced/mini_project_hexa/context/shared/infra/db/Database.oc
+// Accès SQLite bas niveau : ouverture de connexion + migration du schéma.
+//
+// Comme dans examples/advanced/tauri_httpserver/configs/Database.oc : pas de propriété
+// static en Ocara, donc chaque appel ouvre/ferme sa propre connexion vers le
+// même fichier ("./app.db") plutôt que de garder un handle partagé en mémoire.
+//
+// Chemin RELATIF volontairement inconditionnel (pas de branche
+// System::OS == "android") : sur Android, runtime_android_jni fait `chdir()`
+// vers le répertoire de données de l'app (Context.getFilesDir()) AVANT de
+// démarrer ce programme — "./app.db" y pointe alors déjà, exactement comme
+// sur desktop où le répertoire de travail est celui depuis lequel on lance
+// le programme. Voir docs/roadmap.d/packaging-android-webview-hybrid.md :
+// un chemin absolu construit à la main ici avait fonctionné sur émulateur
+// mais échouait sur un vrai appareil (SELinux/OEM plus strict que l'API
+// Context.getFilesDir()) — la règle "un chemin relatif = même base que
+// app.db" résout les deux à la fois, sans que ce fichier ait besoin de
+// connaître la moindre spécificité Android.
+
+import ocara.SQLite
+
+class Database {
+
+    public static method path(): string {
+        return "./app.db"
+    }
+
+    public static method connect(): SQLite {
+        return SQLite::open(self::path())
+    }
+
+    public static method migrate(): void {
+        const db:SQLite = self::connect()
+        self::migrateSchema(db)
+        db.close()
+    }
+
+    public static method migrateSchema(db:SQLite): void {
+        db.execute(`CREATE TABLE IF NOT EXISTS cars (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            reference TEXT NOT NULL,
+            brand TEXT NOT NULL,
+            model TEXT NOT NULL,
+            purchase_price REAL NOT NULL,
+            estimated_sale_price REAL NOT NULL,
+            created_at INTEGER NOT NULL
+        )`)
+        var has_acquisition_date:bool = false
+        var has_sale_date:bool = false
+        for row in db.query("PRAGMA table_info(cars)") {
+            var column:string = row["name"]
+            if column equal "acquisition_date" {
+                has_acquisition_date = true
+            }
+            if column equal "sale_date" {
+                has_sale_date = true
+            }
+        }
+        if not has_acquisition_date {
+            db.execute("ALTER TABLE cars ADD COLUMN acquisition_date TEXT NOT NULL DEFAULT ''")
+        }
+        if not has_sale_date {
+            db.execute("ALTER TABLE cars ADD COLUMN sale_date TEXT NOT NULL DEFAULT ''")
+        }
+        db.execute(`CREATE TABLE IF NOT EXISTS maintenances (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            car_id INTEGER NOT NULL,
+            type char(20) NOT NULL,
+            description TEXT NOT NULL,
+            cost REAL NOT NULL,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY(car_id) REFERENCES cars(id) ON DELETE CASCADE
+        )`)
+        var has_material_source:bool = false
+        var has_lifespan_days:bool = false
+        for row in db.query("PRAGMA table_info(maintenances)") {
+            var column:string = row["name"]
+            if column equal "material_source" {
+                has_material_source = true
+            }
+            if column equal "lifespan_days" {
+                has_lifespan_days = true
+            }
+        }
+        if not has_material_source {
+            db.execute("ALTER TABLE maintenances ADD COLUMN material_source TEXT NOT NULL DEFAULT ''")
+        }
+        if not has_lifespan_days {
+            db.execute("ALTER TABLE maintenances ADD COLUMN lifespan_days INTEGER NOT NULL DEFAULT 0")
+        }
+        db.execute(`CREATE TABLE IF NOT EXISTS car_photos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            car_id INTEGER NOT NULL,
+            path TEXT NOT NULL DEFAULT '',
+            FOREIGN KEY(car_id) REFERENCES cars(id) ON DELETE CASCADE
+        )`)
+    }
+
+}

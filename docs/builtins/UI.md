@@ -140,12 +140,13 @@ est signalée sur la sortie d'erreur ; les actions suivantes sont traitées.
 `id` doit exister dans le `.oc.ui` (sinon `UIException` 102). L'état est
 gardé par le runtime : `get` ne questionne pas l'interface, et l'état posé
 avant `run()` est affiché dès l'ouverture.
+Les valeurs texte de `set` sont remplies par les variables `${nom}`.
 
 ## Navigation et cycle de vie
 
 | Méthode | Rôle |
 |---------|------|
-| `ui.navigate(screen)` | affiche l'écran (`UIException` 103 s'il n'est pas déclaré) |
+| `ui.navigate(screen)` | affiche l'écran (`UIException` 103 s'il n'est pas déclaré) ; un écran déjà ouvert : retour à lui ; l'écran affiché : son `onShow` relancé |
 | `ui.back()` | écran précédent |
 | `ui.run()` | affiche l'interface et bloque jusqu'à sa fermeture |
 | `ui.close()` | ferme l'interface : `run()` rend la main |
@@ -232,3 +233,4 @@ Les spécificités de chaque plateforme restent dans [Tauri](Tauri.md) et
 
 - [docs/oc-ui.md](../oc-ui.md) — format `.oc.ui`, aperçus, moteurs de rendu
 - [Tauri](Tauri.md), [AndroidUI](AndroidUI.md)
+- [Garage Ocara natif](../../examples/advanced/mini_project_ui_hexa/README.md) — application complète en architecture hexagonale (desktop et Android)

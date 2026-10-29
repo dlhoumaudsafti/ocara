@@ -1,0 +1,95 @@
+import ocara.UnitTest
+import ocara.UI
+import context.shared.infra.i18n.Language
+import ocara.File
+import context.car.infra.controllers.CarController
+import tests.support.fake.FakeDatabase
+
+// Actions de la fiche, de la création et de la galerie (configs/actions/
+// CarActions.oc) sur une interface non affichée : l'état posé se relit par
+// `ui.get`, comme le HTML rendu du site par `res.body()`.
+class CarControllerTest extends UnitTest {
+    wiring tests.support.fake.FakeCarRepository
+    wiring tests.support.fake.FakeMaintenanceRepository
+    wiring tests.support.fake.FakeCarPhotoRepository
+
+    private method ui(): UI {
+        return use UI("../../../../../ui/garage.oc.ui", Language::vars("fr"))
+    }
+
+    public method createTest(): int {
+        FakeDatabase::reset()
+        const ui:UI = self.ui()
+        ui.set("new_reference", "value", "TEST-OCUNIT-UI")
+        const error:string = CarController::create(ui, " TEST-OCUNIT-UI ", "Peugeot", "308", "8500", "2025-01-02", "")
+        self::assertEquals("", error)
+        var id:string = ui.get("car_id", "value")
+        self::assertTrue(FakeDatabase::carExists(id.toInt()))
+        const row:map<string, mixed> = FakeDatabase::carRow(id.toInt())
+        self::assertEquals("TEST-OCUNIT-UI", row["reference"])
+        self::assertEquals(8500.0, row["purchase_price"])
+        self::assertEquals("2025-01-02", row["acquisition_date"])
+        self::assertEquals("", ui.get("new_reference", "value"))
+        FakeDatabase::cleanup()
+        return 0
+    }
+
+    public method createInvalidTest(): int {
+        FakeDatabase::reset()
+        const ui:UI = self.ui()
+        self::assertEquals("missing_fields", CarController::create(ui, "", "Peugeot", "308", "8500", "", ""))
+        self::assertEquals("invalid_price", CarController::create(ui, "TEST-OCUNIT-X", "Peugeot", "308", "abc", "", ""))
+        self::assertEquals("invalid_price", CarController::create(ui, "TEST-OCUNIT-X", "Peugeot", "308", "-5", "", ""))
+        self::assertEquals(0, FakeDatabase::cars().len())
+        FakeDatabase::cleanup()
+        return 0
+    }
+
+    public method displayTest(): int {
+        FakeDatabase::reset()
+        const ui:UI = self.ui()
+        const id:int = FakeDatabase::car("SHOW", "Renault", "Clio", 10000.0)
+        FakeDatabase::maintenance(id, "improvement", "Peinture", 500.0)
+        self::assertTrue(CarController::display(ui, id))
+        self::assertEquals(id.toStr(), ui.get("car_id", "value"))
+        self::assertEquals("Renault Clio", ui.get("car_model_line", "value"))
+        self::assertEquals("10000,00 €", ui.get("car_purchase", "value"))
+        self::assertEquals("500,00 €", ui.get("car_improvement_total", "value"))
+        // Variables de texte remplies dans la langue de l'interface (aucune ici).
+        var rows:array<map<string, mixed>> = ui.get("maintenances", "items")
+        self::assertEquals("Peinture", rows[0]["description"])
+        self::assertFalse(CarController::display(ui, 999999))
+        FakeDatabase::cleanup()
+        return 0
+    }
+
+    public method removeTest(): int {
+        FakeDatabase::reset()
+        const id:int = FakeDatabase::car("DEL", "Peugeot", "208", 9000.0)
+        FakeDatabase::addPhoto(id, "uploads/x.jpg")
+        CarController::remove(id)
+        self::assertFalse(FakeDatabase::carExists(id))
+        self::assertEquals(0, FakeDatabase::photos(id).len())
+        FakeDatabase::cleanup()
+        return 0
+    }
+
+    // Même contrôle que le site : signature du format, taille.
+    public method storePhotoTest(): int {
+        FakeDatabase::reset()
+        const id:int = FakeDatabase::car("PHOTO", "Peugeot", "208", 9000.0)
+        File::writeBytes("/tmp/ocara-ui-test.png", [137, 80, 78, 71, 13, 10, 26, 10, 0, 0])
+        File::writeBytes("/tmp/ocara-ui-test-fake.png", [1, 2, 3, 4, 5, 6, 7, 8])
+        File::writeBytes("/tmp/ocara-ui-test.txt", [137, 80, 78, 71, 13, 10, 26, 10])
+        self::assertTrue(CarController::storePhoto(id, "/tmp/ocara-ui-test.png"))
+        self::assertFalse(CarController::storePhoto(id, "/tmp/ocara-ui-test-fake.png"))
+        self::assertFalse(CarController::storePhoto(id, "/tmp/ocara-ui-test.txt"))
+        self::assertFalse(CarController::storePhoto(999999, "/tmp/ocara-ui-test.png"))
+        const photos:array<string> = FakeDatabase::photos(id)
+        self::assertEquals(1, photos.len())
+        self::assertTrue(File::exists("./" + photos[0]))
+        File::remove("./" + photos[0])
+        FakeDatabase::cleanup()
+        return 0
+    }
+}

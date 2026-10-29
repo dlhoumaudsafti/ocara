@@ -1,0 +1,18 @@
+home:
+  page_header: "Cars fleet"
+  stats:
+    total_cars: "Cars"
+    total_purchase_price: "Total purchase price"
+    total_selling_price: "Total selling price"
+    maintenance_profit: "Maintenance profit"
+  cars:
+    empty: "No cars available — add the first one above."
+    add: "Add a car"
+    edit: "Edit"
+    delete: "Delete"
+    reference: "RReference"
+    brand: "Brand"
+    model: "Model"
+    purchase_price: "Purchase Price (€)"
+    selling_price: "Selling Price (€)"
+    all: "All cars"

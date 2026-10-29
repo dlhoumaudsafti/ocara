@@ -1,0 +1,17 @@
+import ocara.UnitTest
+import context.search.domain.entity.CarSearchResultEntity
+
+class CarSearchResultEntityTest extends UnitTest {
+
+    public method initTest(): int {
+        const car:CarSearchResultEntity = use CarSearchResultEntity(5, "REF-5", "Citroen", "C3", 7000.0, 7300.0, 120.0)
+        self::assertEquals(5, car.id)
+        self::assertEquals("REF-5", car.reference)
+        self::assertEquals("Citroen", car.brand)
+        self::assertEquals("C3", car.model)
+        self::assertEquals(7000.0, car.purchase_price)
+        self::assertEquals(7300.0, car.estimated_price)
+        self::assertEquals(120.0, car.maintenance_total)
+        return 0
+    }
+}

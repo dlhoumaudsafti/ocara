@@ -98,7 +98,7 @@ pub fn init(this: i64, tree_json: &str, vars: Value, default_action: DefaultActi
     };
     let vars = vars_of(vars);
     warn_missing(&raw, &vars);
-    let tree = vars::resolve(&raw, &vars);
+    let tree = vars::resolve_tree(&raw, &vars);
     let ui = Ui {
         nodes: nodes_of(&tree),
         raw,
@@ -113,7 +113,7 @@ pub fn init(this: i64, tree_json: &str, vars: Value, default_action: DefaultActi
 }
 
 fn rebuild(ui: &mut Ui) -> Value {
-    ui.tree = vars::resolve(&ui.raw, &ui.vars);
+    ui.tree = vars::resolve_tree(&ui.raw, &ui.vars);
     ui.nodes = nodes_of(&ui.tree);
     ui.tree.clone()
 }
@@ -135,6 +135,14 @@ pub fn set_vars(this: i64, vars: Value) -> Value {
         ui.vars.extend(vars_of(vars));
         rebuild(ui)
     }).unwrap_or(Value::Null)
+}
+
+/// Texte d'un message (`toast`, `alert`, `confirm`, `notify`) : variables
+/// `${nom}` remplies.
+pub fn text(this: i64, text: &str) -> String {
+    with(this, |ui| vars::resolve(&Value::String(text.to_string()), &ui.vars))
+        .and_then(|v| v.as_str().map(str::to_string))
+        .unwrap_or_else(|| text.to_string())
 }
 
 /// `ui.sizeClass()` : classe rapportée par le moteur, `""` avant l'affichage.
@@ -207,11 +215,13 @@ pub fn fire(this: i64, id: &str, event: &str, value: Value) {
     }
 }
 
-/// `ui.set(id, prop, valeur)` : garde la valeur et la rend en JSON, à
-/// transmettre au moteur.
+/// `ui.set(id, prop, valeur)` : garde la valeur (variables `${nom}`
+/// remplies) et la rend en JSON, à transmettre au moteur.
 pub fn set(this: i64, id: &str, prop: &str, value: i64) -> Value {
     check_id(this, id);
-    let value = to_json(value);
+    // `${nom}` d'une valeur posée : rempli avec les variables courantes
+    // (messages traduits produits par le code).
+    let value = with(this, |ui| vars::resolve(&to_json(value), &ui.vars)).unwrap_or(Value::Null);
     set_json(this, id, prop, value.clone());
     value
 }
@@ -238,6 +248,11 @@ pub fn check_screen(this: i64, screen: &str) {
 /// Message d'un moteur : `{ id, prop, value }` (valeur changée par
 /// l'utilisateur) ou `{ action, id, value, index }`.
 pub fn post(this: i64, message: &Value) {
+    // `OCARA_UI_TRACE=1` : chaque message du moteur sur la sortie d'erreur.
+    static TRACE: OnceLock<bool> = OnceLock::new();
+    if *TRACE.get_or_init(|| std::env::var_os("OCARA_UI_TRACE").is_some()) {
+        eprintln!("UI ← {message}");
+    }
     let id = message.get("id").and_then(Value::as_str);
     if let (Some(id), Some(prop)) = (id, message.get("prop").and_then(Value::as_str)) {
         set_json(this, id, prop, message.get("value").cloned().unwrap_or(Value::Null));

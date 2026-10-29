@@ -1,0 +1,25 @@
+import ocara.UnitTest
+import context.car.domain.entity.CarEntity
+
+class CarEntityTest extends UnitTest {
+
+    public method initTest(): int {
+        const car:CarEntity = use CarEntity(7, "REF-1", "Peugeot", "308", 12000.5, 14000.75, "2024-01-01", "")
+        self::assertEquals(7, car.id)
+        self::assertEquals("REF-1", car.reference)
+        self::assertEquals("Peugeot", car.brand)
+        self::assertEquals("308", car.model)
+        self::assertEquals(12000.5, car.purchase_price)
+        self::assertEquals(14000.75, car.estimated_price)
+        self::assertEquals("2024-01-01", car.acquisition_date)
+        self::assertEquals("", car.sale_date)
+        return 0
+    }
+
+    // Une voiture pas encore enregistrée n'a pas d'identifiant.
+    public method initWithoutIdTest(): int {
+        const car:CarEntity = use CarEntity(null, "REF-2", "Renault", "Clio", 8000.0, 8000.0, "", "")
+        self::assertNull(car.id)
+        return 0
+    }
+}

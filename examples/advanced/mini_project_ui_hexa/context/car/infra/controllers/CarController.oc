@@ -1,0 +1,209 @@
+namespace context.car.infra.controllers
+// Fiche d'une voiture, création, suppression et galerie photo — les routes
+// /voitures/… de mini_project_hexa (configs/routes/CarRoutes.oc), devenues
+// des actions de l'interface (configs/actions/CarActions.oc). La voiture
+// affichée est dans le nœud caché `car_id` de l'écran `car` ; un élément de
+// liste (accueil, recherche) porte l'`id` de la sienne.
+
+import ocara.UI
+import ocara.UIEvent
+import ocara.File
+import ocara.Directory
+import ocara.ConvertException
+import context.car.domain.entity.CarEntity
+import context.car.domain.contract.CarContract
+import context.car.domain.contract.CarPhotoContract
+import context.car.app.port.CarViewPort
+import context.car.app.usecase.CarDetailsService
+import context.car.app.dto.CarDetailsDTO
+import context.car.infra.view.helpers.Flash
+import context.shared.infra.ui.Screen
+
+class CarController {
+
+    // Carte choisie (accueil, recherche) : ouvre sa fiche.
+    public static method open(ui:UI, event:UIEvent): void {
+        var row:map<string, mixed> = event.value()
+        var id:int = row["id"]
+        ui.set("car_id", "value", id.toStr())
+        ui.navigate("car")
+    }
+
+    // Écran `car` affiché (onShow) : la fiche de la voiture courante — GET
+    // /voitures/<id>. Voiture disparue : retour à l'accueil.
+    public static method show(ui:UI, event:UIEvent): void {
+        if not self::display(ui, self::current(ui)) {
+            ui.toast(Flash::message("not_found"))
+            ui.navigate("home")
+        }
+    }
+
+    public static method display(ui:UI, id:int): bool {
+        const details:CarDetailsDTO|null = CarDetailsService::build(id)
+        if details is null {
+            return false
+        }
+        Screen::apply(ui, CarViewPort::present(details))
+        return true
+    }
+
+    public static method current(ui:UI): int {
+        var id:string = Screen::text(ui, "car_id")
+        if id.empty() {
+            return 0
+        }
+        return id.toInt()
+    }
+
+    // Formulaire « Ajouter une voiture » de l'accueil — POST /voitures/ajouter.
+    public static method add(ui:UI, event:UIEvent): void {
+        var reference:string = Screen::text(ui, "new_reference")
+        var brand:string = Screen::text(ui, "new_brand")
+        var model:string = Screen::text(ui, "new_model")
+        var price:string = Screen::text(ui, "new_price")
+        var acquisition:string = Screen::text(ui, "new_acquisition")
+        var sale:string = Screen::text(ui, "new_sale")
+        const error:string = self::create(ui, reference, brand, model, price, acquisition, sale)
+        Screen::error(ui, "home_error", Flash::message(error))
+    }
+
+    // Crée la voiture et ouvre sa fiche ; rend le code d'erreur, "" si créée.
+    public static method create(
+        ui:UI,
+        reference:string,
+        brand:string,
+        model:string,
+        price_text:string,
+        acquisition:string,
+        sale:string
+    ): string {
+        const ref:string = reference.trim()
+        const b:string = brand.trim()
+        const m:string = model.trim()
+        const price:float = self::number(price_text)
+        if ref.empty() or b.empty() or m.empty() {
+            return "missing_fields"
+        }
+        if price smaller or equal 0.0 {
+            return "invalid_price"
+        }
+        const id:int = CarContract::create(ref, b, m, price, acquisition.trim(), sale.trim())
+        for field in ["new_reference", "new_brand", "new_model", "new_price", "new_acquisition", "new_sale"] {
+            ui.set(field, "value", "")
+        }
+        ui.toast(Flash::message("car_added"))
+        ui.set("car_id", "value", id.toStr())
+        ui.navigate("car")
+        return ""
+    }
+
+    // Nombre saisi ; 0.0 si le texte n'en est pas un (refusé ensuite comme
+    // le site refusait un prix invalide).
+    public static method number(text:string): float {
+        try {
+            return text.trim().toFloat()
+        } on e is ConvertException {
+            return 0.0
+        }
+    }
+
+    // Corbeille d'une carte (accueil, recherche) — POST /voitures/<id>/supprimer.
+    public static method delete(ui:UI, event:UIEvent): void {
+        var row:map<string, mixed> = event.value()
+        var id:int = row["id"]
+        self::confirmDelete(ui, id)
+    }
+
+    // Bouton « Supprimer la voiture » de la fiche.
+    public static method deleteCurrent(ui:UI, event:UIEvent): void {
+        self::confirmDelete(ui, self::current(ui))
+    }
+
+    // Confirmation native (la fenêtre modale du site), puis retour à l'accueil.
+    private static method confirmDelete(ui:UI, id:int): void {
+        if not ui.confirm("${confirm_title}", "${confirm_delete_car}") {
+            return
+        }
+        self::remove(id)
+        ui.toast(Flash::message("car_deleted"))
+        ui.navigate("home")
+    }
+
+    public static method remove(id:int): void {
+        CarPhotoContract::deleteForCar(id)
+        CarContract::delete(id)
+    }
+
+    // « Ajouter une photo » : sélecteur natif — POST /voitures/<id>/photos.
+    public static method addPhoto(ui:UI, event:UIEvent): void {
+        const source:string = ui.pickFile(["jpg", "jpeg", "png", "webp", "gif"])
+        if source.empty() {
+            return
+        }
+        const id:int = self::current(ui)
+        if not self::storePhoto(id, source) {
+            Screen::error(ui, "car_error", Flash::message("invalid_photo"))
+            return
+        }
+        ui.toast(Flash::message("photo_added"))
+        self::display(ui, id)
+    }
+
+    // Copie la photo `source` dans ./uploads après les contrôles du site :
+    // format reconnu à sa signature, 1 octet à 10 Mo. Faux si refusée.
+    public static method storePhoto(id:int, source:string): bool {
+        const car:CarEntity|null = CarContract::find(id)
+        if car is null or not File::exists(source) {
+            return false
+        }
+        var extension:string = match File::extension(source).lower() {
+            "jpg" => "jpg"
+            "jpeg" => "jpg"
+            "png" => "png"
+            "webp" => "webp"
+            "gif" => "gif"
+            default => ""
+        }
+        var content:array<int> = File::readBytes(source)
+        if extension.empty() or not self::validSignature(extension, content)
+            or content.len() greater 10485760 or content.len() smaller 1 {
+            return false
+        }
+        Directory::createRecursive("./uploads")
+        var photo_id:int = CarPhotoContract::reserve(id)
+        var path:string = "uploads/car-" + id.toStr() + "-" + photo_id.toStr() + "." + extension
+        File::writeBytes("./" + path, content)
+        CarPhotoContract::setPath(photo_id, path)
+        return true
+    }
+
+    private static method validSignature(extension:string, content:array<int>): bool {
+        if extension equal "jpg" and content.len() greater or equal 3 {
+            return content[0] equal 255 and content[1] equal 216 and content[2] equal 255
+        }
+        if extension equal "png" and content.len() greater or equal 8 {
+            return content[0] equal 137 and content[1] equal 80
+                and content[2] equal 78 and content[3] equal 71
+                and content[4] equal 13 and content[5] equal 10
+                and content[6] equal 26 and content[7] equal 10
+        }
+        if extension equal "gif" and content.len() greater or equal 6 {
+            return content[0] equal 71 and content[1] equal 73
+                and content[2] equal 70 and content[3] equal 56
+        }
+        if extension equal "webp" and content.len() greater or equal 12 {
+            return content[0] equal 82 and content[1] equal 73
+                and content[2] equal 70 and content[3] equal 70
+                and content[8] equal 87 and content[9] equal 69
+                and content[10] equal 66 and content[11] equal 80
+        }
+        return false
+    }
+
+    // Photo de la galerie : en grand (l'image ouverte par le lien du site).
+    public static method openPhoto(ui:UI, event:UIEvent): void {
+        var row:map<string, mixed> = event.value()
+        ui.set("photo_full", "src", row["path"])
+        ui.navigate("photo")
+    }
+}

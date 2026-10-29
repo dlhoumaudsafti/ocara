@@ -1,0 +1,9 @@
+# Photo en grand (le lien « ouvrir l'image » de la galerie du site).
+screens:
+  photo:
+    title: "${photo_title}"
+    layout:
+      type: column
+      padding: 16
+      children:
+        - { type: image, id: photo_full, src: "", label: "${photo_label}", width: fill, height: fill, fit: contain }

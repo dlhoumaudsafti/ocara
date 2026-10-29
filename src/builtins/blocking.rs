@@ -2,7 +2,7 @@
 // Étiquettes des builtins bloquants
 //
 // - thread principal : boucle d'événements qui prend le thread principal
-//   (`Tauri.run`) ;
+//   (`Tauri.run`, `UI.run`) ;
 // - bloquant : bloque le thread appelant (serveur, attente, lecture…).
 //
 // Lues par `assertBlocksMainThread`/`assertIsBlocking` (src/sema/blocking_assert.rs).
@@ -22,6 +22,7 @@ pub enum Blocking {
 
 const MAIN_THREAD: &[(&str, &str)] = &[
     ("Tauri", "run"),
+    ("UI", "run"),
 ];
 
 const BLOCKS: &[(&str, &str)] = &[
@@ -44,6 +45,10 @@ const BLOCKS: &[(&str, &str)] = &[
     ("HTTPRequest", "patch"),
     ("HTTPRequest", "send"),
     ("SDL", "delay"),
+    ("UI", "alert"),
+    ("UI", "confirm"),
+    ("UI", "pickFile"),
+    ("UI", "saveFile"),
 ];
 
 /// Étiquette de la méthode `method` du builtin `class`.

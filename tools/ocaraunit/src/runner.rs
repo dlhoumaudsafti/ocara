@@ -12,7 +12,7 @@ use std::{
 use crate::{
     cache::{purge, test_key, EntryName},
     discovery::{declares_main, extract_tests, generate_main},
-    imports::rebase_imports,
+    imports::{rebase_imports, rebase_ui_paths},
     process::{describe_status, run, strip_ansi, Output},
     runtime_test::{self, Variant},
 };
@@ -92,7 +92,7 @@ fn prepare_source(src: &Path, root: &Path, runner_module: &str) -> Result<Prepar
                     commence ou se termine par `test`".to_string());
     }
     let test_dir = src.parent().unwrap_or(root);
-    let rebased = rebase_imports(&source, test_dir, root);
+    let rebased = rebase_ui_paths(&rebase_imports(&source, test_dir, root), test_dir, root);
     let Some(entry) = runtime_test::entry_of(src, root) else {
         return Ok(Prepared { source: format!("{}\n{}", rebased, generate_main(&tests)), runner: None });
     };

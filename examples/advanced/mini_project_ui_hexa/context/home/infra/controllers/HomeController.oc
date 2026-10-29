@@ -1,0 +1,22 @@
+namespace context.home.infra.controllers
+// Écran `home` : tableau de bord de la flotte, rafraîchi à chaque affichage
+// (action `show_home`, `onShow` de l'écran) — l'équivalent de GET / de
+// mini_project_hexa. Le rendu est délégué à la vue (HomeViewPort →
+// context/home/infra/view/HomeView.oc).
+
+import ocara.UI
+import ocara.UIEvent
+import context.home.app.usecase.DashboardService
+import context.home.app.port.HomeViewPort
+import context.shared.infra.ui.Screen
+
+class HomeController {
+
+    public static method show(ui:UI, event:UIEvent): void {
+        self::refresh(ui)
+    }
+
+    public static method refresh(ui:UI): void {
+        Screen::apply(ui, HomeViewPort::present(DashboardService::build()))
+    }
+}

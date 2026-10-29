@@ -1,0 +1,107 @@
+// Données de test des adaptateurs SQL (tests/context/*/infra/db) — les seuls
+// tests qui touchent la vraie base. Les autres (cas d'usage, contrôleurs,
+// routes) remplacent les dépôts par tests/support/fake/ (`wiring` de classe
+// de test) et se remplissent avec tests.support.fake.FakeDatabase.
+//
+// Les tests tournent sur la base de l'application (`./app.db`, voir
+// context.shared.infra.db.Database) : ils ne créent que des voitures dont la
+// référence commence par `TEST-OCUNIT` et les suppriment, avec leurs
+// entretiens, avant et après usage — les données de développement ne sont
+// jamais modifiées. Insertion en SQL direct : un test de cas d'usage ne
+// dépend pas du dépôt qu'il traverse.
+
+import ocara.SQLite
+import ocara.DateTime
+import context.shared.infra.db.Database
+
+class Fixture {
+
+    public static method prefix(): string {
+        return "TEST-OCUNIT"
+    }
+
+    // Schéma présent et aucune donnée de test résiduelle.
+    public static method reset(): void {
+        Database::migrate()
+        self::cleanup()
+    }
+
+    public static method cleanup(): void {
+        const db:SQLite = Database::connect()
+        db.execute(`DELETE FROM maintenances
+            WHERE car_id IN (SELECT id FROM cars WHERE reference LIKE 'TEST-OCUNIT%')`)
+        db.execute(`DELETE FROM car_photos
+            WHERE car_id IN (SELECT id FROM cars WHERE reference LIKE 'TEST-OCUNIT%')`)
+        db.execute("DELETE FROM cars WHERE reference LIKE 'TEST-OCUNIT%'")
+        db.close()
+    }
+
+    // Voiture de test `TEST-OCUNIT-<suffix>` ; prix de vente estimé = prix d'achat.
+    public static method car(suffix:string, brand:string, model:string, price:float): int {
+        var id:int = 0
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.prepare(`INSERT INTO cars
+                (reference, brand, model, purchase_price, estimated_sale_price, created_at, acquisition_date, sale_date)
+                VALUES (:reference, :brand, :model, :price, :price, :createdAt, '', '')`)
+            db.bind({
+                "reference": "TEST-OCUNIT-" + suffix,
+                "brand": brand,
+                "model": model,
+                "price": price,
+                "createdAt": DateTime::now()
+            })
+            db.commit()
+            id = db.lastInsertId()
+        })
+        return id
+    }
+
+    public static method maintenance(car_id:int, type:string, description:string, cost:float): void {
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.prepare(`INSERT INTO maintenances
+                (car_id, type, description, cost, created_at, material_source, lifespan_days)
+                VALUES (:carId, :type, :description, :cost, :createdAt, '', 0)`)
+            db.bind({
+                "carId": car_id,
+                "type": type,
+                "description": description,
+                "cost": cost,
+                "createdAt": DateTime::now()
+            })
+            db.commit()
+        })
+    }
+
+    // Prix de vente estimé lu directement en base.
+    public static method estimatedPrice(car_id:int): float {
+        const db:SQLite = Database::connect()
+        const row:map<string, mixed> = db.queryOne(
+            "SELECT estimated_sale_price FROM cars WHERE id = :id",
+            {"id": car_id}
+        )
+        db.close()
+        var price:float = row["estimated_sale_price"]
+        return price
+    }
+
+    public static method carExists(car_id:int): bool {
+        const db:SQLite = Database::connect()
+        const row:map<string, mixed> = db.queryOne(
+            "SELECT id FROM cars WHERE id = :id",
+            {"id": car_id}
+        )
+        db.close()
+        return row.size() greater 0
+    }
+
+    public static method maintenanceCount(car_id:int): int {
+        const db:SQLite = Database::connect()
+        const row:map<string, mixed> = db.queryOne(
+            "SELECT COUNT(*) AS n FROM maintenances WHERE car_id = :id",
+            {"id": car_id}
+        )
+        db.close()
+        var n:int = row["n"]
+        return n
+    }
+}

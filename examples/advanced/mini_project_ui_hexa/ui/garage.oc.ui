@@ -1,0 +1,36 @@
+# Garage Ocara — interface native (ocara.UI) : fenêtre Tauri sur desktop,
+# Compose sur Android. Équivalent des pages de mini_project_hexa (templates/,
+# configs/components/), écran par écran :
+#   home    tableau de bord, ajout de voiture, flotte    (templates/home/home.html)
+#   car     fiche, galerie, entretiens                    (templates/car/car_detail.html)
+#   search  recherche voitures et entretiens              (templates/search/search.html)
+#   photo   photo en grand (le lien vers l'image du site)
+# Écrans téléphone et fenêtre étroite ; à partir de 840 px/dp :
+# garage.md.oc.ui. Textes : variables `${…}` (languages/<langue>/ui.yaml).
+window:
+  title: "${app_title}"
+  width: 1200
+  height: 800
+  minWidth: 380
+  minHeight: 520
+  theme: auto
+  primary: "#1565c0"
+  android: { systemBars: dark }
+
+styles:
+  page_title: { fontSize: 24, bold: true }
+  section_title: { fontSize: 18, bold: true }
+  stat_label: { fontSize: 12, color: "#757575" }
+  stat_value: { fontSize: 20, bold: true, color: "#1565c0" }
+  card_ref: { fontSize: 16, bold: true }
+  muted: { color: "#757575" }
+  highlight: { bold: true, color: "#2e7d32" }
+  error: { bold: true, color: "#c62828" }
+
+start: home
+screens:
+  includes:
+    - ui.d/home.oc.ui
+    - ui.d/car.oc.ui
+    - ui.d/search.oc.ui
+    - ui.d/photo.oc.ui

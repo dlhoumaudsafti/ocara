@@ -1,0 +1,26 @@
+namespace context.car.app.usecase
+// examples/advanced/mini_projet/services/PricingService.oc
+// Règle métier : le prix de vente estimé d'une voiture est toujours
+// recalculé entièrement (prix d'achat + somme des entretiens d'amélioration)
+// plutôt qu'incrémenté à chaque ajout — robuste si un entretien est un jour
+// modifié ou supprimé, pas seulement ajouté.
+
+import context.car.domain.entity.CarEntity
+import context.car.domain.contract.CarContract
+import context.car.domain.contract.MaintenanceContract
+
+class PricingService {
+
+    public static method recalculateEstimatedPrice(carId:int): float {
+        const car:CarEntity|null = CarContract::find(carId)
+        if car is null {
+            return 0.0
+        }
+        consumed improvements_resolvable:Resolvable<float> = MaintenanceContract::improvementTotal(carId)
+        var improvements:float = resolve improvements_resolvable
+        var new_estimated:float = car.purchase_price + improvements
+
+        CarContract::updateEstimatedPrice(carId, new_estimated)
+        return new_estimated
+    }
+}

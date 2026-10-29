@@ -1,0 +1,5 @@
+# Interface minimale de 121_builtin_call_argsTest.oc.
+layout:
+  type: column
+  children:
+    - { type: text, id: probe }

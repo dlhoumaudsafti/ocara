@@ -1,0 +1,9 @@
+namespace context.home.app.dto
+
+import context.home.domain.entity.CarSummaryEntity
+
+struct DashboardDto {
+    public property cars:array<CarSummaryEntity>
+    public property total_purchase_value:float
+    public property total_estimated_value:float
+}

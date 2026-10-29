@@ -1,0 +1,62 @@
+namespace context.car.infra.controllers
+// Formulaire « Ajouter un entretien » de la fiche — POST
+// /voitures/<id>/entretiens de mini_project_hexa : mêmes contrôles, puis
+// recalcul immédiat du prix de vente estimé (PricingService).
+
+import ocara.UI
+import ocara.UIEvent
+import context.car.domain.contract.MaintenanceContract
+import context.car.app.usecase.PricingService
+import context.car.infra.controllers.CarController
+import context.car.infra.view.helpers.Flash
+import context.shared.infra.ui.Screen
+
+class MaintenanceController {
+
+    public static method add(ui:UI, event:UIEvent): void {
+        var type:string = Screen::text(ui, "m_type")
+        var description:string = Screen::text(ui, "m_description")
+        var cost:string = Screen::text(ui, "m_cost")
+        var source:string = Screen::text(ui, "m_source")
+        var lifespan:string = Screen::text(ui, "m_lifespan")
+        const error:string = self::create(ui, CarController::current(ui), type, description, cost, source, lifespan)
+        Screen::error(ui, "car_error", Flash::message(error))
+    }
+
+    // Enregistre l'entretien et réaffiche la fiche ; rend le code d'erreur,
+    // "" si enregistré.
+    public static method create(
+        ui:UI,
+        car_id:int,
+        type:string,
+        description:string,
+        cost_text:string,
+        source:string,
+        lifespan_text:string
+    ): string {
+        const desc:string = description.trim()
+        const cost:float = CarController::number(cost_text)
+        const lifespan_str:string = lifespan_text.trim()
+        var lifespan_days:int = 0
+        var invalid_lifespan:bool = false
+        if not lifespan_str.empty() {
+            lifespan_days = CarController::number(lifespan_str).toInt()
+            if lifespan_days smaller or equal 0 {
+                invalid_lifespan = true
+            }
+        }
+        var invalid_type:bool = not (type equal "maintenance" or type equal "improvement")
+        if desc.empty() or cost smaller or equal 0.0 or invalid_type or invalid_lifespan {
+            return "invalid_cost"
+        }
+        MaintenanceContract::create(car_id, type, desc, cost, source.trim(), lifespan_days)
+        // Recalcul complet (pas un simple +=) : voir PricingService.
+        PricingService::recalculateEstimatedPrice(car_id)
+        for field in ["m_description", "m_cost", "m_source", "m_lifespan"] {
+            ui.set(field, "value", "")
+        }
+        ui.toast(Flash::message("maintenance_added"))
+        CarController::display(ui, car_id)
+        return ""
+    }
+}

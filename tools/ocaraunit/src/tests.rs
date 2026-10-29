@@ -8,7 +8,7 @@ use crate::{
     cli::{parse_args, DEFAULT_TIMEOUT_S},
     config::is_excluded,
     discovery::{declares_main, extract_tests, TestEntry},
-    imports::{parse_import, relative_to, ImportPath},
+    imports::{parse_import, rebase_ui_paths, relative_to, ImportPath},
     process::strip_ansi,
 };
 
@@ -282,4 +282,18 @@ mod reliability {
         assert_eq!(args(&["--jobs=1"]).expect("valide").jobs, 1);
         assert!(args(&["--jobs", "0"]).is_err());
     }
+}
+
+// `use UI("chemin")` relatif au test : réécrit relativement à la racine, où
+// le test est recompilé ; un chemin introuvable reste tel quel.
+#[test]
+fn ui_paths_are_rebased_to_the_root() {
+    let root = std::env::temp_dir().join(format!("ocaraunit_ui_{}", std::process::id()));
+    std::fs::create_dir_all(root.join("ui")).unwrap();
+    std::fs::create_dir_all(root.join("tests/a")).unwrap();
+    std::fs::write(root.join("ui/app.oc.ui"), "layout: { type: column }").unwrap();
+    let source = "const ui:UI = use UI(\"../../ui/app.oc.ui\")\nconst b:UI = use UI(\"absent.oc.ui\")";
+    let out = rebase_ui_paths(source, &root.join("tests/a"), &root);
+    std::fs::remove_dir_all(&root).ok();
+    assert_eq!(out, "const ui:UI = use UI(\"ui/app.oc.ui\")\nconst b:UI = use UI(\"absent.oc.ui\")");
 }

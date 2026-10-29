@@ -93,7 +93,7 @@ import org.json.JSONObject
 import kotlin.math.roundToInt
 
 /** Contexte d'un nœud : élément de liste (`bind`) et parent défilant. */
-internal data class Ctx(val tree: JSONObject, val item: JSONObject? = null, val scrolling: Boolean = false)
+internal data class Ctx(val tree: JSONObject, val item: JSONObject? = null, val scrolling: Boolean = false, val index: Int? = null)
 
 /** Types qui prennent la largeur d'une colonne (règle commune avec engine.css). */
 private val FILL_IN_COLUMN = setOf(
@@ -162,6 +162,10 @@ private fun Screen(tree: JSONObject) {
         val layout = screen.getJSONObject("layout")
         val ctx = Ctx(tree)
         val material = MaterialNodes(layout)
+        // Écran affiché (départ, navigation, retour, nouvel arbre) : `onShow`.
+        LaunchedEffect(current, tree) {
+            screen.optString("onShow").takeIf { it.isNotEmpty() }?.let { OcaraUIEngine.shown(it, current) }
+        }
         BackHandler(enabled = stack.size > 1) { OcaraUIEngine.back() }
         WithDrawer(material.drawer, ctx) { openDrawer ->
             Scaffold(
@@ -197,7 +201,7 @@ private fun Screen(tree: JSONObject) {
 private const val BACK_PATH = "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"
 private const val MENU_PATH = "M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"
 
-/** Propriétés effectives : style nommé, nœud, surcharge `android`, état. */
+/** Propriétés effectives : style nommé, nœud, surcharge `android`, état, `binds`. */
 internal fun props(node: JSONObject, ctx: Ctx): Map<String, Any?> {
     val out = HashMap<String, Any?>()
     fun merge(layer: JSONObject?) {
@@ -209,6 +213,15 @@ internal fun props(node: JSONObject, ctx: Ctx): Map<String, Any?> {
     merge(node.optJSONObject("android"))
     node.optString("id").takeIf { it.isNotEmpty() && ctx.item == null }?.let { id ->
         out.putAll(OcaraUIEngine.stateOf(id))
+    }
+    // Élément de liste : `binds` lit les champs de l'élément.
+    val binds = node.optJSONObject("binds")
+    if (ctx.item != null && binds != null) {
+        for (prop in binds.keys()) {
+            var value: Any? = ctx.item
+            for (part in binds.getString(prop).split(".")) value = (value as? JSONObject)?.opt(part)
+            out[prop] = value
+        }
     }
     return out.mapValues { OcaraUIEngine.plain(it.value) }
 }
@@ -312,6 +325,12 @@ private fun horizontal(align: String?) = when (align) {
     else -> Alignment.Start
 }
 
+/** Clic ; dans un élément de liste, l'action porte l'élément et son rang. */
+private fun itemClick(p: Map<String, Any?>, id: String?, ctx: Ctx) {
+    if (ctx.item != null) OcaraUIEngine.fire(p, "onClick", id, ctx.item, ctx.index)
+    else OcaraUIEngine.fire(p, "onClick", id)
+}
+
 internal fun children(p: Map<String, Any?>): List<JSONObject> {
     val array = p["children"] as? JSONArray ?: return emptyList()
     return (0 until array.length()).mapNotNull { array.optJSONObject(it) }
@@ -390,7 +409,7 @@ internal fun Node(node: JSONObject, ctx: Ctx, modifier: Modifier) {
             )
         }
         "button" -> {
-            val click = { OcaraUIEngine.fire(p, "onClick", id) }
+            val click = { itemClick(p, id, ctx) }
             val content: @Composable RowScope.() -> Unit = {
                 p.text("icon")?.let {
                     NamedIcon(ctx, it, null, Modifier.size(18.dp), null)
@@ -404,7 +423,7 @@ internal fun Node(node: JSONObject, ctx: Ctx, modifier: Modifier) {
                 else -> Button(click, m, enabled, content = content)
             }
         }
-        "iconButton" -> IconButton({ OcaraUIEngine.fire(p, "onClick", id) }, m, enabled) {
+        "iconButton" -> IconButton({ itemClick(p, id, ctx) }, m, enabled) {
             NamedIcon(ctx, p.text("icon"), p.text("label"), Modifier, null)
         }
         // Placés par l'écran (OcaraUIMaterial.kt), pas à leur rang.
@@ -446,7 +465,7 @@ private fun Container(node: JSONObject, type: String, p: Map<String, Any?>, id: 
             }
         }
         "card" -> {
-            val click = p["onClick"]?.let { { OcaraUIEngine.fire(p, "onClick", id) } }
+            val click = p["onClick"]?.let { { itemClick(p, id, ctx) } }
             val body: @Composable ColumnScope.() -> Unit = {
                 Column(Modifier.padding(12.dp), Arrangement.spacedBy(gap)) {
                     for (child in children(p)) Node(child, inner, childModifier(child, inner))
@@ -463,7 +482,7 @@ private fun Container(node: JSONObject, type: String, p: Map<String, Any?>, id: 
                 val select = Modifier.clickable(enabled = p["onSelect"] != null) {
                     OcaraUIEngine.fire(p, "onSelect", id, row, index)
                 }
-                Node(template, inner.copy(item = row), select.fillMaxWidth().padding(8.dp))
+                Node(template, inner.copy(item = row, index = index), select.fillMaxWidth().padding(8.dp))
             }
         }
         else -> Column(m, Arrangement.spacedBy(gap), horizontalAlignment = horizontal(p.text("align"))) {
@@ -549,7 +568,7 @@ private fun DateTimeField(type: String, p: Map<String, Any?>, id: String?, enabl
             modifier = Modifier.fillMaxWidth(),
             enabled = enabled,
             readOnly = true,
-            placeholder = { Text(if (type == "date") "AAAA-MM-JJ" else "HH:MM") },
+            placeholder = { Text(p.text("placeholder") ?: if (type == "date") "AAAA-MM-JJ" else "HH:MM") },
             singleLine = true,
         )
         // Le champ est en lecture seule : un appui ouvre la boîte de choix.

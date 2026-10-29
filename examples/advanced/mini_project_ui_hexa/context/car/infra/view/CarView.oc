@@ -1,0 +1,105 @@
+namespace context.car.infra.view
+// Écran `car` (ui/ui.d/car.oc.ui) : fiche, galerie et historique des
+// entretiens — l'équivalent de templates/car/car_detail.html et du composant
+// maintenance-row de mini_project_hexa, sous forme d'état d'interface.
+// Les libellés sont des variables `${…}` (languages/<langue>/ui.yaml).
+
+import ocara.DateTime
+import ocara.Math
+import context.car.app.dto.CarDetailsDTO
+import context.car.app.port.CarViewPort
+import context.car.domain.entity.MaintenanceEntity
+import context.car.infra.view.helpers.Format
+
+class CarView implements CarViewPort {
+    public static method present(details:CarDetailsDTO): map<string, map<string, mixed>> {
+        var rows:array<map<string, mixed>> = []
+        for m in details.maintenances {
+            rows.push(self::row(m))
+        }
+        var photos:array<map<string, mixed>> = []
+        for photo in details.photos {
+            photos.push({"path": photo})
+        }
+        var acquisition_date:string = details.car.acquisition_date
+        var sale_date:string = details.car.sale_date
+        if acquisition_date.empty() {
+            acquisition_date = "${not_set}"
+        }
+        if sale_date.empty() {
+            sale_date = "${not_set}"
+        }
+        // Voiture lue en base : son `id` est toujours connu.
+        const car_id:int|null = details.car.id
+        var id:string = ""
+        if car_id is int {
+            id = car_id.toStr()
+        }
+        return {
+            "car_id": {"value": id},
+            "car_error": {"visible": false},
+            "car_reference": {"value": details.car.reference},
+            "car_model_line": {"value": `${details.car.brand} ${details.car.model}`},
+            "car_dates": {"value": "${label_acquisition} : " + acquisition_date + " · ${label_sale} : " + sale_date},
+            "car_purchase": {"value": Format::price(details.car.purchase_price)},
+            "car_estimated": {"value": Format::price(details.car.estimated_price)},
+            "car_maintenance_total": {"value": Format::price(details.maintenance_total)},
+            "car_improvement_total": {"value": Format::price(details.improvement_total)},
+            "photos": {"items": photos},
+            "photos_empty": {"visible": photos.len() equal 0},
+            "maintenances": {"items": rows},
+            "history_empty": {"visible": rows.len() equal 0},
+        }
+    }
+
+    // Ligne d'historique : badge, source, et alerte de remplacement quand la
+    // durée de vie expire dans moins de 90 jours (orange vers rouge, rouge
+    // une fois dépassée) — même règle que mini_project_hexa.
+    private static method row(m:MaintenanceEntity): map<string, mixed> {
+        var warning:string = ""
+        var warning_color:string = ""
+        if m.lifespan_days greater 0 {
+            const due_at:int = m.created_at + m.lifespan_days * 86400
+            const seconds_left:int = due_at - DateTime::now()
+            if seconds_left smaller or equal 90 * 86400 {
+                warning = "${replace_before} " + Format::date(due_at)
+                if seconds_left smaller 0 {
+                    warning_color = "#ff0000"
+                } else {
+                    const days_left:float = seconds_left.toFloat() / 86400.0
+                    const green:int = Math::round(165.0 * days_left / 90.0)
+                    warning_color = "#ff" + self::hex(green) + "00"
+                }
+            }
+        }
+        var source:string = ""
+        if not m.material_source.empty() {
+            source = "${source_label} : " + m.material_source
+        }
+        return {
+            "badge": match m.type { "improvement" => "${badge_improvement}" default => "${badge_maintenance}" },
+            "badge_color": match m.type { "improvement" => "#6a1b9a" default => "#1565c0" },
+            "description": m.description,
+            "cost": Format::price(m.cost),
+            "date": Format::date(m.created_at),
+            "source": source,
+            "has_source": not source.empty(),
+            "warning": warning,
+            "has_warning": not warning.empty(),
+            "warning_color": warning_color,
+        }
+    }
+
+    // Deux chiffres hexadécimaux d'une composante de couleur (0 à 255).
+    private static method hex(value:int): string {
+        const digits:array<string> = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"]
+        var n:int = value
+        if n smaller 0 {
+            n = 0
+        }
+        if n greater 255 {
+            n = 255
+        }
+        return digits[n / 16] + digits[n % 16]
+    }
+}

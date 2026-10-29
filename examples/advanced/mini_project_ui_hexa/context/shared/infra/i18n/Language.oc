@@ -1,0 +1,24 @@
+namespace context.shared.infra.i18n
+
+import ocara.YAML
+import ocara.File
+
+class Language {
+    public static method get(context:string, lang:string="en"): map<string, string> {
+        scoped path:string = `languages/${lang}/${context}.yaml`
+        if (File::exists(path)) {
+            return YAML::decode(File::read(path))
+        }
+        return {}
+    }
+
+    // Textes de l'interface (languages/<lang>/ui.yaml) : variables `${…}` de
+    // ui/*.oc.ui et des messages des vues (`use UI(path, vars)`, `ui.setVars`).
+    public static method vars(lang:string): map<string, mixed> {
+        scoped path:string = `languages/${lang}/ui.yaml`
+        if (File::exists(path)) {
+            return YAML::decode(File::read(path))
+        }
+        return {}
+    }
+}

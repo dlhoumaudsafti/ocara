@@ -80,6 +80,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -220,6 +226,12 @@
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -348,6 +360,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -558,6 +576,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -698,6 +722,12 @@
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -826,6 +856,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -1036,6 +1072,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -1176,6 +1218,12 @@
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -1304,6 +1352,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -1514,6 +1568,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -1659,6 +1719,12 @@
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -1792,6 +1858,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -2007,6 +2079,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -2148,6 +2226,12 @@
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -2277,6 +2361,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -2488,6 +2578,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -2620,6 +2716,12 @@
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -2734,6 +2836,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -2936,6 +3044,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -3068,6 +3182,12 @@
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -3182,6 +3302,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -3387,6 +3513,12 @@
                   "bind": {
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -3529,6 +3661,12 @@
               "bind": {
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -3646,6 +3784,12 @@
                   },
                   "bind": {
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -3865,6 +4009,12 @@
                   "bind": {
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -4012,6 +4162,12 @@
               "bind": {
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -4134,6 +4290,12 @@
                   },
                   "bind": {
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -4358,6 +4520,12 @@
                   "bind": {
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -4508,6 +4676,12 @@
               "bind": {
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -4640,6 +4814,12 @@
                   },
                   "bind": {
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -4859,6 +5039,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -5012,6 +5198,12 @@
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -5147,6 +5339,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -5372,6 +5570,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -5509,6 +5713,12 @@
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -5623,6 +5833,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -5835,6 +6051,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -5976,6 +6198,12 @@
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -6102,6 +6330,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -6327,6 +6561,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -6517,6 +6757,12 @@
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -6669,6 +6915,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -6960,6 +7212,12 @@
                   "bind": {
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -7137,6 +7395,12 @@
               "bind": {
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -7289,6 +7553,12 @@
                   },
                   "bind": {
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -7543,6 +7813,12 @@
                   "bind": {
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -7685,6 +7961,12 @@
               "bind": {
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -7809,6 +8091,12 @@
                   },
                   "bind": {
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -8021,6 +8309,12 @@
                   "bind": {
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -8163,6 +8457,12 @@
               "bind": {
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -8287,6 +8587,12 @@
                   },
                   "bind": {
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -8496,6 +8802,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -8664,6 +8976,12 @@
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -8807,6 +9125,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -9054,6 +9378,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -9222,6 +9552,12 @@
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -9365,6 +9701,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -9612,6 +9954,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -9761,6 +10109,12 @@
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -9889,6 +10243,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -10111,6 +10471,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -10203,6 +10569,13 @@
                       }
                     ]
                   },
+                  "placeholder": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
+                    ]
+                  },
                   "radius": {
                     "maximum": 10000.0,
                     "minimum": 0.0,
@@ -10253,6 +10626,12 @@
               "background": {
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
+              },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
               },
               "bold": {
                 "type": "boolean"
@@ -10350,6 +10729,13 @@
                   }
                 ]
               },
+              "placeholder": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
               "radius": {
                 "maximum": 10000.0,
                 "minimum": 0.0,
@@ -10372,6 +10758,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -10463,6 +10855,13 @@
                         "minItems": 2,
                         "type": "array"
                       }
+                    ]
+                  },
+                  "placeholder": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
                     ]
                   },
                   "radius": {
@@ -10592,6 +10991,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -10684,6 +11089,13 @@
                       }
                     ]
                   },
+                  "placeholder": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
+                    ]
+                  },
                   "radius": {
                     "maximum": 10000.0,
                     "minimum": 0.0,
@@ -10734,6 +11146,12 @@
               "background": {
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
+              },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
               },
               "bold": {
                 "type": "boolean"
@@ -10831,6 +11249,13 @@
                   }
                 ]
               },
+              "placeholder": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
               "radius": {
                 "maximum": 10000.0,
                 "minimum": 0.0,
@@ -10853,6 +11278,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -10944,6 +11375,13 @@
                         "minItems": 2,
                         "type": "array"
                       }
+                    ]
+                  },
+                  "placeholder": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
                     ]
                   },
                   "radius": {
@@ -11072,6 +11510,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -11244,6 +11688,12 @@
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -11383,6 +11833,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -11638,6 +12094,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -11795,6 +12257,12 @@
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -11934,6 +12402,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -12164,6 +12638,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -12328,6 +12808,12 @@
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -12467,6 +12953,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -12711,6 +13203,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -12855,6 +13353,12 @@
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -12987,6 +13491,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -13203,6 +13713,12 @@
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
                   },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
                   "bold": {
                     "type": "boolean"
                   },
@@ -13347,6 +13863,12 @@
                 "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                 "type": "string"
               },
+              "binds": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
               "bold": {
                 "type": "boolean"
               },
@@ -13479,6 +14001,12 @@
                   "background": {
                     "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
                     "type": "string"
+                  },
+                  "binds": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
                   },
                   "bold": {
                     "type": "boolean"
@@ -13715,6 +14243,10 @@
         "properties": {
           "layout": {
             "$ref": "#/definitions/node"
+          },
+          "onShow": {
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+            "type": "string"
           },
           "title": {
             "type": [

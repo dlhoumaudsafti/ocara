@@ -1,0 +1,108 @@
+# Fiche des écrans larges : voiture et formulaire d'entretien à gauche,
+# galerie et historique à droite. Mêmes id et actions que ui.d/car.oc.ui.
+screens:
+  car:
+    title: "${car_screen_title}"
+    onShow: show_car
+    layout:
+      type: column
+      spacing: 14
+      padding: 20
+      children:
+        - { type: text, id: car_id, visible: false }
+        - { type: text, id: car_error, style: error, visible: false }
+        - type: row
+          spacing: 20
+          align: start
+          height: fill
+          children:
+            - type: column
+              spacing: 14
+              weight: 1
+              height: fill
+              scroll: true
+              children:
+                - type: card
+                  spacing: 8
+                  children:
+                    - { type: heading, level: 1, id: car_reference, style: page_title }
+                    - { type: text, id: car_model_line, style: card_ref }
+                    - { type: text, id: car_dates, style: muted }
+                    - type: grid
+                      columns: 2
+                      spacing: 10
+                      children:
+                        - type: column
+                          children:
+                            - { type: text, value: "${stat_car_purchase}", style: stat_label }
+                            - { type: text, id: car_purchase, style: stat_value }
+                        - type: column
+                          children:
+                            - { type: text, value: "${stat_car_estimated}", style: stat_label }
+                            - { type: text, id: car_estimated, style: stat_value }
+                        - type: column
+                          children:
+                            - { type: text, value: "${stat_car_maintenance}", style: stat_label }
+                            - { type: text, id: car_maintenance_total, style: stat_value }
+                        - type: column
+                          children:
+                            - { type: text, value: "${stat_car_improvement}", style: stat_label }
+                            - { type: text, id: car_improvement_total, style: stat_value }
+                    - { type: button, text: "${delete_car_button}", icon: delete, variant: secondary, onClick: delete_current_car, color: "#c62828" }
+                - type: card
+                  spacing: 10
+                  children:
+                    - { type: heading, level: 3, value: "${maintenance_title}" }
+                    - type: select
+                      id: m_type
+                      value: maintenance
+                      options:
+                        - { value: maintenance, text: "${type_maintenance}" }
+                        - { value: improvement, text: "${type_improvement}" }
+                    - { type: input, id: m_description, placeholder: "${field_description}" }
+                    - { type: input, id: m_cost, kind: number, placeholder: "${field_cost}" }
+                    - { type: input, id: m_source, placeholder: "${field_source}" }
+                    - { type: input, id: m_lifespan, kind: number, placeholder: "${field_lifespan}" }
+                    - { type: button, text: "${add_maintenance_button}", icon: add, onClick: add_maintenance }
+            - type: column
+              spacing: 14
+              weight: 1
+              height: fill
+              scroll: true
+              children:
+                - type: card
+                  spacing: 8
+                  children:
+                    - { type: heading, level: 3, value: "${photos_title}" }
+                    - { type: text, value: "${photos_hint}", style: muted }
+                    - { type: button, text: "${add_photo_button}", icon: add, variant: secondary, onClick: add_photo }
+                    - { type: text, id: photos_empty, value: "${photos_empty}", style: muted, visible: false }
+                    - type: list
+                      id: photos
+                      spacing: 8
+                      onSelect: open_photo
+                      item: { type: image, bind: path, label: "${photo_label}", height: 200, width: fill, fit: cover, radius: 8 }
+                - type: card
+                  spacing: 8
+                  children:
+                    - { type: heading, level: 3, value: "${history_title}" }
+                    - { type: text, id: history_empty, value: "${history_empty}", style: muted, visible: false }
+                    - type: list
+                      id: maintenances
+                      spacing: 6
+                      item:
+                        type: column
+                        spacing: 2
+                        children:
+                          - type: row
+                            spacing: 8
+                            children:
+                              - { type: text, bind: badge, bold: true, binds: { color: badge_color } }
+                              - { type: text, bind: description, width: fill }
+                              - { type: text, bind: cost, bold: true }
+                          - type: row
+                            spacing: 8
+                            children:
+                              - { type: text, bind: date, style: muted }
+                              - { type: text, bind: source, style: muted, binds: { visible: has_source } }
+                          - { type: text, bind: warning, color: "#ffffff", padding: [2, 8], radius: 6, binds: { visible: has_warning, background: warning_color } }

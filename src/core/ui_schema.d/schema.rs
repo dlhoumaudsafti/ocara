@@ -42,6 +42,8 @@ pub enum Ty {
     Menu,
     /// Table nom → action (`webHandlers`).
     ActionMap,
+    /// `binds` : propriété du nœud → champ de l'élément (gabarit `item` d'une liste).
+    Binds,
     /// Surcharge `tauri:`/`android:` : propriétés du même nœud.
     Override,
 }
@@ -80,6 +82,7 @@ pub const COMMON_PROPS: &[(&str, Ty)] = &[
     ("contextMenu", Ty::Menu),
     ("tauri", Ty::Override),
     ("android", Ty::Override),
+    ("binds", Ty::Binds),
 ];
 
 const CONTAINER: &[(&str, Ty)] = &[
@@ -155,7 +158,7 @@ const SLIDER: &[(&str, Ty)] = &[
     ("value", Ty::Number(f64::MIN, f64::MAX)),
     ("onChange", Ty::Action),
 ];
-const DATE: &[(&str, Ty)] = &[("value", Ty::Text), ("onChange", Ty::Action)];
+const DATE: &[(&str, Ty)] = &[("value", Ty::Text), ("placeholder", Ty::Text), ("onChange", Ty::Action)];
 const BUTTON: &[(&str, Ty)] = &[
     ("text", Ty::Text),
     ("icon", Ty::Icon),
@@ -268,7 +271,7 @@ pub const WINDOW_ANDROID: &[(&str, Ty)] = &[
 ];
 
 /// Clés d'un écran (`screens.<nom>`).
-pub const SCREEN_PROPS: &[(&str, Ty)] = &[("title", Ty::Text), ("layout", Ty::Node)];
+pub const SCREEN_PROPS: &[(&str, Ty)] = &[("title", Ty::Text), ("layout", Ty::Node), ("onShow", Ty::Action)];
 
 /// Clés d'une entrée de menu.
 pub const MENU_PROPS: &[(&str, Ty)] = &[

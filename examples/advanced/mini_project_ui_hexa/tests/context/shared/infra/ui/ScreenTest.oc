@@ -1,0 +1,42 @@
+import ocara.UnitTest
+import ocara.UI
+import context.shared.infra.ui.Screen
+import context.shared.infra.i18n.Language
+
+class ScreenTest extends UnitTest {
+
+    // Un état d'écran se pose nœud par nœud ; ses `${…}` sont remplis.
+    public method applyTest(): int {
+        const ui:UI = use UI("../../../../../ui/garage.oc.ui", Language::vars("fr"))
+        Screen::apply(ui, {
+            "stat_count": {"value": "4"},
+            "cars_empty": {"visible": true, "value": "${cars_empty}"},
+        })
+        self::assertEquals("4", ui.get("stat_count", "value"))
+        self::assertEquals(true, ui.get("cars_empty", "visible"))
+        self::assertEquals(
+            "Aucune voiture pour le moment — ajoutez la première ci-dessus.",
+            ui.get("cars_empty", "value")
+        )
+        return 0
+    }
+
+    // Champ jamais rempli (une date laissée vide) : "" et non `null`.
+    public method textTest(): int {
+        const ui:UI = use UI("../../../../../ui/garage.oc.ui", Language::vars("fr"))
+        self::assertEquals("", Screen::text(ui, "new_acquisition"))
+        ui.set("new_acquisition", "value", "2025-04-01")
+        self::assertEquals("2025-04-01", Screen::text(ui, "new_acquisition"))
+        return 0
+    }
+
+    public method errorTest(): int {
+        const ui:UI = use UI("../../../../../ui/garage.oc.ui", Language::vars("fr"))
+        Screen::error(ui, "home_error", "${flash_invalid_price}")
+        self::assertEquals(true, ui.get("home_error", "visible"))
+        self::assertEquals("Le prix d'achat doit être un nombre positif.", ui.get("home_error", "value"))
+        Screen::error(ui, "home_error", "")
+        self::assertEquals(false, ui.get("home_error", "visible"))
+        return 0
+    }
+}

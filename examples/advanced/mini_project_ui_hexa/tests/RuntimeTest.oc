@@ -1,0 +1,19 @@
+import ocara.UnitTest
+import ocara.UI
+import configs.App
+
+// Flot complet de main.oc (core/*.runtime.oc : init → main → exit) : base
+// migrée, interface créée et ses actions liées (une action absente du .oc.ui
+// lèverait UIException ici), `ui.run()` neutralisé dans un test.
+class RuntimeTest extends UnitTest {
+    public method flowSucceedsTest(): int {
+        self::assertSuccessResult()
+        return 0
+    }
+
+    // Tranchés à la compilation : l'appel n'est pas exécuté.
+    public method blockingCallsTest(): int {
+        self::assertBlocksMainThread(use App().run())
+        return 0
+    }
+}

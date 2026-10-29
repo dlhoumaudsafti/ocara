@@ -1,0 +1,35 @@
+namespace context.search.infra.controllers
+// Écran `search` — GET /recherche?q=… de mini_project_hexa : recherche lancée
+// depuis l'écran (champ et bouton) ou depuis le champ de l'accueil.
+
+import ocara.UI
+import ocara.UIEvent
+import context.search.app.usecase.SearchService
+import context.search.app.dto.SearchResultsDto
+import context.search.app.port.SearchViewPort
+import context.shared.infra.ui.Screen
+
+class SearchController {
+
+    public static method run(ui:UI, event:UIEvent): void {
+        var term:string = Screen::text(ui, "search_term")
+        self::search(ui, term)
+    }
+
+    // Champ de recherche de l'accueil : ouvre l'écran avec ce terme.
+    public static method fromHome(ui:UI, event:UIEvent): void {
+        var term:string = Screen::text(ui, "home_search")
+        ui.set("search_term", "value", term)
+        ui.navigate("search")
+        self::search(ui, term)
+    }
+
+    public static method search(ui:UI, term:string): void {
+        const q:string = term.trim()
+        var results:SearchResultsDto|null = null
+        if not q.empty() {
+            results = SearchService::run(q)
+        }
+        Screen::apply(ui, SearchViewPort::present(q, results))
+    }
+}

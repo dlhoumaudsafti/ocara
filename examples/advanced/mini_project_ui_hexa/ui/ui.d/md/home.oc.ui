@@ -1,0 +1,128 @@
+# Tableau de bord des écrans larges : statistiques et ajout à gauche, flotte
+# à droite. Mêmes id et actions que ui.d/home.oc.ui.
+screens:
+  home:
+    title: "${app_title}"
+    onShow: show_home
+    layout:
+      type: column
+      spacing: 16
+      padding: 20
+      children:
+        - { type: text, id: lang_code, value: fr, visible: false }
+        - type: row
+          spacing: 8
+          android: { visible: false }
+          children:
+            - { type: heading, level: 1, value: "${home_title}", style: page_title }
+            - { type: spacer }
+            - { type: button, text: "${nav_cars}", icon: home, variant: secondary, onClick: go_home }
+            - { type: button, text: "${nav_search}", icon: search, variant: secondary, onClick: go_search }
+            - { type: button, text: "${other_lang}", variant: text, onClick: switch_lang }
+        - type: row
+          spacing: 20
+          align: start
+          height: fill
+          children:
+            - type: column
+              spacing: 14
+              width: 380
+              scroll: true
+              children:
+                - type: row
+                  spacing: 8
+                  children:
+                    - { type: input, id: home_search, placeholder: "${search_placeholder}", onSubmit: search_from_home, width: fill }
+                    - { type: iconButton, icon: search, label: "${search_button}", onClick: search_from_home }
+                - type: grid
+                  columns: 2
+                  spacing: 10
+                  children:
+                    - type: card
+                      children:
+                        - { type: text, value: "${stat_cars}", style: stat_label }
+                        - { type: text, id: stat_count, value: "0", style: stat_value }
+                    - type: card
+                      children:
+                        - { type: text, value: "${stat_purchase}", style: stat_label }
+                        - { type: text, id: stat_purchase, style: stat_value }
+                    - type: card
+                      children:
+                        - { type: text, value: "${stat_estimated}", style: stat_label }
+                        - { type: text, id: stat_estimated, style: stat_value }
+                    - type: card
+                      children:
+                        - { type: text, value: "${stat_profit}", style: stat_label }
+                        - { type: text, id: stat_profit, style: stat_value }
+                - type: card
+                  spacing: 10
+                  children:
+                    - { type: heading, level: 3, value: "${add_car_title}" }
+                    - { type: text, id: home_error, style: error, visible: false }
+                    - { type: input, id: new_reference, placeholder: "${field_reference}" }
+                    - type: row
+                      spacing: 8
+                      children:
+                        - { type: input, id: new_brand, placeholder: "${field_brand}", width: fill }
+                        - { type: input, id: new_model, placeholder: "${field_model}", width: fill }
+                    - { type: input, id: new_price, kind: number, placeholder: "${field_price}" }
+                    - type: row
+                      spacing: 8
+                      children:
+                        - type: column
+                          weight: 1
+                          children:
+                            - { type: text, value: "${field_acquisition}", style: muted }
+                            - { type: date, id: new_acquisition, placeholder: "${date_hint}" }
+                        - type: column
+                          weight: 1
+                          children:
+                            - { type: text, value: "${field_sale}", style: muted }
+                            - { type: date, id: new_sale, placeholder: "${date_hint}" }
+                    - { type: button, text: "${add_car_button}", icon: add, onClick: add_car }
+            - type: column
+              spacing: 10
+              weight: 1
+              height: fill
+              scroll: true
+              children:
+                - { type: heading, level: 2, value: "${cars_title}", style: section_title }
+                - { type: text, id: cars_empty, value: "${cars_empty}", style: muted, visible: false }
+                - type: list
+                  id: cars
+                  spacing: 8
+                  onSelect: open_car
+                  item:
+                    type: card
+                    spacing: 6
+                    children:
+                      - type: row
+                        spacing: 8
+                        children:
+                          - { type: text, bind: reference, style: card_ref }
+                          - { type: text, bind: model_line, width: fill }
+                          - { type: iconButton, icon: delete, label: "${delete_label}", tooltip: "${delete_label}", onClick: delete_car, color: "#c62828" }
+                      - type: row
+                        spacing: 24
+                        children:
+                          - type: column
+                            children:
+                              - { type: text, value: "${card_purchase}", style: stat_label }
+                              - { type: text, bind: purchase }
+                          - type: column
+                            children:
+                              - { type: text, value: "${card_estimated}", style: stat_label }
+                              - { type: text, bind: estimated, style: highlight }
+                          - type: column
+                            children:
+                              - { type: text, value: "${card_maintenance}", style: stat_label }
+                              - { type: text, bind: maintenance }
+        - { type: android.fab, icon: search, label: "${nav_search}", onClick: go_search }
+        - type: android.drawer
+          id: home_drawer
+          children:
+            - { type: heading, level: 3, value: "${app_title}" }
+            - { type: button, text: "${nav_cars}", icon: home, variant: text, onClick: go_home }
+            - { type: button, text: "${nav_search}", icon: search, variant: text, onClick: go_search }
+            - { type: divider }
+            - { type: button, text: "${other_lang}", variant: text, onClick: switch_lang }

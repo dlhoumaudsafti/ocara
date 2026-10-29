@@ -1,0 +1,9 @@
+namespace context.car.domain.contract
+
+interface CarPhotoContract {
+    wiring context.car.infra.db.CarPhotoRepository
+    public static method reserve(car_id:int): int
+    public static method setPath(id:int, path:string): void
+    public static method forCar(car_id:int): array<string>
+    public static method deleteForCar(car_id:int): void
+}

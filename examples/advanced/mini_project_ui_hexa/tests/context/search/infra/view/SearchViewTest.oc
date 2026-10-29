@@ -1,0 +1,49 @@
+import ocara.UnitTest
+import context.search.domain.entity.CarSearchResultEntity
+import context.search.domain.entity.MaintenanceSearchResultEntity
+import context.search.app.dto.SearchResultsDto
+import context.search.infra.view.SearchView
+
+// État de l'écran `search` : résultats de templates/search/search.html.
+class SearchViewTest extends UnitTest {
+
+    public method presentResultsTest(): int {
+        var cars:array<CarSearchResultEntity> = []
+        cars.push(use CarSearchResultEntity(4, "REF-S", "Renault", "Clio", 7000.0, 7200.0, 50.0))
+        var maintenances:array<MaintenanceSearchResultEntity> = []
+        maintenances.push(use MaintenanceSearchResultEntity(4, "REF-S", "improvement", "Jantes", 200.0))
+        const state:map<string, map<string, mixed>> = SearchView::present(
+            "clio",
+            use SearchResultsDto(cars: cars, maintenances: maintenances)
+        )
+        self::assertEquals(false, state["search_hint"]["visible"])
+        var found:array<map<string, mixed>> = state["search_cars"]["items"]
+        self::assertEquals(4, found[0]["id"])
+        self::assertEquals("Renault Clio", found[0]["model_line"])
+        var maint:array<map<string, mixed>> = state["search_maintenances"]["items"]
+        self::assertEquals(4, maint[0]["id"])
+        self::assertEquals("${badge_improvement}", maint[0]["badge"])
+        self::assertEquals("200,00 €", maint[0]["cost"])
+        self::assertEquals(false, state["search_cars_empty"]["visible"])
+        return 0
+    }
+
+    public method presentNoResultTest(): int {
+        const state:map<string, map<string, mixed>> = SearchView::present(
+            "zzz",
+            use SearchResultsDto(cars: [], maintenances: [])
+        )
+        self::assertEquals(true, state["search_cars_empty"]["visible"])
+        self::assertEquals("${search_no_cars} « zzz ».", state["search_cars_empty"]["value"])
+        self::assertEquals(true, state["search_maintenances_empty"]["visible"])
+        return 0
+    }
+
+    // Sans terme : l'invitation à chercher, aucun résultat.
+    public method presentWithoutTermTest(): int {
+        const state:map<string, map<string, mixed>> = SearchView::present("", null)
+        self::assertEquals(true, state["search_hint"]["visible"])
+        self::assertEquals(false, state["search_cars_empty"]["visible"])
+        return 0
+    }
+}

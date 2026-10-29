@@ -27,6 +27,7 @@ Cette roadmap est construite pour qu'on puisse dire que le langage est stable **
 
 Bloque la fiabilité du langage — à traiter avant toute nouvelle fonctionnalité. Voir « Définition : le langage est stable » ci-dessus : cette section vide = le langage est stable.
 
+- **Raffinement `is int` d'un champ `int|null` refusé au codegen** — la sema accepte `if d.id is int { d.id.toStr() }`, le générateur de code appelle `String_toStr` et échoue (sans position). Contournement : passer par une variable locale. *(Légère)* → [détails](roadmap.d/langage-raffinement-champ-union-scalaire.md)
 - **Fuite : callback `listen` qui capture sa fenêtre `Tauri`, sans `run()`** — la fenêtre retient la closure dans son état natif et la closure retient la fenêtre : un cycle invisible du collecteur. Avec `run()`, aucune fuite (les callbacks sont rendus à la fermeture). *(Légère à Structurel)* → [détails](roadmap.d/memoire-tauri-listen-cycle.md)
 
 ---

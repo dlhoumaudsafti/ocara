@@ -39,6 +39,7 @@ fn ty(t: Ty) -> Json {
         Ty::Menu => json!({ "type": "array", "items": { "$ref": "#/definitions/menuItem" } }),
         Ty::ActionMap => json!({ "type": "object", "additionalProperties": ty(Ty::Action) }),
         Ty::Override => json!({ "type": "object" }),
+        Ty::Binds => json!({ "type": "object", "additionalProperties": { "type": "string" } }),
     }
 }
 

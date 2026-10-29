@@ -1,0 +1,39 @@
+namespace context.shared.infra.ui
+// Navigation commune à tous les écrans — les liens « Voitures » et
+// « Recherche » de la barre (configs/components/NavBar.oc de
+// mini_project_hexa), le tiroir sur Android, et le choix de la langue.
+
+import ocara.UI
+import ocara.UIEvent
+import context.shared.infra.i18n.Language
+
+class NavController {
+    public static method home(ui:UI, event:UIEvent): void {
+        self::closeMenus(ui)
+        ui.navigate("home")
+    }
+
+    public static method search(ui:UI, event:UIEvent): void {
+        self::closeMenus(ui)
+        ui.navigate("search")
+    }
+
+    // Français ⇄ anglais : textes de l'interface remplacés à chaud ; l'écran
+    // affiché est réaffiché (onShow), ses données comprises.
+    public static method switchLanguage(ui:UI, event:UIEvent): void {
+        self::closeMenus(ui)
+        var current:string = Screen::text(ui, "lang_code")
+        var next:string = "fr"
+        if current equal "fr" {
+            next = "en"
+        }
+        ui.set("lang_code", "value", next)
+        ui.setVars(Language::vars(next))
+    }
+
+    // Tiroirs de navigation Android (sans effet sur desktop).
+    private static method closeMenus(ui:UI): void {
+        ui.set("home_drawer", "open", false)
+        ui.set("search_drawer", "open", false)
+    }
+}

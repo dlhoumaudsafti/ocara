@@ -1,0 +1,58 @@
+namespace context.car.infra.db
+
+import ocara.SQLite
+import ocara.File
+import context.shared.infra.db.Database
+import context.car.domain.contract.CarPhotoContract
+
+class CarPhotoRepository implements CarPhotoContract {
+
+    public static method reserve(car_id:int): int {
+        var id:int = 0
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.prepare("INSERT INTO car_photos (car_id) VALUES (:carId)")
+            db.bind({"carId": car_id})
+            db.commit()
+            id = db.lastInsertId()
+        })
+        return id
+    }
+
+    public static method setPath(id:int, path:string): void {
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.prepare("UPDATE car_photos SET path = :path WHERE id = :id")
+            db.bind({"path": path, "id": id})
+            db.commit()
+        })
+    }
+
+    public static method forCar(car_id:int): array<string> {
+        const db:SQLite = Database::connect()
+        const rows:array<map<string, string|null>> = db.query(
+            "SELECT path FROM car_photos WHERE car_id = :carId AND path != '' ORDER BY id",
+            {"carId": car_id}
+        )
+        db.close()
+        var paths:array<string> = []
+        for row in rows {
+            var path:string|null = row["path"]
+            if path not equal null {
+                paths.push(path)
+            }
+        }
+        return paths
+    }
+
+    public static method deleteForCar(car_id:int): void {
+        var paths:array<string> = self::forCar(car_id)
+        for path in paths {
+            var absolute_path:string = "./" + path
+            if File::exists(absolute_path) {
+                File::remove(absolute_path)
+            }
+        }
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.execute("DELETE FROM car_photos WHERE car_id = :carId", {"carId": car_id})
+        })
+    }
+}

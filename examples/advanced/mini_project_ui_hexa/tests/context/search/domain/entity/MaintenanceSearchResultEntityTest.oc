@@ -1,0 +1,20 @@
+import ocara.UnitTest
+import context.search.domain.entity.MaintenanceSearchResultEntity
+
+class MaintenanceSearchResultEntityTest extends UnitTest {
+
+    public method initTest(): int {
+        const m:MaintenanceSearchResultEntity = use MaintenanceSearchResultEntity(
+            5,
+            "REF-5", "maintenance",
+            "Vidange",
+            80.0
+        )
+        self::assertEquals(5, m.car_id)
+        self::assertEquals("REF-5", m.car_reference)
+        self::assertEquals("maintenance", m.type)
+        self::assertEquals("Vidange", m.description)
+        self::assertEquals(80.0, m.cost)
+        return 0
+    }
+}

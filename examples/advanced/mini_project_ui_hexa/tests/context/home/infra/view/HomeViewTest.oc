@@ -1,0 +1,32 @@
+import ocara.UnitTest
+import context.home.domain.entity.CarSummaryEntity
+import context.home.app.dto.DashboardDto
+import context.home.infra.view.HomeView
+
+// État de l'écran `home` : statistiques et cartes de templates/home/home.html.
+class HomeViewTest extends UnitTest {
+
+    public method presentTest(): int {
+        var cars:array<CarSummaryEntity> = []
+        cars.push(use CarSummaryEntity(3, "REF-HOME", "Peugeot", "308", 10000.0, 10500.0, 120.0))
+        const state:map<string, map<string, mixed>> = HomeView::present(use DashboardDto(cars, 10000.0, 10500.0))
+        self::assertEquals("1", state["stat_count"]["value"])
+        self::assertEquals("10000,00 €", state["stat_purchase"]["value"])
+        self::assertEquals("10500,00 €", state["stat_estimated"]["value"])
+        self::assertEquals("500,00 €", state["stat_profit"]["value"])
+        self::assertEquals(false, state["cars_empty"]["visible"])
+        var items:array<map<string, mixed>> = state["cars"]["items"]
+        self::assertEquals(3, items[0]["id"])
+        self::assertEquals("Peugeot 308", items[0]["model_line"])
+        self::assertEquals("10500,00 €", items[0]["estimated"])
+        self::assertEquals("120,00 €", items[0]["maintenance"])
+        return 0
+    }
+
+    public method presentEmptyTest(): int {
+        const state:map<string, map<string, mixed>> = HomeView::present(use DashboardDto([], 0.0, 0.0))
+        self::assertEquals("0", state["stat_count"]["value"])
+        self::assertEquals(true, state["cars_empty"]["visible"])
+        return 0
+    }
+}

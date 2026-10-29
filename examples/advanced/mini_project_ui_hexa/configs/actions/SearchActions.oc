@@ -1,0 +1,12 @@
+namespace configs.actions
+// Recherche — GET /recherche de mini_project_hexa (configs/routes/Search.oc).
+
+import ocara.UI
+import context.search.infra.controllers.SearchController
+
+class SearchActions {
+    init(ui:UI) {
+        ui.on("run_search", SearchController::run)
+        ui.on("search_from_home", SearchController::fromHome)
+    }
+}

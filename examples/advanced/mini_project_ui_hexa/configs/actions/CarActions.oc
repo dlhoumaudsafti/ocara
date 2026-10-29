@@ -1,0 +1,19 @@
+namespace configs.actions
+// Voitures — routes /voitures/… de mini_project_hexa (configs/routes/CarRoutes.oc).
+
+import ocara.UI
+import context.car.infra.controllers.CarController
+import context.car.infra.controllers.MaintenanceController
+
+class CarActions {
+    init(ui:UI) {
+        ui.on("open_car", CarController::open)                // GET /voitures/<id>
+        ui.on("show_car", CarController::show)
+        ui.on("add_car", CarController::add)                  // POST /voitures/ajouter
+        ui.on("delete_car", CarController::delete)            // POST /voitures/<id>/supprimer
+        ui.on("delete_current_car", CarController::deleteCurrent)
+        ui.on("add_photo", CarController::addPhoto)           // POST /voitures/<id>/photos
+        ui.on("open_photo", CarController::openPhoto)
+        ui.on("add_maintenance", MaintenanceController::add)  // POST /voitures/<car_id>/entretiens
+    }
+}

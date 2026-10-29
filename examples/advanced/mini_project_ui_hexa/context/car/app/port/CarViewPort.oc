@@ -1,0 +1,10 @@
+namespace context.car.app.port
+
+import context.car.app.dto.CarDetailsDTO
+
+// État de l'écran `car` (ui/ui.d/car.oc.ui) pour une fiche : `id` du nœud →
+// propriété → valeur, sans rien savoir de l'interface qui l'affiche.
+interface CarViewPort {
+    wiring context.car.infra.view.CarView
+    public static method present(details:CarDetailsDTO): map<string, map<string, mixed>>
+}

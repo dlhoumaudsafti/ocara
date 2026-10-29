@@ -1,0 +1,58 @@
+import ocara.UnitTest
+import context.home.domain.entity.CarSummaryEntity
+import context.home.infra.db.CarSummaryRepository
+import tests.support.Fixture
+
+class CarSummaryRepositoryTest extends UnitTest {
+
+    // Chaque voiture porte le total de ses entretiens "maintenance" seulement.
+    public method allTest(): int {
+        Fixture::reset()
+        const id:int = Fixture::car("SUMMARY", "Peugeot", "308", 12000.0)
+        Fixture::maintenance(id, "maintenance", "Vidange", 80.0)
+        Fixture::maintenance(id, "maintenance", "Pneus", 300.0)
+        Fixture::maintenance(id, "improvement", "Peinture", 500.0)
+        const bare_id:int = Fixture::car("BARE", "Renault", "Clio", 8000.0)
+
+        var found:int = 0
+        for car in CarSummaryRepository::all() {
+            if car.id equal id {
+                found += 1
+                self::assertEquals("TEST-OCUNIT-SUMMARY", car.reference)
+                self::assertEquals("Peugeot", car.brand)
+                self::assertEquals(12000.0, car.purchase_price)
+                self::assertEquals(12000.0, car.estimated_price)
+                self::assertEquals(380.0, car.maintenance_total)
+            }
+            if car.id equal bare_id {
+                found += 1
+                self::assertEquals(0.0, car.maintenance_total)
+            }
+        }
+        self::assertEquals(2, found)
+        Fixture::cleanup()
+        return 0
+    }
+
+    // fromRow (privée) : colonnes de `cars` et total agrégé `maintenance_total`.
+    public method fromRowTest(): int {
+        Fixture::reset()
+        const id:int = Fixture::car("SROW", "Dacia", "Duster", 14000.0)
+        Fixture::maintenance(id, "maintenance", "Révision", 210.0)
+        var found:bool = false
+        for car in CarSummaryRepository::all() {
+            if car.id equal id {
+                found = true
+                self::assertEquals("TEST-OCUNIT-SROW", car.reference)
+                self::assertEquals("Dacia", car.brand)
+                self::assertEquals("Duster", car.model)
+                self::assertEquals(14000.0, car.purchase_price)
+                self::assertEquals(14000.0, car.estimated_price)
+                self::assertEquals(210.0, car.maintenance_total)
+            }
+        }
+        self::assertTrue(found)
+        Fixture::cleanup()
+        return 0
+    }
+}

@@ -132,3 +132,31 @@ pub fn rebase_imports(source: &str, test_dir: &Path, project_root: &Path) -> Str
         }
     }).collect::<Vec<_>>().join("\n")
 }
+
+/// Réécrit le chemin des interfaces `use UI("chemin")` (ocara.UI) relatif au
+/// dossier du test en chemin relatif à `project_root`, où le test est
+/// recompilé — même raison que `rebase_imports`. Un chemin qui ne désigne
+/// aucun fichier depuis le test est laissé tel quel.
+pub fn rebase_ui_paths(source: &str, test_dir: &Path, project_root: &Path) -> String {
+    const OPEN: &str = "use UI(\"";
+    let Ok(root) = project_root.canonicalize() else { return source.to_string() };
+    let mut out = String::with_capacity(source.len());
+    let mut rest = source;
+    while let Some(at) = rest.find(OPEN) {
+        let start = at + OPEN.len();
+        out.push_str(&rest[..start]);
+        let tail = &rest[start..];
+        let Some(end) = tail.find('"') else {
+            rest = tail;
+            break;
+        };
+        let path = &tail[..end];
+        let rebased = test_dir.join(path).canonicalize().ok()
+            .filter(|_| !Path::new(path).is_absolute())
+            .map(|abs| relative_to(&abs, &root).to_string_lossy().to_string());
+        out.push_str(rebased.as_deref().unwrap_or(path));
+        rest = &tail[end..];
+    }
+    out.push_str(rest);
+    out
+}

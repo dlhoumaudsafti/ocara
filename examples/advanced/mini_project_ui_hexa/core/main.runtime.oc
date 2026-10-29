@@ -1,0 +1,3 @@
+const app:App = use App()
+app.actions()
+app.run()

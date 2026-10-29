@@ -1,0 +1,33 @@
+namespace context.home.infra.view
+// Écran `home` (ui/ui.d/home.oc.ui) : statistiques de la flotte et cartes des
+// voitures — l'équivalent de templates/home/home.html et du composant
+// car-card de mini_project_hexa, sous forme d'état d'interface.
+
+import context.home.app.dto.DashboardDto
+import context.home.app.port.HomeViewPort
+import context.home.infra.view.helpers.Format
+
+class HomeView implements HomeViewPort {
+    public static method present(dashboard:DashboardDto): map<string, map<string, mixed>> {
+        var cars:array<map<string, mixed>> = []
+        for car in dashboard.cars {
+            cars.push({
+                "id": car.id,
+                "reference": car.reference,
+                "model_line": `${car.brand} ${car.model}`,
+                "purchase": Format::price(car.purchase_price),
+                "estimated": Format::price(car.estimated_price),
+                "maintenance": Format::price(car.maintenance_total),
+            })
+        }
+        const profit:float = dashboard.total_estimated_value - dashboard.total_purchase_value
+        return {
+            "stat_count": {"value": cars.len().toStr()},
+            "stat_purchase": {"value": Format::price(dashboard.total_purchase_value)},
+            "stat_estimated": {"value": Format::price(dashboard.total_estimated_value)},
+            "stat_profit": {"value": Format::price(profit)},
+            "cars": {"items": cars},
+            "cars_empty": {"visible": cars.len() equal 0},
+        }
+    }
+}

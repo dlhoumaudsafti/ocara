@@ -1,0 +1,39 @@
+import ocara.UnitTest
+import context.car.infra.view.helpers.Flash
+import context.shared.infra.i18n.Language
+
+class FlashTest extends UnitTest {
+
+    // Un code devient la variable de texte de son message.
+    public method messageTest(): int {
+        self::assertEquals("${flash_missing_fields}", Flash::message("missing_fields"))
+        self::assertEquals("${flash_invalid_price}", Flash::message("invalid_price"))
+        self::assertEquals("${flash_invalid_cost}", Flash::message("invalid_cost"))
+        self::assertEquals("${flash_not_found}", Flash::message("not_found"))
+        self::assertEquals("${flash_car_added}", Flash::message("car_added"))
+        self::assertEquals("${flash_maintenance_added}", Flash::message("maintenance_added"))
+        return 0
+    }
+
+    // Chaque message existe dans les deux langues (pas de `${…}` affiché brut).
+    public method messagesAreTranslatedTest(): int {
+        const fr:map<string, mixed> = Language::vars("fr")
+        const en:map<string, mixed> = Language::vars("en")
+        for code in [
+            "missing_fields", "invalid_price", "invalid_cost", "not_found", "car_added",
+            "car_deleted", "photo_added", "invalid_photo", "maintenance_added"
+        ] {
+            const key:string = "flash_" + code
+            self::assertTrue(fr.has(key))
+            self::assertTrue(en.has(key))
+        }
+        return 0
+    }
+
+    // Code absent ou inconnu : aucun message.
+    public method messageUnknownCodeTest(): int {
+        self::assertEquals("", Flash::message(""))
+        self::assertEquals("", Flash::message("inconnu"))
+        return 0
+    }
+}

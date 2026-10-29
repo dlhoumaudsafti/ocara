@@ -154,11 +154,15 @@ pub extern "C" fn UI_back(this: i64) {
 /// `ui.toast(text)` : message bref en bas de la fenêtre.
 #[unsafe(no_mangle)]
 pub extern "C" fn UI_toast(this: i64, text: i64) {
-    eval(this, &format!("OcaraUI.toast({})", json!(str_arg(text))));
+    eval(this, &format!("OcaraUI.toast({})", json!(core::text(this, &str_arg(text)))));
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn UI_run(this: i64) {
+    // Binaire de test ocaraunit, thread principal : rend la main (signalé).
+    if ocara_runtime::blocking::neutralized("UI.run") {
+        return;
+    }
     reload::watch(this);
     crate::app::Tauri_run(this);
 }
@@ -170,12 +174,14 @@ pub extern "C" fn UI_close(this: i64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn UI_alert(this: i64, title: i64, text: i64) {
-    crate::dialogs::Tauri_alert(this, title, text);
+    let (title, text) = (message(this, title), message(this, text));
+    crate::dialogs::Tauri_alert(this, title.0, text.0);
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn UI_confirm(this: i64, title: i64, text: i64) -> i64 {
-    crate::dialogs::Tauri_confirm(this, title, text)
+    let (title, text) = (message(this, title), message(this, text));
+    crate::dialogs::Tauri_confirm(this, title.0, text.0)
 }
 
 #[unsafe(no_mangle)]
@@ -190,7 +196,21 @@ pub extern "C" fn UI_saveFile(this: i64, name: i64) -> i64 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn UI_notify(this: i64, title: i64, text: i64) {
-    crate::dialogs::Tauri_notify(this, title, text);
+    let (title, text) = (message(this, title), message(this, text));
+    crate::dialogs::Tauri_notify(this, title.0, text.0);
+}
+
+/// Texte Ocara d'un message, variables `${nom}` remplies ; libéré avec la valeur.
+struct Message(i64);
+
+impl Drop for Message {
+    fn drop(&mut self) {
+        ocara_runtime_ui::ffi::release(self.0);
+    }
+}
+
+fn message(this: i64, text: i64) -> Message {
+    Message(ocara_runtime_ui::ffi::string(&core::text(this, &str_arg(text))))
 }
 
 /// `ui.postMessage(id, data)` : message à la page d'un composant `webview`.

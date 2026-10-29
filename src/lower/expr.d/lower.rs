@@ -176,6 +176,16 @@ fn lower_builtin_exception_init(builder: &mut LowerBuilder, obj: Value, layout_c
     set(builder, "source", source);
 }
 
+/// Type déclaré du paramètre `idx` d'un builtin appelé `Classe_méthode`
+/// (`File_writeBytes`) : un littéral `[0, 1]` passé à `array<int>` est alors
+/// construit en entiers bruts, pas en `mixed` boxés (que le runtime lisait
+/// comme des valeurs hors octet).
+fn builtin_param_type(callee: &str, idx: usize) -> Option<Type> {
+    let (class, method) = callee.split_once('_')?;
+    let class = crate::builtins::builtin_class(class)?;
+    class.methods.get(method)?.params.get(idx).map(|(_, ty)| ty.clone())
+}
+
 /// Argument d'appel : un littéral `[...]`/`{...}` est construit au type
 /// déclaré du paramètre `idx` de `callee` — sinon `array<mixed>`, dont les
 /// scalaires boxés étaient relus bruts par un paramètre `array<float>`.
@@ -186,7 +196,14 @@ pub fn lower_typed_call_arg(builder: &mut LowerBuilder, callee: &str, idx: usize
 }
 
 fn lower_call_arg(builder: &mut LowerBuilder, callee: &str, idx: usize, arg: &Expr) -> Value {
-    let param = builder.module.param_ast_types.get(callee).and_then(|p| p.get(idx)).cloned();
+    lower_call_arg_at(builder, callee, idx, idx, arg)
+}
+
+/// `builtin_idx` : index du paramètre dans la signature du builtin (récepteur
+/// du sucre `objet.méthode(…)` compris, voir `builtin_receiver_offset`).
+fn lower_call_arg_at(builder: &mut LowerBuilder, callee: &str, idx: usize, builtin_idx: usize, arg: &Expr) -> Value {
+    let param = builder.module.param_ast_types.get(callee).and_then(|p| p.get(idx)).cloned()
+        .or_else(|| builtin_param_type(callee, builtin_idx));
     match (arg, param) {
         (Expr::Array { elements, .. }, Some(Type::Array(inner))) => lower_array_literal(builder, elements, &inner),
         (Expr::Map { entries, .. }, Some(Type::Map(_, val))) => lower_map_literal(builder, entries, &val),
@@ -841,8 +858,9 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
                     // (`object`, géré à part via `obj_val`) — voir la doc de
                     // `param_type_for_call_arg` pour le bug d'off-by-one que
                     // cette distinction corrige.
+                    let offset = crate::lower::expr::helpers::builtin_receiver_offset(&func_mangled);
                     let arg_vals: Vec<Value> = completed_args.iter().enumerate().map(|(i, a)| {
-                        let raw = lower_call_arg(builder, &func_mangled, i, a);
+                        let raw = lower_call_arg_at(builder, &func_mangled, i, i + offset, a);
                         // `i + 1` : le receveur (`object`) est l'argument 0 de la
                         // forme statique équivalente (`Array::push(arr, v)`).
                         if stores_raw_into_container(builder, &func_mangled, object, i + 1) {

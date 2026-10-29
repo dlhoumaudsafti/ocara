@@ -34,7 +34,7 @@ impl Checker {
                 }
                 Some(Json::Object(out))
             }
-            Ty::Override => unreachable!("surcharge contrôlée par `node`/`window`"),
+            Ty::Override | Ty::Binds => unreachable!("contrôlé par `node`"),
             simple => self.simple(node, simple, what),
         }
     }
@@ -62,6 +62,11 @@ impl Checker {
                 Some(Ty::Id) => {
                     if let Some(id) = self.id(value, ty) {
                         out.insert("id".into(), id);
+                    }
+                }
+                Some(Ty::Binds) => {
+                    if let Some(binds) = self.binds(value, ty) {
+                        out.insert(name.to_string(), binds);
                     }
                 }
                 Some(Ty::Override) => {
@@ -131,6 +136,32 @@ impl Checker {
         }
         self.ids.insert(id.to_string(), (ty.to_string(), value.line));
         Some(Json::String(id.to_string()))
+    }
+
+    /// `binds` : chaque propriété (du type du nœud) lit un champ de l'élément
+    /// de liste ; gabarit `item` seulement.
+    fn binds(&mut self, value: &Node, ty: &str) -> Option<Json> {
+        if self.in_item == 0 {
+            return self.fail(value, "'binds' n'est permis que dans le gabarit 'item' d'une liste".to_string());
+        }
+        let mut out = Map::new();
+        for (key, prop, field) in self.entries(value, "binds")? {
+            let known = schema::prop_type(ty, prop).is_some() && !NOT_OVERRIDABLE.contains(&prop) && prop != "binds";
+            if !known {
+                let props = known_props(ty);
+                self.fail::<()>(key, format!("'binds' : propriété '{prop}' inconnue pour '{ty}'{}", suggest(prop, &props)));
+                continue;
+            }
+            match text(field) {
+                Some(name) if name.split('.').all(is_ident) => {
+                    out.insert(prop.to_string(), Json::String(name.to_string()));
+                }
+                _ => {
+                    self.fail::<()>(field, format!("'binds.{prop}' : nom de champ attendu"));
+                }
+            }
+        }
+        Some(Json::Object(out))
     }
 
     /// `tauri:`/`android:` d'un nœud : propriétés du même type.

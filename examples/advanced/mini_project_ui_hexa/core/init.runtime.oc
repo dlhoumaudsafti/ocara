@@ -1,0 +1,2 @@
+IO::writeln("Initialisation de Garage Ocara...")
+Database::migrate()

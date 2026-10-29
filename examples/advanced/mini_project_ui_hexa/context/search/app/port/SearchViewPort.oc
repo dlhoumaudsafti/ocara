@@ -1,0 +1,10 @@
+namespace context.search.app.port
+
+import context.search.app.dto.SearchResultsDto
+
+// État de l'écran `search` (ui/ui.d/search.oc.ui) pour un terme et ses
+// résultats (`null` : aucun terme saisi).
+interface SearchViewPort {
+    wiring context.search.infra.view.SearchView
+    public static method present(term:string, results:SearchResultsDto|null): map<string, map<string, mixed>>
+}

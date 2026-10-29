@@ -144,18 +144,20 @@ pub extern "C" fn UI_close(_this: i64) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn UI_toast(_this: i64, text: i64) {
-    invoke(SOURCE, PLATFORM, "toast", &[Arg::Str(&str_arg(text))], Ret::Void);
+pub extern "C" fn UI_toast(this: i64, text: i64) {
+    invoke(SOURCE, PLATFORM, "toast", &[Arg::Str(&core::text(this, &str_arg(text)))], Ret::Void);
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn UI_alert(_this: i64, title: i64, text: i64) {
-    invoke(SOURCE, PLATFORM, "alert", &[Arg::Str(&str_arg(title)), Arg::Str(&str_arg(text))], Ret::Void);
+pub extern "C" fn UI_alert(this: i64, title: i64, text: i64) {
+    let (title, text) = (core::text(this, &str_arg(title)), core::text(this, &str_arg(text)));
+    invoke(SOURCE, PLATFORM, "alert", &[Arg::Str(&title), Arg::Str(&text)], Ret::Void);
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn UI_confirm(_this: i64, title: i64, text: i64) -> i64 {
-    invoke(SOURCE, PLATFORM, "confirm", &[Arg::Str(&str_arg(title)), Arg::Str(&str_arg(text))], Ret::Bool).bool()
+pub extern "C" fn UI_confirm(this: i64, title: i64, text: i64) -> i64 {
+    let (title, text) = (core::text(this, &str_arg(title)), core::text(this, &str_arg(text)));
+    invoke(SOURCE, PLATFORM, "confirm", &[Arg::Str(&title), Arg::Str(&text)], Ret::Bool).bool()
 }
 
 /// `ui.pickFile(extensions)` : sélecteur du système ; le document est copié
@@ -180,9 +182,9 @@ pub extern "C" fn UI_saveFile(_this: i64, _name: i64) -> i64 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn UI_notify(_this: i64, title: i64, text: i64) {
-    invoke(SOURCE, "com.ocara.bridge.OcaraNotifications", "show",
-        &[Arg::Str(&str_arg(title)), Arg::Str(&str_arg(text))], Ret::Int);
+pub extern "C" fn UI_notify(this: i64, title: i64, text: i64) {
+    let (title, text) = (core::text(this, &str_arg(title)), core::text(this, &str_arg(text)));
+    invoke(SOURCE, "com.ocara.bridge.OcaraNotifications", "show", &[Arg::Str(&title), Arg::Str(&text)], Ret::Int);
 }
 
 /// `ui.tauri()` : pas de fenêtre Tauri sur Android (spécificités : `AndroidUI::…`).

@@ -1,0 +1,110 @@
+namespace context.car.infra.db
+// examples/advanced/mini_projet/models/Maintenance.oc
+//
+// Le type est stocké tel quel ("maintenance" | "improvement") — c'est
+// context.car.app.usecase.PricingService qui exploite cette distinction pour
+// le recalcul du prix de vente estimé.
+//
+// `forCar` retourne des MaintenanceEntity (voir
+// context.car.domain.entity.MaintenanceEntity). Pas de `search()` ici : voir
+// context.search.infra.db (même raison que Car.oc).
+
+import ocara.SQLite
+import ocara.DateTime
+import context.shared.infra.db.Database
+import context.car.domain.entity.MaintenanceEntity
+import context.car.domain.contract.MaintenanceContract
+
+class MaintenanceRepository implements MaintenanceContract {
+
+    private static method fromRow(row:map<string, mixed>): MaintenanceEntity {
+        var id:int = row["id"]
+        var car_id:int = row["car_id"]
+        var type:string = row["type"]
+        var description:string = row["description"]
+        var cost:float = row["cost"]
+        var material_source:string = row["material_source"]
+        var lifespan_days:int = row["lifespan_days"]
+        var created_at:int = row["created_at"]
+        return use MaintenanceEntity(
+            id, car_id, type, description, cost, material_source, lifespan_days, created_at
+        )
+    }
+
+    public static async method forCar(car_id:int): array<MaintenanceEntity> {
+        const db:SQLite = Database::connect()
+        consumed rows:array<map<string, mixed>> = db.query(
+            `SELECT id, car_id, type, description, cost, created_at, material_source,
+                COALESCE(lifespan_days, 0) AS lifespan_days
+            FROM maintenances
+            WHERE car_id = :carId
+            ORDER BY created_at DESC`,
+            {"carId": car_id}
+        )
+        db.close()
+        var items:array<MaintenanceEntity> = []
+        for row in rows {
+            items.push(self::fromRow(row))
+        }
+        return items
+    }
+
+    public static method create(
+        car_id:int,
+        type:string,
+        description:string,
+        cost:float,
+        material_source:string,
+        lifespan_days:int
+    ): int {
+        var id:int = 0
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.prepare(`INSERT INTO maintenances
+                (car_id, type, description, cost, created_at, material_source, lifespan_days)
+                VALUES (:carId, :type, :description, :cost, :createdAt, :materialSource, :lifespanDays)
+            `)
+            db.bind({
+                "carId": car_id,
+                "type": type,
+                "description": description,
+                "cost": cost,
+                "createdAt": DateTime::now(),
+                "materialSource": material_source,
+                "lifespanDays": lifespan_days
+            })
+            db.commit()
+            id = db.lastInsertId()
+        })
+        return id
+    }
+
+    // Somme des entretiens d'amélioration d'une voiture — base du recalcul
+    // du prix de vente estimé (context.car.app.usecase.PricingService).
+    public static async method improvementTotal(car_id:int): float {
+        const db:SQLite = Database::connect()
+        consumed row:map<string, mixed> = db.queryOne(
+            `SELECT COALESCE(SUM(cost), 0) as total
+            FROM maintenances
+            WHERE car_id = :carId AND type = 'improvement'`,
+            {"carId": car_id}
+        )
+        db.close()
+        var total:float = row["total"]
+        return total
+    }
+
+    // Somme des entretiens de maintenance (hors amélioration) — coût suivi
+    // à titre informatif, sans impact sur le prix de vente estimé.
+    public static async method maintenanceTotal(car_id:int): float {
+        const db:SQLite = Database::connect()
+        consumed row:map<string, mixed> = db.queryOne(
+            `SELECT COALESCE(SUM(cost), 0) as total
+            FROM maintenances
+            WHERE car_id = :carId AND type = 'maintenance'`,
+            {"carId": car_id}
+        )
+        db.close()
+        var total:float = row["total"]
+        return total
+    }
+}

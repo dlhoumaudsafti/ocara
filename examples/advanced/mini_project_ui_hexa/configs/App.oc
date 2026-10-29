@@ -1,0 +1,36 @@
+namespace configs
+// L'interface native de l'application — le pendant de configs/Server.oc de
+// mini_project_hexa : l'interface (ui/garage.oc.ui, lue et validée à la
+// compilation) remplace le serveur HTTP, les actions (configs/actions/)
+// remplacent les routes. Textes : languages/fr/ui.yaml au démarrage.
+
+import ocara.UI
+import ocara.IO
+import configs.actions.NavActions
+import configs.actions.HomeActions
+import configs.actions.CarActions
+import configs.actions.SearchActions
+import context.shared.infra.i18n.Language
+
+class App {
+    private property ui:UI
+
+    init() {
+        IO::writeln("Configuration de l'interface...")
+        self.ui = use UI("../ui/garage.oc.ui", Language::vars("fr"))
+    }
+
+    public method actions(): void {
+        IO::writeln("Configuration des actions...")
+        use NavActions(self.ui)
+        use HomeActions(self.ui)
+        use CarActions(self.ui)
+        use SearchActions(self.ui)
+    }
+
+    // Affiche l'interface et rend la main à sa fermeture.
+    public method run(): void {
+        IO::writeln("Ouverture de l'interface...")
+        self.ui.run()
+    }
+}

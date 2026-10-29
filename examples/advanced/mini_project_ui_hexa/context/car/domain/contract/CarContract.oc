@@ -1,0 +1,19 @@
+namespace context.car.domain.contract
+
+import context.car.domain.entity.CarEntity
+
+interface CarContract {
+    wiring context.car.infra.db.CarRepository
+    private static method fromRow(row:map<string, mixed>): CarEntity
+    public static method find(id:int): CarEntity|null
+    public static method create(
+        reference     :string,
+        brand         :string,
+        model         :string,
+        purchase_price:float,
+        acquisition_date:string,
+        sale_date:string
+    ): int
+    public static method updateEstimatedPrice(id:int, new_price:float): void
+    public static method delete(id:int): void
+}

@@ -51,6 +51,26 @@ pub fn builtin_method_param_types() -> &'static HashMap<String, Vec<IrType>> {
     })
 }
 
+/// Décalage du récepteur dans la signature d'un builtin appelé
+/// `objet.méthode(…)` : 1 pour le sucre d'une méthode statique
+/// (`arr.push(v)` ≡ `Array::push(arr, v)`, récepteur en paramètre 0), 0 pour
+/// une vraie méthode d'instance (`ui.set(id, prop, v)`, déclarée sans
+/// récepteur) — appliquer 1 partout décalait ses paramètres : la valeur
+/// `mixed` de `ui.set` n'était jamais boxée (`false` relu `null`).
+pub fn builtin_receiver_offset(mangled: &str) -> usize {
+    static CACHE: OnceLock<HashMap<String, bool>> = OnceLock::new();
+    let statics = CACHE.get_or_init(|| {
+        let mut map = HashMap::new();
+        for (class_name, info) in crate::builtins::all_builtins() {
+            for (method_name, sig) in &info.methods {
+                map.insert(format!("{}_{}", class_name, method_name), sig.is_static);
+            }
+        }
+        map
+    });
+    usize::from(statics.get(mangled).copied().unwrap_or(true))
+}
+
 /// Forme d'un appel de méthode/fonction — distingue la forme STATIQUE
 /// (`Classe::methode(obj, args...)` ou une fonction libre, où le récepteur
 /// éventuel est le premier argument EXPLICITE) du SUCRE d'instance
@@ -115,7 +135,7 @@ pub fn param_type_for_call_arg(builder: &LowerBuilder, mangled: &str, i: usize, 
     }
     let builtin_index = match form {
         CallForm::Static => i,
-        CallForm::Sugar   => i + 1,
+        CallForm::Sugar   => i + builtin_receiver_offset(mangled),
     };
     builtin_method_param_types().get(mangled).and_then(|pts| pts.get(builtin_index).cloned())
 }

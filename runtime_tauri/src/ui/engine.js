@@ -38,14 +38,37 @@
   }
 
   /// Propriétés effectives : style nommé, nœud, surcharge de plateforme, état.
-  function props(node) {
+  /// Propriétés effectives : style nommé, nœud, surcharge de plateforme,
+  /// état ; dans un élément de liste, `binds` lit les champs de l'élément.
+  function props(node, ctx) {
     var out = {};
+    var item = ctx && ctx.item;
     var named = node.style && tree.styles && tree.styles[node.style];
-    var layers = [named || {}, node, node[platform] || {}, (node.id && state[node.id]) || {}];
+    var layers = [named || {}, node, node[platform] || {}, (node.id && !item && state[node.id]) || {}];
     layers.forEach(function (layer) {
       for (var k in layer) if (k !== "tauri" && k !== "android") out[k] = layer[k];
     });
+    if (item && node.binds) {
+      for (var prop in node.binds) out[prop] = field(item, node.binds[prop]);
+    }
     return out;
+  }
+
+  function field(item, path) {
+    return path.split(".").reduce(function (o, k) { return o == null ? o : o[k]; }, item);
+  }
+
+  /// Clic d'un nœud ; dans un élément de liste, l'action porte l'élément et
+  /// son rang (et ne sélectionne pas la ligne).
+  function onClick(e, node, p, ctx) {
+    e.addEventListener("click", function (ev) {
+      if (ctx && ctx.item) {
+        ev.stopPropagation();
+        fire(p, "onClick", node.id, ctx.item, ctx.index);
+      } else {
+        fire(p, "onClick", node.id);
+      }
+    });
   }
 
   function fire(p, event, id, value, index) {
@@ -64,8 +87,12 @@
     send({ id: id, prop: prop, value: value });
   }
 
+  /// Flèche de la barre de titre : présente même si le `.oc.ui` n'utilise
+  /// pas l'icône `back`.
+  var BACK_PATH = "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z";
+
   function icon(name) {
-    var path = tree.icons && tree.icons[name];
+    var path = (tree.icons && tree.icons[name]) || (name === "back" ? BACK_PATH : null);
     var span = el("span", "oc-icon");
     if (path) {
       span.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor"></path></svg>';
@@ -123,7 +150,7 @@
     (p.children || []).forEach(function (child) { e.appendChild(build(child, ctx, axis)); });
     if (node.type === "card" && p.onClick) {
       e.classList.add("oc-clickable");
-      e.addEventListener("click", function () { fire(p, "onClick", node.id); });
+      onClick(e, node, p, ctx);
     }
     return e;
   }
@@ -223,18 +250,18 @@
     return e;
   }
 
-  function button(node, p) {
+  function button(node, p, ctx) {
     var e = el("button", "oc-button " + (node.type === "iconButton" ? "oc-icon-button" : "oc-variant-" + (p.variant || "primary")));
     e.type = "button";
     if (p.icon) e.appendChild(icon(p.icon));
     if (node.type === "button" && p.text != null) e.appendChild(document.createTextNode(p.text));
-    e.addEventListener("click", function () { fire(p, "onClick", node.id); });
+    onClick(e, node, p, ctx);
     return e;
   }
 
   /// Élément d'un nœud ; `axis` : sens du conteneur parent (`row`/`column`).
   function build(node, ctx, axis) {
-    var p = props(node);
+    var p = props(node, ctx);
     var e;
     switch (node.type) {
       case "column": case "row": case "stack": case "grid": case "card":
@@ -260,7 +287,7 @@
       case "checkbox": case "switch": e = check(node, p, ctx); break;
       case "radio": case "select": e = choice(node, p); break;
       case "slider": e = slider(node, p); break;
-      case "button": case "iconButton": e = button(node, p); break;
+      case "button": case "iconButton": e = button(node, p, ctx); break;
       case "android.fab": case "android.bottomSheet": case "android.drawer":
         // Composants propres à Android : rien sur desktop.
         e = el("span"); e.hidden = true; break;
@@ -363,8 +390,18 @@
   }
 
   window.addEventListener("resize", function () {
-    if (root && chooseVariant()) render();
+    if (root && chooseVariant()) {
+      render();
+      shown();
+    }
   });
+
+  /// Écran affiché (départ, navigation, retour, nouvel arbre) : son action
+  /// `onShow`, comme une page rechargée.
+  function shown() {
+    var screen = tree.screens[current];
+    if (screen && screen.onShow) send({ action: screen.onShow, id: null, value: current });
+  }
 
   function render() {
     mounted = {};
@@ -403,6 +440,7 @@
       chooseVariant();
       render();
       send({ action: "ready", id: null, value: null });
+      shown();
     },
 
     set: function (id, prop, value) {
@@ -421,7 +459,7 @@
 
     get: function (id, prop) {
       var m = mounted[id];
-      var p = m ? props(m.node) : (state[id] || {});
+      var p = m ? props(m.node, m.ctx) : (state[id] || {});
       return p[prop];
     },
 
@@ -431,6 +469,7 @@
       tree = null;
       chooseVariant();
       render();
+      shown();
     },
 
     /// État complet (page rechargée : celui gardé par l'hôte).
@@ -451,17 +490,24 @@
       setTimeout(function () { t.remove(); }, 3000);
     },
 
+    /// Écran déjà ouvert plus tôt : on y revient (historique raccourci).
+    /// L'écran affiché lui-même : son `onShow` est relancé (rechargement).
     navigate: function (screen) {
-      if (!tree.screens[screen] || screen === current) return;
-      history.push(current);
+      if (!tree.screens[screen]) return;
+      if (screen === current) return shown();
+      var at = history.indexOf(screen);
+      if (at >= 0) history = history.slice(0, at);
+      else history.push(current);
       current = screen;
       render();
+      shown();
     },
 
     back: function () {
       if (!history.length) return send({ action: "back", id: null, value: null });
       current = history.pop();
       render();
+      shown();
     },
   };
 })();

@@ -1,0 +1,62 @@
+import ocara.UnitTest
+import ocara.SQLite
+import context.shared.infra.db.Database
+
+class DatabaseTest extends UnitTest {
+
+    public method pathTest(): int {
+        self::assertEquals("./app.db", Database::path())
+        return 0
+    }
+
+    public method connectTest(): int {
+        const db:SQLite = Database::connect()
+        const row:map<string, mixed> = db.queryOne("SELECT 1 AS one")
+        db.close()
+        var one:int = row["one"]
+        self::assertEquals(1, one)
+        return 0
+    }
+
+    // Idempotente : deux migrations successives laissent les deux tables.
+    public method migrateTest(): int {
+        Database::migrate()
+        Database::migrate()
+        const db:SQLite = Database::connect()
+        const rows:array<map<string, mixed>> = db.query(
+            "SELECT name FROM sqlite_master"
+            + " WHERE type = 'table' AND name IN ('cars', 'maintenances', 'car_photos') ORDER BY name"
+        )
+        db.close()
+        self::assertEquals(3, rows.len())
+        var first:string = rows[0]["name"]
+        var second:string = rows[1]["name"]
+        self::assertEquals("car_photos", first)
+        self::assertEquals("cars", second)
+        var third:string = rows[2]["name"]
+        self::assertEquals("maintenances", third)
+        return 0
+    }
+
+    public method migrateSchemaTest(): int {
+        const db:SQLite = SQLite::open(":memory:")
+        Database::migrateSchema(db)
+        const rows:array<map<string, mixed>> = db.query("PRAGMA table_info(maintenances)")
+        db.close()
+
+        var has_material_source:bool = false
+        var has_lifespan_days:bool = false
+        for row in rows {
+            var column:string = row["name"]
+            if column equal "material_source" {
+                has_material_source = true
+            }
+            if column equal "lifespan_days" {
+                has_lifespan_days = true
+            }
+        }
+        self::assertTrue(has_material_source)
+        self::assertTrue(has_lifespan_days)
+        return 0
+    }
+}

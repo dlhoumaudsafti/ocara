@@ -46,7 +46,8 @@ impl Checker {
     /// Remplace le `src` local de l'image `props` par son contenu.
     pub(super) fn embed_image(&mut self, node: &Node, props: &mut Map<String, Json>) {
         let Some(src) = props.get("src").and_then(Json::as_str).map(str::to_string) else { return };
-        if src.starts_with("http://") || src.starts_with("https://") || src.starts_with("data:") {
+        // Vide : posé plus tard par `ui.set(id, "src", …)`.
+        if src.is_empty() || src.starts_with("http://") || src.starts_with("https://") || src.starts_with("data:") {
             return;
         }
         let path = self.file.parent().unwrap_or(Path::new("")).join(&src);

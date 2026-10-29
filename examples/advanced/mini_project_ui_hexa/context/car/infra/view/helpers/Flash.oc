@@ -1,0 +1,24 @@
+namespace context.car.infra.view.helpers
+// Messages « flash » de mini_project_hexa (passés d'une redirection à l'autre
+// par ?error=… / ?success=…) : ici, le code devient une variable de texte
+// `${flash_<code>}`, remplie par l'interface dans la langue courante
+// (languages/<langue>/ui.yaml) — toast pour un succès, message en rouge sur
+// l'écran pour une erreur.
+
+class Flash {
+
+    public static method message(code:string): string {
+        return match code {
+            "missing_fields"    => "${flash_missing_fields}"
+            "invalid_price"     => "${flash_invalid_price}"
+            "invalid_cost"      => "${flash_invalid_cost}"
+            "not_found"         => "${flash_not_found}"
+            "car_added"         => "${flash_car_added}"
+            "car_deleted"       => "${flash_car_deleted}"
+            "photo_added"       => "${flash_photo_added}"
+            "invalid_photo"     => "${flash_invalid_photo}"
+            "maintenance_added" => "${flash_maintenance_added}"
+            default             => ""
+        }
+    }
+}

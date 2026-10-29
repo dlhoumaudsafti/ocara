@@ -1,0 +1,28 @@
+// CarSummaryContract en mémoire (tests.support.fake.FakeDatabase) —
+// remplace context.home.infra.db.CarSummaryRepository dans un test qui
+// déclare `wiring tests.support.fake.FakeCarSummaryRepository`. Même total
+// que la requête SQL : entretiens « maintenance » seulement.
+
+import context.home.domain.entity.CarSummaryEntity
+import context.home.domain.contract.CarSummaryContract
+import tests.support.fake.FakeDatabase
+
+class FakeCarSummaryRepository implements CarSummaryContract {
+
+    public static method all(): array<CarSummaryEntity> {
+        var items:array<CarSummaryEntity> = []
+        for row in FakeDatabase::cars() {
+            var id:int = row["id"]
+            var reference:string = row["reference"]
+            var brand:string = row["brand"]
+            var model:string = row["model"]
+            var purchase_price:float = row["purchase_price"]
+            var estimated_price:float = row["estimated_sale_price"]
+            const maintenance_total:float = FakeDatabase::total(id, "maintenance")
+            items.push(
+                use CarSummaryEntity(id, reference, brand, model, purchase_price, estimated_price, maintenance_total)
+            )
+        }
+        return items
+    }
+}

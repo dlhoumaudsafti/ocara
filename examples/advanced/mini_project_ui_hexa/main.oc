@@ -1,0 +1,33 @@
+namespace .
+// examples/advanced/mini_project_ui_hexa/main.oc
+// Garage Ocara avec une interface native (ocara.UI) au lieu du serveur web
+// de mini_project_hexa : mêmes fonctionnalités, mêmes contextes, même
+// domaine et mêmes cas d'usage ; seuls les adaptateurs d'entrée et de sortie
+// changent (actions au lieu de routes, état d'écran au lieu de HTML).
+//
+// Une seule source pour les deux plateformes : fenêtre Tauri sur desktop,
+// Compose sur Android (ocara.UI choisit selon la cible) — plus de serveur
+// HTTP, de thread d'attente ni de branche `System::OS`.
+//
+// Build (voir le Makefile de ce dossier) :
+//   make desktop     Hôte, fenêtre native
+//   make android     arm64 + x86_64 dans le même APK
+//   make simulator   Installe/lance sur un appareil détecté ou l'émulateur
+
+architecture hexagonal {
+    src: context,
+    layers: {
+        infrastructure: infra,
+        application: app,
+    },
+    shared: [context.shared],
+}
+
+import ocara.IO
+import configs.App
+import context.shared.infra.db.Database
+
+runtime core.init is init
+runtime core.main is main
+runtime core.error is error
+runtime core.exit is exit

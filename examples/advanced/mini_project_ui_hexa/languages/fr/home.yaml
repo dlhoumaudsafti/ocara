@@ -1,0 +1,18 @@
+home:
+  page_header: "Flotte de voitures"
+  stats:
+    total_cars: "Voitures"
+    total_purchase_price: "Prix d'achat total"
+    total_selling_price: "Prix de vente total"
+    maintenance_profit: "Plus-value entretiens"
+  cars:
+    empty: "Aucune voiture pour le moment — ajoutez la première ci-dessus."
+    add: "Ajouter une voiture"
+    edit: "Modifier"
+    delete: "Supprimer"
+    reference: "Référence"
+    brand: "Marque"
+    model: "Modèle"
+    purchase_price: "Prix d'achat (€)"
+    selling_price: "Prix de vente (€)"
+    all: "Toutes les voitures"

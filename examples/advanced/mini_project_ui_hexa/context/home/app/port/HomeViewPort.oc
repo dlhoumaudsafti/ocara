@@ -1,0 +1,11 @@
+namespace context.home.app.port
+
+import context.home.app.dto.DashboardDto
+
+// État de l'écran `home` (ui/ui.d/home.oc.ui) pour un tableau de bord :
+// `id` du nœud → propriété → valeur. Le cas d'usage n'en sait rien de plus :
+// ni fenêtre, ni moteur de rendu (la vue est un adaptateur, infra/view).
+interface HomeViewPort {
+    wiring context.home.infra.view.HomeView
+    public static method present(dashboard:DashboardDto): map<string, map<string, mixed>>
+}

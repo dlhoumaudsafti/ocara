@@ -348,6 +348,7 @@ regression:
 	    ./ci/unittests.sh examples/project/tests || status=1; \
 	    ./ci/unittests.sh examples/tests || status=1; \
 	    ./ci/unittests.sh examples/advanced/mini_project_hexa/tests || status=1; \
+	    ./ci/unittests.sh examples/advanced/mini_project_ui_hexa/tests || status=1; \
 	    ./ci/doc_examples.sh || status=1; \
 	    ./ci/leak_check.sh || status=1; \
 	    ./ci/memory_bound.sh || status=1; \
@@ -404,6 +405,7 @@ tests-examples:
 	    ./target/release/ocaraunit examples/tests || status=1; \
 	    ./target/release/ocaraunit examples/project/tests || status=1; \
 	    ./target/release/ocaraunit examples/advanced/mini_project_hexa/tests || status=1; \
+	    ./target/release/ocaraunit examples/advanced/mini_project_ui_hexa/tests || status=1; \
 	    exit $$status; \
 	fi
 

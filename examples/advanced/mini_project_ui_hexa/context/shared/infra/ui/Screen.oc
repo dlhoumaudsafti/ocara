@@ -1,0 +1,33 @@
+namespace context.shared.infra.ui
+// Applique à l'interface l'état d'écran rendu par une vue (`id` du nœud →
+// propriété → valeur, voir les ports context/*/app/port) : l'équivalent de
+// `req.respond(200, html)` de mini_project_hexa.
+
+import ocara.UI
+
+class Screen {
+    public static method apply(ui:UI, state:map<string, map<string, mixed>>): void {
+        for id has props in state {
+            for prop has value in props {
+                ui.set(id, prop, value)
+            }
+        }
+    }
+
+    // Texte saisi dans le champ `id` ; "" s'il n'a jamais été rempli (comme
+    // un champ de formulaire vide côté web, jamais `null`).
+    public static method text(ui:UI, id:string): string {
+        const value:mixed = ui.get(id, "value")
+        if value is null {
+            return ""
+        }
+        var text:string = value
+        return text
+    }
+
+    // Message d'erreur en rouge sur l'écran (nœud `id`), ou masqué si vide.
+    public static method error(ui:UI, id:string, message:string): void {
+        ui.set(id, "value", message)
+        ui.set(id, "visible", not message.empty())
+    }
+}

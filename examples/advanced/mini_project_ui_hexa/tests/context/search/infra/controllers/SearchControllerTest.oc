@@ -1,0 +1,37 @@
+import ocara.UnitTest
+import ocara.UI
+import context.shared.infra.i18n.Language
+import context.search.infra.controllers.SearchController
+import tests.support.fake.FakeDatabase
+
+// Recherche de l'écran `search` (actions run_search, search_from_home).
+class SearchControllerTest extends UnitTest {
+    wiring tests.support.fake.FakeSearchRepository
+
+    public method searchTest(): int {
+        FakeDatabase::reset()
+        const ui:UI = use UI("../../../../../ui/garage.oc.ui", Language::vars("fr"))
+        const id:int = FakeDatabase::car("SEARCH", "Citroën", "C3", 6000.0)
+        FakeDatabase::maintenance(id, "maintenance", "Embrayage", 400.0)
+        SearchController::search(ui, " Citroën ")
+        var cars:array<map<string, mixed>> = ui.get("search_cars", "items")
+        self::assertEquals(1, cars.len())
+        self::assertEquals(id, cars[0]["id"])
+        SearchController::search(ui, "Embrayage")
+        var maintenances:array<map<string, mixed>> = ui.get("search_maintenances", "items")
+        self::assertEquals(1, maintenances.len())
+        self::assertEquals(id, maintenances[0]["id"])
+        self::assertEquals(false, ui.get("search_hint", "visible"))
+        FakeDatabase::cleanup()
+        return 0
+    }
+
+    public method emptyTermTest(): int {
+        const ui:UI = use UI("../../../../../ui/garage.oc.ui", Language::vars("fr"))
+        SearchController::search(ui, "   ")
+        self::assertEquals(true, ui.get("search_hint", "visible"))
+        var cars:array<map<string, mixed>> = ui.get("search_cars", "items")
+        self::assertEquals(0, cars.len())
+        return 0
+    }
+}

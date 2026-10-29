@@ -47,14 +47,23 @@ fn substitute(text: &str, vars: &Map<String, Value>) -> String {
     out
 }
 
-/// Arbre avec ses textes remplis.
+/// Arbre avec ses textes remplis (les clés de `NOT_TEXT` ne sont sautées
+/// qu'à la racine de l'arbre).
+pub fn resolve_tree(tree: &Value, vars: &Map<String, Value>) -> Value {
+    match tree {
+        Value::Object(map) => Value::Object(map.iter()
+            .map(|(k, v)| (k.clone(), if NOT_TEXT.contains(&k.as_str()) { v.clone() } else { resolve(v, vars) }))
+            .collect()),
+        other => resolve(other, vars),
+    }
+}
+
+/// Valeur avec ses textes remplis (valeur posée par `ui.set`, message).
 pub fn resolve(value: &Value, vars: &Map<String, Value>) -> Value {
     match value {
         Value::String(text) if text.contains("${") => Value::String(substitute(text, vars)),
         Value::Array(items) => Value::Array(items.iter().map(|v| resolve(v, vars)).collect()),
-        Value::Object(map) => Value::Object(map.iter()
-            .map(|(k, v)| (k.clone(), if NOT_TEXT.contains(&k.as_str()) { v.clone() } else { resolve(v, vars) }))
-            .collect()),
+        Value::Object(map) => Value::Object(map.iter().map(|(k, v)| (k.clone(), resolve(v, vars))).collect()),
         other => other.clone(),
     }
 }
@@ -81,8 +90,11 @@ mod tests {
         assert_eq!(substitute("${absent}!", &vars), "${absent}!");
         assert_eq!(substitute("ouvert ${", &vars), "ouvert ${");
         let tree = json!({ "screens": { "a": { "title": "${title}" } }, "icons": { "x": "${title}" } });
-        let resolved = resolve(&tree, &vars);
+        let resolved = resolve_tree(&tree, &vars);
         assert_eq!(resolved["screens"]["a"]["title"], "Garage");
         assert_eq!(resolved["icons"]["x"], "${title}");
+        // Hors de la racine, `source` est une donnée comme une autre.
+        let row = resolve(&json!({ "source": "${title}" }), &vars);
+        assert_eq!(row["source"], "Garage");
     }
 }
