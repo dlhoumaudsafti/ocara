@@ -1,0 +1,10 @@
+# Écran de détail, inclus par garage.oc.ui (`screens.includes`).
+screens:
+  details:
+    title: "${details}"
+    layout:
+      type: column
+      padding: 16
+      children:
+        - { type: text, id: car_title, style: titre }
+        - { type: button, text: "${back}", onClick: back }

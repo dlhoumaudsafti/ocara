@@ -164,12 +164,24 @@ const BUTTON: &[(&str, Ty)] = &[
 ];
 const ICON_BUTTON: &[(&str, Ty)] = &[("icon", Ty::Icon), ("onClick", Ty::Action)];
 
+// Composants Material propres à Android (préfixe `android.`), ignorés sur
+// desktop : bouton flottant de l'écran, panneau inférieur et tiroir de
+// navigation, ouverts par `ui.set(id, "open", true)`.
+const ANDROID_FAB: &[(&str, Ty)] = &[("icon", Ty::Icon), ("text", Ty::Text), ("onClick", Ty::Action)];
+const ANDROID_PANEL: &[(&str, Ty)] = &[
+    ("children", Ty::Children),
+    ("spacing", Ty::Number(0.0, 10_000.0)),
+    ("open", Ty::Bool),
+    ("onDismiss", Ty::Action),
+];
+
 /// Types de nœuds, dans l'ordre des tableaux du §3.
 pub const NODE_TYPES: &[&str] = &[
     "column", "row", "stack", "grid", "card", "divider", "spacer",
     "text", "heading", "image", "icon", "progress", "list", "webview",
     "input", "checkbox", "switch", "radio", "select", "slider", "date", "time",
     "button", "iconButton",
+    "android.fab", "android.bottomSheet", "android.drawer",
 ];
 
 /// Propriétés propres au type `ty` ; `None` pour un type inconnu.
@@ -193,6 +205,8 @@ pub fn node_props(ty: &str) -> Option<&'static [(&'static str, Ty)]> {
         "date" | "time" => DATE,
         "button" => BUTTON,
         "iconButton" => ICON_BUTTON,
+        "android.fab" => ANDROID_FAB,
+        "android.bottomSheet" | "android.drawer" => ANDROID_PANEL,
         _ => return None,
     })
 }
@@ -207,6 +221,8 @@ pub fn required_props(ty: &str) -> &'static [&'static str] {
         "radio" | "select" => &["options"],
         // L'hôte désigne la vue web par son `id` (ui.postMessage, ui.eval…).
         "webview" => &["id"],
+        "android.fab" => &["icon", "label"],
+        "android.bottomSheet" | "android.drawer" => &["id"],
         _ => &[],
     }
 }

@@ -279,3 +279,88 @@ fn editor_schema_is_up_to_date() {
     assert!(shipped == crate::core::ui_schema::json_schema::schema(),
         "schéma périmé : ocara --ui-schema > tools/highlight/vsode/schemas/oc-ui.schema.json");
 }
+
+/// Dossier temporaire avec les fichiers `(nom, contenu)` ; rend son chemin.
+fn files(name: &str, entries: &[(&str, &str)]) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("ocara_ui_{}_{}", name, std::process::id()));
+    std::fs::remove_dir_all(&dir).ok();
+    for (file, content) in entries {
+        let path = dir.join(file);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, content).unwrap();
+    }
+    dir
+}
+
+const ONE_SCREEN: &str = "screens:\n  more:\n    layout: { type: column, children: [{ type: text, id: more_text, value: x }] }\n";
+
+#[test]
+fn includes_add_screens_and_locate_errors() {
+    use crate::core::ui_schema::check_file;
+    let main = "start: home\nscreens:\n  home:\n    layout: { type: column, children: [] }\n  includes:\n    - ui.d/more.oc.ui\n";
+    let dir = files("inc_ok", &[("main.oc.ui", main), ("ui.d/more.oc.ui", ONE_SCREEN)]);
+    let spec = check_file(&dir.join("main.oc.ui")).expect("arbre attendu");
+    assert!(spec.tree["screens"]["more"].is_object());
+    assert_eq!(spec.ids["more_text"], "text");
+    assert_eq!(spec.files.len(), 2);
+
+    let bad = "screens:\n  more:\n    layout: { type: column, children: [{ type: buton }] }\n";
+    let dir = files("inc_err", &[("main.oc.ui", main), ("ui.d/more.oc.ui", bad)]);
+    let errors = check_file(&dir.join("main.oc.ui")).unwrap_err();
+    assert!(errors[0].file.ends_with("ui.d/more.oc.ui"), "{:?}", errors[0].file);
+    assert_eq!(errors[0].line, 3);
+
+    let twice = "start: home\nscreens:\n  home:\n    layout: { type: column, children: [] }\n  includes:\n    - home.oc.ui\n";
+    let again = "screens:\n  home:\n    layout: { type: column, children: [] }\n";
+    let dir = files("inc_dup", &[("main.oc.ui", twice), ("home.oc.ui", again)]);
+    let errors = check_file(&dir.join("main.oc.ui")).unwrap_err();
+    assert!(errors[0].message.contains("écran 'home' déjà déclaré"), "{}", errors[0].message);
+
+    let cycle = "screens:\n  more:\n    layout: { type: column, children: [] }\n  includes:\n    - main.oc.ui\n";
+    let dir = files("inc_cycle", &[("main.oc.ui", main), ("ui.d/more.oc.ui", cycle)]);
+    let errors = check_file(&dir.join("main.oc.ui")).unwrap_err();
+    std::fs::remove_dir_all(&dir).ok();
+    assert!(errors.iter().any(|e| e.message.contains("lecture de") || e.message.contains("déjà inclus")), "{:?}", errors);
+}
+
+#[test]
+fn variables_in_texts() {
+    let spec = ok(&screen("    - { type: text, value: \"${title} (${count})\", tooltip: \"$${pas_une}\" }\n"));
+    let vars: Vec<&str> = spec.vars.iter().map(String::as_str).collect();
+    assert_eq!(vars, ["count", "title"]);
+    assert_eq!(spec.tree["vars"][0], "count");
+    single_error(&screen("    - { type: text, value: \"${titre\" }\n"), 4, "sans '}' fermant");
+    single_error(&screen("    - { type: text, value: \"${mon titre}\" }\n"), 4, "variable '${mon titre}' invalide");
+}
+
+#[test]
+fn size_variants_are_embedded() {
+    use crate::core::ui_schema::check_interface;
+    let base = "layout: { type: column, children: [{ type: text, id: t, value: a }] }\n";
+    let md = "layout: { type: row, children: [{ type: text, id: t, value: b }, { type: input, id: extra }] }\n";
+    let dir = files("variants", &[("g.oc.ui", base), ("g.md.oc.ui", md)]);
+    let spec = check_interface(&dir.join("g.oc.ui")).expect("arbre attendu");
+    assert_eq!(spec.tree["variants"]["md"]["screens"]["main"]["layout"]["type"], "row");
+    assert_eq!(spec.tree["sizes"]["md"], 840);
+    assert_eq!(spec.ids["extra"], "input");
+
+    let conflict = "layout: { type: column, children: [{ type: input, id: t }] }\n";
+    let dir = files("variants_conflict", &[("g.oc.ui", base), ("g.md.oc.ui", conflict)]);
+    let errors = check_interface(&dir.join("g.oc.ui")).unwrap_err();
+    std::fs::remove_dir_all(&dir).ok();
+    assert!(errors[0].message.contains("id 't'") && errors[0].file.ends_with("g.md.oc.ui"), "{:?}", errors);
+
+    // Sans variante : seuils quand même présents (ui.sizeClass()).
+    let dir = files("variants_none", &[("g.oc.ui", base)]);
+    let spec = check_interface(&dir.join("g.oc.ui")).unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    assert_eq!(spec.tree["sizes"]["xs"], 360);
+    assert!(spec.tree.get("variants").is_none());
+}
+
+#[test]
+fn android_material_nodes() {
+    ok(&screen("    - { type: android.fab, icon: add, label: Ajouter, text: Ajouter, onClick: add }\n    - { type: android.drawer, id: menu, children: [{ type: text, value: Menu }] }\n    - { type: android.bottomSheet, id: sheet, open: false, onDismiss: closed, children: [] }\n"));
+    single_error(&screen("    - { type: android.fab, icon: add }\n"), 4, "'android.fab' : propriété 'label' obligatoire");
+    single_error(&screen("    - { type: android.drawer, children: [] }\n"), 4, "'android.drawer' : propriété 'id' obligatoire");
+}

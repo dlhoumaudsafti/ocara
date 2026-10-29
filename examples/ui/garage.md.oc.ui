@@ -1,0 +1,46 @@
+# Variante des fenêtres et écrans larges (classe md, ≥ 840 px/dp) de
+# garage.oc.ui : liste et détail côte à côte, sur un seul écran.
+window:
+  title: "${app_title}"
+  width: 900
+  height: 640
+  theme: auto
+
+styles:
+  titre: { fontSize: 22, bold: true }
+
+start: home
+screens:
+  home:
+    layout:
+      type: row
+      spacing: 24
+      padding: 16
+      align: start
+      children:
+        - type: column
+          spacing: 12
+          weight: 1
+          children:
+            - { type: heading, value: "${cars_title}", style: titre }
+            - type: row
+              spacing: 8
+              children:
+                - { type: input, id: search, placeholder: "${search}", onSubmit: search, width: fill }
+                - { type: iconButton, icon: search, label: "${search}", onClick: search }
+            - type: list
+              id: cars
+              onSelect: open_car
+              item:
+                type: row
+                spacing: 8
+                children:
+                  - { type: text, bind: brand }
+                  - { type: text, bind: model }
+            - { type: button, text: "${switch_lang}", variant: text, onClick: switch_lang }
+        - type: card
+          weight: 1
+          spacing: 8
+          children:
+            - { type: heading, value: "${details}", level: 3 }
+            - { type: text, id: car_title, style: titre }

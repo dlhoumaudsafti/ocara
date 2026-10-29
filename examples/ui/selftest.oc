@@ -26,7 +26,7 @@ class Checks {
 }
 
 function main(): void {
-    const ui:UI = use UI("garage.oc.ui")
+    const ui:UI = use UI("selftest.oc.ui")
     ui.on("ready", Checks::ready)
     try {
         var missing:string = "missing"

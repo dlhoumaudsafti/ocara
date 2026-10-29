@@ -28,7 +28,7 @@ if ! $OCARA examples/ui/components.oc.ui --preview -o "$dir/page.html" > /dev/nu
 fi
 # Le test remplace le démarrage de l'aperçu (même arbre, autre `send`).
 sed -i "s#</body>#<script src=\"$PWD/ci/ui_engine_test.js\"></script></body>#" "$dir/page.html"
-result=$("$CHROME" --headless=new --disable-gpu --no-sandbox --user-data-dir="$dir/profile" \
+result=$("$CHROME" --headless=new --disable-gpu --no-sandbox --password-store=basic --user-data-dir="$dir/profile" \
     --allow-file-access-from-files --virtual-time-budget=5000 --dump-dom "file://$dir/page.html" 2> /dev/null | grep -o 'UI-ENGINE-[A-Z]*[^<]*')
 if [ -z "$result" ] && [ "$(ulimit -v)" != "unlimited" ]; then
     # Chrome réserve des To d'espace d'adressage (V8) : il ne démarre pas

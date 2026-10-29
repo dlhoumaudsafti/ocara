@@ -55,10 +55,25 @@ fn default_action(this: i64, action: &str) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn UI_init(this: i64, tree: i64) {
+pub extern "C" fn UI_init(this: i64, tree: i64, vars: i64) {
     unsafe { __rc_register_window_finalizer(finalize) };
     crate::events::start();
-    core::init(this, &str_arg(tree), default_action);
+    core::init(this, &str_arg(tree), ocara_runtime_ui::ffi::to_json(vars), default_action);
+}
+
+/// `ui.setVars(vars)` : textes remplis à nouveau (changement de langue).
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_setVars(this: i64, vars: i64) {
+    let tree = core::set_vars(this, ocara_runtime_ui::ffi::to_json(vars));
+    if SHOWN.load(Ordering::SeqCst) == this {
+        engine("reload", &[Arg::Str(&tree.to_string())]);
+    }
+}
+
+/// `ui.sizeClass()` → `string` : classe de taille de l'écran.
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_sizeClass(this: i64) -> i64 {
+    ocara_runtime_ui::ffi::string(&core::size_class(this))
 }
 
 #[unsafe(no_mangle)]

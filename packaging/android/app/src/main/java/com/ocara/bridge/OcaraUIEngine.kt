@@ -69,6 +69,25 @@ object OcaraUIEngine {
         }
     }
 
+    /**
+     * Nouvel arbre (variables `${nom}`, rechargement) : état et écrans
+     * ouverts gardés.
+     */
+    @JvmStatic
+    fun reload(treeJson: String) {
+        val parsed = JSONObject(treeJson)
+        onMain { tree.value = parsed }
+    }
+
+    private var sizeClass = ""
+
+    /** Classe de taille courante, rapportée à Ocara (action `resize`) quand elle change. */
+    fun reportSize(cls: String) {
+        if (cls == sizeClass) return
+        sizeClass = cls
+        send(JSONObject().put("action", "resize").put("id", JSONObject.NULL).put("value", cls))
+    }
+
     /** `window.android` : options de l'Activity, par `ocara.AndroidUI`. */
     private fun applyWindowOptions(options: JSONObject?) {
         if (options == null) return

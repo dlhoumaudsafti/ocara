@@ -61,7 +61,24 @@ function main(): void {
 
 Exemple complet : [examples/ui/garage.oc](../../examples/ui/garage.oc).
 
-## `use UI(path)`
+## `use UI(path, vars)`
+
+`vars` (`map<string, mixed>`, facultatif) remplit les variables `${nom}`
+des textes du `.oc.ui` ; `ui.setVars(vars)` les change ensuite (ajoutées aux
+précédentes), l'interface est réaffichée, état et écran gardés :
+
+<!-- doc-check: skip -->
+```ocara
+const ui:UI = use UI("garage.oc.ui", {"title": "Mes voitures"})
+ui.setVars({"title": "My cars"})
+```
+
+Le fichier peut inclure des écrans d'autres fichiers et avoir des variantes
+pour les grands écrans (`garage.md.oc.ui`…) : voir
+[docs/oc-ui.md](../oc-ui.md), « Écrans inclus », « Variables » et
+« Tailles d'écran ». `ui.sizeClass()` → `string` donne la classe de taille
+courante (`xxs` … `xxl`, `""` avant l'affichage) ; l'action prédéfinie
+`resize` prévient d'un changement.
 
 Le fichier est lu **à la compilation** : une erreur du `.oc.ui` est une
 erreur de compilation à sa ligne, et l'arbre normalisé est embarqué dans le
@@ -96,6 +113,7 @@ Actions particulières :
 | `back` | écran précédent ; sur l'écran de départ : rien (desktop), fermeture de l'app (Android) | le gestionnaire est appelé à la place sur l'écran de départ |
 | `close` | ferme la fenêtre (l'app sur Android) | le gestionnaire décide (`ui.close()`) |
 | `ready` | — | interface affichée (page chargée, premier rendu Compose) |
+| `resize` | — | classe de taille changée (`event.value()` : la classe) ; aussi au premier affichage |
 
 Les gestionnaires s'exécutent sur **un thread Ocara dédié, l'un après
 l'autre** : un gestionnaire lent ne gèle pas l'interface, et deux
@@ -168,6 +186,15 @@ du nœud reste vide) ; sur desktop, une fenêtre `decorations: false` qui
 contient une vue web ne se redimensionne plus par ses bords ; sur Android,
 pour une `url`, `window.ocara` est disponible dès le début du chargement
 (un script de la page exécuté plus tôt peut appeler `ocaraNative.post`).
+
+## Composants Android
+
+`android.fab`, `android.drawer` et `android.bottomSheet` (bouton
+flottant, tiroir de navigation, panneau inférieur) sont décrits dans le
+`.oc.ui` et ignorés sur desktop ; tiroir et panneau s'ouvrent par
+`ui.set(id, "open", true)`, se ferment par `ui.set(id, "open", false)` ou
+par l'utilisateur (action `onDismiss`). Voir [docs/oc-ui.md](../oc-ui.md),
+« Composants propres à Android ».
 
 ## Spécificités de plateforme
 

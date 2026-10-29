@@ -4,7 +4,11 @@
 //
 //   OcaraUI.start(tree, { platform, send })  affiche l'écran `start`
 //   OcaraUI.set(id, prop, value)             état d'un nœud (réaffiche ce nœud)
-//   OcaraUI.navigate(screen), OcaraUI.back()
+//   OcaraUI.navigate(screen), OcaraUI.back(), OcaraUI.reload(tree)
+//
+// Variantes de taille (`variants`, `sizes`) : la variante de la largeur de la
+// fenêtre est affichée, et remplacée à la volée ; la classe est rapportée par
+// l'action `resize`.
 //
 // `send(message)` remet chaque événement à l'hôte : `{ id, prop, value }`
 // pour une valeur changée par l'utilisateur (état gardé côté Ocara),
@@ -12,7 +16,8 @@
 (function () {
   "use strict";
 
-  var tree, platform, send;
+  var root, tree, platform, send; // root : arbre complet ; tree : variante affichée
+  var sizeClass = "", variant = "";
   var state = {};      // id → { prop: valeur } (modifié par set ou par l'utilisateur)
   var mounted = {};    // id → { node, ctx, el } (nœud affiché)
   var history = [];    // écrans précédents
@@ -256,6 +261,9 @@
       case "radio": case "select": e = choice(node, p); break;
       case "slider": e = slider(node, p); break;
       case "button": case "iconButton": e = button(node, p); break;
+      case "android.fab": case "android.bottomSheet": case "android.drawer":
+        // Composants propres à Android : rien sur desktop.
+        e = el("span"); e.hidden = true; break;
       case "webview":
         // Vraie vue web isolée, posée par l'hôte au rectangle de ce nœud
         // (`placeWebviews`) : ici, seulement la place réservée.
@@ -307,15 +315,56 @@
     }
   }
 
+  /// Placement après le rendu en cours (`setTimeout` et non
+  /// `requestAnimationFrame`, que le navigateur suspend pour une page cachée
+  /// ou une fenêtre réduite : la vue web d'un écran quitté resterait affichée).
   function schedulePlacement() {
     if (placing) return;
     placing = true;
-    requestAnimationFrame(placeWebviews);
+    setTimeout(placeWebviews, 0);
   }
 
   window.addEventListener("resize", schedulePlacement);
   document.addEventListener("scroll", schedulePlacement, true);
   var layoutObserver = window.ResizeObserver ? new ResizeObserver(schedulePlacement) : null;
+
+  /// Classe de la largeur `width` et variante à afficher : la plus grande
+  /// dont le seuil est atteint (docs/oc-ui.md, « Tailles d'écran »).
+  function sizeOf(width) {
+    var sizes = root.sizes || {}, variants = root.variants || {};
+    var cls = "", best = "";
+    Object.keys(sizes).sort(function (a, b) { return sizes[a] - sizes[b]; }).forEach(function (c) {
+      if (width >= sizes[c]) {
+        cls = c;
+        if (variants[c]) best = c;
+      }
+    });
+    return { cls: cls, variant: best };
+  }
+
+  /// Applique la variante de la largeur courante ; vrai si elle a changé.
+  function chooseVariant() {
+    var size = sizeOf(window.innerWidth);
+    if (size.cls !== sizeClass) {
+      sizeClass = size.cls;
+      send({ action: "resize", id: null, value: sizeClass });
+    }
+    var next = size.variant ? root.variants[size.variant] : root;
+    var changed = size.variant !== variant || next !== tree;
+    variant = size.variant;
+    tree = next;
+    if (!tree.screens[current]) current = tree.start;
+    history = history.filter(function (s) { return tree.screens[s]; });
+    var win = tree.window || {};
+    if (win.title) document.title = win.title;
+    document.documentElement.dataset.theme = win.theme || "auto";
+    if (win.primary) document.documentElement.style.setProperty("--oc-primary", win.primary);
+    return changed;
+  }
+
+  window.addEventListener("resize", function () {
+    if (root && chooseVariant()) render();
+  });
 
   function render() {
     mounted = {};
@@ -347,14 +396,11 @@
 
   var OcaraUI = window.OcaraUI = {
     start: function (t, options) {
-      tree = t;
+      root = t;
       platform = options.platform || "tauri";
       send = options.send || function () {};
-      current = tree.start;
-      var win = tree.window || {};
-      if (win.title) document.title = win.title;
-      document.documentElement.dataset.theme = win.theme || "auto";
-      if (win.primary) document.documentElement.style.setProperty("--oc-primary", win.primary);
+      current = root.start;
+      chooseVariant();
       render();
       send({ action: "ready", id: null, value: null });
     },
@@ -379,11 +425,11 @@
       return p[prop];
     },
 
-    /// Nouvel arbre (rechargement à chaud) : état et écran courant gardés.
+    /// Nouvel arbre (variables, rechargement à chaud) : état et écran gardés.
     reload: function (t) {
-      tree = t;
-      if (!tree.screens[current]) current = tree.start;
-      history = history.filter(function (s) { return tree.screens[s]; });
+      root = t;
+      tree = null;
+      chooseVariant();
       render();
     },
 

@@ -12,7 +12,7 @@ use super::Checker;
 /// Propriétés qu'une surcharge de plateforme ne peut pas changer.
 const NOT_OVERRIDABLE: &[&str] = &["type", "id", "children", "item", "tauri", "android"];
 
-impl Checker<'_> {
+impl Checker {
     /// Valeur de n'importe quel `Ty`, composés compris.
     pub(super) fn value(&mut self, node: &Node, ty: Ty, what: &str) -> Option<Json> {
         match ty {

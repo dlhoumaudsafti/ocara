@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -92,7 +93,7 @@ import org.json.JSONObject
 import kotlin.math.roundToInt
 
 /** Contexte d'un nœud : élément de liste (`bind`) et parent défilant. */
-private data class Ctx(val tree: JSONObject, val item: JSONObject? = null, val scrolling: Boolean = false)
+internal data class Ctx(val tree: JSONObject, val item: JSONObject? = null, val scrolling: Boolean = false)
 
 /** Types qui prennent la largeur d'une colonne (règle commune avec engine.css). */
 private val FILL_IN_COLUMN = setOf(
@@ -105,10 +106,40 @@ private val FIXED_IN_ROW = setOf("icon", "iconButton", "button", "spacer", "divi
 
 private val CONTAINERS = setOf("column", "row", "stack", "grid", "card", "list")
 
-/** Écran courant de l'arbre, avec sa barre de titre et le retour système. */
+/**
+ * Écran courant de l'arbre, avec sa barre de titre, le retour système et les
+ * composants Material de l'écran (OcaraUIMaterial.kt). La variante de taille
+ * suit la largeur disponible (en dp), à la volée (rotation, écran plié).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OcaraInterface(tree: JSONObject) {
+fun OcaraInterface(root: JSONObject) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val size = sizeOf(root, maxWidth.value.toInt())
+        LaunchedEffect(size.first) { OcaraUIEngine.reportSize(size.first) }
+        val tree = size.second?.let { root.optJSONObject("variants")?.optJSONObject(it) } ?: root
+        Screen(tree)
+    }
+}
+
+/** Classe de la largeur `width` et variante à afficher (la plus grande atteinte). */
+private fun sizeOf(root: JSONObject, width: Int): Pair<String, String?> {
+    val sizes = root.optJSONObject("sizes") ?: return "" to null
+    val variants = root.optJSONObject("variants")
+    var cls = ""
+    var variant: String? = null
+    for (name in sizes.keys().asSequence().sortedBy { sizes.optInt(it) }) {
+        if (width >= sizes.optInt(name)) {
+            cls = name
+            if (variants?.has(name) == true) variant = name
+        }
+    }
+    return cls to variant
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun Screen(tree: JSONObject) {
     val window = tree.optJSONObject("window") ?: JSONObject()
     val dark = when (window.optString("theme", "auto")) {
         "dark" -> true
@@ -124,37 +155,50 @@ fun OcaraInterface(tree: JSONObject) {
     }
     MaterialTheme(colorScheme = scheme) {
         val stack = OcaraUIEngine.backStack
-        val current = stack.lastOrNull() ?: tree.getString("start")
-        val screen = tree.getJSONObject("screens").getJSONObject(current)
+        val screens = tree.getJSONObject("screens")
+        // Écran absent de cette variante : celui de départ.
+        val current = stack.lastOrNull()?.takeIf { screens.has(it) } ?: tree.getString("start")
+        val screen = screens.getJSONObject(current)
+        val layout = screen.getJSONObject("layout")
+        val ctx = Ctx(tree)
+        val material = MaterialNodes(layout)
         BackHandler(enabled = stack.size > 1) { OcaraUIEngine.back() }
-        Scaffold(
-            topBar = {
-                val title = screen.optString("title", window.optString("title"))
-                if (title.isNotEmpty() || stack.size > 1) {
-                    TopAppBar(
-                        title = { Text(title) },
-                        navigationIcon = {
-                            if (stack.size > 1) {
-                                IconButton(onClick = { OcaraUIEngine.back() }) {
-                                    Icon(iconVector(BACK_PATH), contentDescription = "Retour")
+        WithDrawer(material.drawer, ctx) { openDrawer ->
+            Scaffold(
+                topBar = {
+                    val title = screen.optString("title", window.optString("title"))
+                    if (title.isNotEmpty() || stack.size > 1 || openDrawer != null) {
+                        TopAppBar(
+                            title = { Text(title) },
+                            navigationIcon = {
+                                when {
+                                    stack.size > 1 -> IconButton(onClick = { OcaraUIEngine.back() }) {
+                                        Icon(iconVector(BACK_PATH), contentDescription = "Retour")
+                                    }
+                                    openDrawer != null -> IconButton(onClick = openDrawer) {
+                                        Icon(iconVector(MENU_PATH), contentDescription = "Menu")
+                                    }
                                 }
-                            }
-                        },
-                    )
+                            },
+                        )
+                    }
+                },
+                floatingActionButton = { material.fab?.let { Fab(it, ctx) } },
+            ) { padding ->
+                Box(Modifier.padding(padding).fillMaxSize()) {
+                    Node(layout, ctx, Modifier.fillMaxSize())
                 }
-            },
-        ) { padding ->
-            Box(Modifier.padding(padding).fillMaxSize()) {
-                Node(screen.getJSONObject("layout"), Ctx(tree), Modifier.fillMaxSize())
             }
         }
+        for (sheet in material.sheets) BottomSheet(sheet, ctx)
     }
 }
 
 private const val BACK_PATH = "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"
+private const val MENU_PATH = "M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"
 
 /** Propriétés effectives : style nommé, nœud, surcharge `android`, état. */
-private fun props(node: JSONObject, ctx: Ctx): Map<String, Any?> {
+internal fun props(node: JSONObject, ctx: Ctx): Map<String, Any?> {
     val out = HashMap<String, Any?>()
     fun merge(layer: JSONObject?) {
         layer ?: return
@@ -173,7 +217,7 @@ private fun Map<String, Any?>.text(key: String) = this[key]?.toString()
 private fun Map<String, Any?>.num(key: String) = (this[key] as? Number)?.toDouble()
 private fun Map<String, Any?>.flag(key: String, default: Boolean) = this[key] as? Boolean ?: default
 
-private fun parseColor(value: Any?): Color? {
+internal fun parseColor(value: Any?): Color? {
     val hex = (value as? String)?.removePrefix("#") ?: return null
     val rgba = hex.toLongOrNull(16) ?: return null
     return when (hex.length) {
@@ -203,7 +247,7 @@ private fun spacing(value: Any?): PaddingValues? = when (value) {
     else -> null
 }
 
-private fun iconVector(path: String): ImageVector =
+internal fun iconVector(path: String): ImageVector =
     ImageVector.Builder(defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
         .addPath(PathParser().parsePathString(path).toNodes(), fill = SolidColor(Color.Black))
         .build()
@@ -232,7 +276,7 @@ private fun textStyle(p: Map<String, Any?>, base: TextStyle): TextStyle = base.c
 
 /** Modificateur posé par une colonne sur un enfant : `fill`, `weight`. */
 @Composable
-private fun ColumnScope.childModifier(child: JSONObject, ctx: Ctx): Modifier {
+internal fun ColumnScope.childModifier(child: JSONObject, ctx: Ctx): Modifier {
     val p = props(child, ctx)
     var m: Modifier = Modifier
     val type = child.optString("type")
@@ -268,13 +312,13 @@ private fun horizontal(align: String?) = when (align) {
     else -> Alignment.Start
 }
 
-private fun children(p: Map<String, Any?>): List<JSONObject> {
+internal fun children(p: Map<String, Any?>): List<JSONObject> {
     val array = p["children"] as? JSONArray ?: return emptyList()
     return (0 until array.length()).mapNotNull { array.optJSONObject(it) }
 }
 
 @Composable
-private fun Node(node: JSONObject, ctx: Ctx, modifier: Modifier) {
+internal fun Node(node: JSONObject, ctx: Ctx, modifier: Modifier) {
     val p = props(node, ctx)
     if (p["visible"] == false) return
     val id = node.optString("id").takeIf { it.isNotEmpty() }
@@ -363,6 +407,8 @@ private fun Node(node: JSONObject, ctx: Ctx, modifier: Modifier) {
         "iconButton" -> IconButton({ OcaraUIEngine.fire(p, "onClick", id) }, m, enabled) {
             NamedIcon(ctx, p.text("icon"), p.text("label"), Modifier, null)
         }
+        // Placés par l'écran (OcaraUIMaterial.kt), pas à leur rang.
+        "android.fab", "android.bottomSheet", "android.drawer" -> {}
         "webview" -> OcaraWebNode(id, p, if (p["height"] == null) m.height(240.dp) else m)
     }
 }
@@ -427,7 +473,7 @@ private fun Container(node: JSONObject, type: String, p: Map<String, Any?>, id: 
 }
 
 @Composable
-private fun NamedIcon(ctx: Ctx, name: String?, label: String?, modifier: Modifier, tint: Color?) {
+internal fun NamedIcon(ctx: Ctx, name: String?, label: String?, modifier: Modifier, tint: Color?) {
     val path = ctx.tree.optJSONObject("icons")?.optString(name ?: "")?.takeIf { it.isNotEmpty() } ?: return
     val vector = remember(path) { iconVector(path) }
     Icon(vector, label, modifier, tint ?: LocalContentColor.current)

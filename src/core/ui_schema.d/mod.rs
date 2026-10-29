@@ -22,11 +22,13 @@ pub mod json_schema;
 mod nodes;
 pub mod preview;
 pub mod schema;
+mod variants;
+pub use variants::check_interface;
 mod values;
 pub mod yaml;
 
-use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::path::{Path, PathBuf};
 
 use serde_json::{json, Map, Value as Json};
 
@@ -45,6 +47,10 @@ pub struct UiSpec {
     pub ids: BTreeMap<String, String>,
     /// Actions nommées par les événements et les menus.
     pub actions: BTreeSet<String>,
+    /// Variables `${nom}` des textes, remplacées à l'exécution.
+    pub vars: BTreeSet<String>,
+    /// Fichiers lus : le `.oc.ui` et ses `includes`.
+    pub files: Vec<PathBuf>,
 }
 
 /// Lit et valide le fichier `path`.
@@ -63,8 +69,11 @@ pub fn check_source(file: &Path, source: &str) -> Result<UiSpec, Vec<Diagnostic>
         Err((line, col, message)) => return Err(vec![Diagnostic::error(file, line, col, message + &comment_hint(source, line))]),
     };
     let mut checker = Checker {
-        file,
+        file: file.to_path_buf(),
         errors: Vec::new(),
+        screen_names: HashMap::new(),
+        files: vec![file.to_path_buf()],
+        vars: BTreeSet::new(),
         ids: BTreeMap::new(),
         actions: BTreeSet::new(),
         icons: BTreeSet::new(),
@@ -73,7 +82,7 @@ pub fn check_source(file: &Path, source: &str) -> Result<UiSpec, Vec<Diagnostic>
     };
     let tree = checker.root(&root);
     if !checker.errors.is_empty() {
-        checker.errors.sort_by_key(|d| (d.line, d.col));
+        checker.errors.sort_by(|a, b| (&a.file, a.line, a.col).cmp(&(&b.file, b.line, b.col)));
         return Err(checker.errors);
     }
     let ids: BTreeMap<String, String> = checker.ids.into_iter().map(|(id, (ty, _))| (id, ty)).collect();
@@ -82,7 +91,8 @@ pub fn check_source(file: &Path, source: &str) -> Result<UiSpec, Vec<Diagnostic>
     tree.insert("actions".into(), json!(checker.actions));
     let icons: Map<String, Json> = checker.icons.iter().filter_map(|name| Some((name.clone(), json!(icons::path(name)?)))).collect();
     tree.insert("icons".into(), Json::Object(icons));
-    Ok(UiSpec { tree: Json::Object(tree), ids, actions: checker.actions })
+    tree.insert("vars".into(), json!(checker.vars));
+    Ok(UiSpec { tree: Json::Object(tree), ids, actions: checker.actions, vars: checker.vars, files: checker.files })
 }
 
 /// Erreur YAML causée le plus souvent par une couleur sans guillemets dans
@@ -95,9 +105,16 @@ fn comment_hint(source: &str, line: usize) -> String {
 }
 
 /// État de la validation d'un fichier.
-pub(super) struct Checker<'a> {
-    file: &'a Path,
+pub(super) struct Checker {
+    /// Fichier en cours (le `.oc.ui`, ou un fichier inclus).
+    file: PathBuf,
     errors: Vec<Diagnostic>,
+    /// Écrans déclarés : fichier et ligne, pour signaler un doublon entre fichiers.
+    screen_names: HashMap<String, (PathBuf, usize)>,
+    /// Fichiers lus, dans l'ordre ; ceux en cours forment la pile des includes.
+    files: Vec<PathBuf>,
+    /// Variables `${nom}` rencontrées dans les textes.
+    vars: BTreeSet<String>,
     /// `id` → (type du nœud, ligne de déclaration).
     ids: BTreeMap<String, (String, usize)>,
     actions: BTreeSet<String>,
@@ -111,10 +128,10 @@ pub(super) struct Checker<'a> {
 
 type Entry<'n> = (&'n Node, &'n str, &'n Node);
 
-impl Checker<'_> {
+impl Checker {
     /// Enregistre une erreur sur `node` ; rend toujours `None`.
     fn fail<T>(&mut self, node: &Node, message: String) -> Option<T> {
-        self.errors.push(Diagnostic::error(self.file, node.line, node.col, message));
+        self.errors.push(Diagnostic::error(&self.file, node.line, node.col, message));
         None
     }
 
@@ -217,18 +234,25 @@ impl Checker<'_> {
         out
     }
 
-    /// Écrans dans l'ordre du fichier : (nom, écran, ligne).
+    /// Écrans dans l'ordre du fichier : (nom, écran, ligne). La clé
+    /// `includes` liste d'autres `.oc.ui` dont les écrans s'ajoutent ici.
     fn screens(&mut self, node: &Node) -> Option<Vec<(String, Json, usize)>> {
         let entries = self.entries(node, "screens")?;
-        if entries.is_empty() {
-            return self.fail(node, "'screens' : au moins un écran attendu".to_string());
-        }
         let mut out = Vec::new();
         for (key, name, value) in entries {
+            if name == "includes" {
+                out.extend(self.includes(value));
+                continue;
+            }
             if !is_ident(name) {
                 self.fail::<()>(key, format!("nom d'écran '{name}' invalide (lettres, chiffres, '_')"));
                 continue;
             }
+            if let Some((file, line)) = self.screen_names.get(name).cloned() {
+                self.fail::<()>(key, format!("écran '{name}' déjà déclaré ({}:{line})", file.display()));
+                continue;
+            }
+            self.screen_names.insert(name.to_string(), (self.file.clone(), key.line));
             let has_layout = matches!(&value.kind, Kind::Map(pairs) if pairs.iter().any(|(k, _)| text(k) == Some("layout")));
             let Some(screen) = self.table(value, &format!("screens.{name}"), schema::SCREEN_PROPS) else { continue };
             if !has_layout {
@@ -236,7 +260,69 @@ impl Checker<'_> {
             }
             out.push((name.to_string(), Json::Object(screen), key.line));
         }
+        if out.is_empty() && self.errors.is_empty() {
+            return self.fail(node, "'screens' : au moins un écran attendu".to_string());
+        }
         Some(out)
+    }
+
+    /// `screens.includes` : fichiers `.oc.ui` (relatifs au fichier courant)
+    /// qui ne contiennent que `screens:`, includes imbriqués compris.
+    fn includes(&mut self, node: &Node) -> Vec<(String, Json, usize)> {
+        let Kind::Seq(items) = &node.kind else {
+            self.fail::<()>(node, "'screens.includes' : liste de fichiers .oc.ui attendue".to_string());
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        for item in items {
+            let Some(relative) = text(item) else {
+                self.fail::<()>(item, "'screens.includes' : chemin de fichier attendu".to_string());
+                continue;
+            };
+            let path = self.file.parent().unwrap_or(Path::new("")).join(relative);
+            let canonical = std::fs::canonicalize(&path).unwrap_or(path.clone());
+            if self.files.iter().any(|f| std::fs::canonicalize(f).unwrap_or(f.clone()) == canonical) {
+                self.fail::<()>(item, format!("'{relative}' déjà inclus (inclusion circulaire ou en double)"));
+                continue;
+            }
+            let source = match std::fs::read_to_string(&path) {
+                Ok(source) => source,
+                Err(e) => {
+                    self.fail::<()>(item, format!("lecture de '{}' : {e}", path.display()));
+                    continue;
+                }
+            };
+            self.files.push(path.clone());
+            let outer = std::mem::replace(&mut self.file, path);
+            out.extend(self.included_screens(&source));
+            self.file = outer;
+        }
+        out
+    }
+
+    /// Écrans d'un fichier inclus (fichier courant : celui-ci).
+    fn included_screens(&mut self, source: &str) -> Vec<(String, Json, usize)> {
+        let root = match yaml::load(source) {
+            Ok(Some(root)) => root,
+            Ok(None) => {
+                self.errors.push(Diagnostic::error(&self.file, 1, 1, "fichier inclus vide (attendu : screens)"));
+                return Vec::new();
+            }
+            Err((line, col, message)) => {
+                self.errors.push(Diagnostic::error(&self.file, line, col, message + &comment_hint(source, line)));
+                return Vec::new();
+            }
+        };
+        let Some(entries) = self.entries(&root, "racine") else { return Vec::new() };
+        let mut out = Vec::new();
+        for (key, name, value) in entries {
+            if name == "screens" {
+                out.extend(self.screens(value).unwrap_or_default());
+            } else {
+                self.fail::<()>(key, format!("clé '{name}' inconnue dans un fichier inclus (seule 'screens' est permise)"));
+            }
+        }
+        out
     }
 
     /// `start` : écran affiché au lancement (le seul écran par défaut).

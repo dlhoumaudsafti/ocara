@@ -3,7 +3,8 @@
 // docs/builtins/UI.md). Desktop : fenêtre Tauri et moteur de rendu
 // (runtime_tauri/src/ui) ; Android : moteur Compose (runtime_android/ui).
 //
-//   use UI("x.oc.ui")                 // lu et validé à la compilation (src/core/ui_file.rs)
+//   use UI("x.oc.ui", vars)           // lu et validé à la compilation (src/core/ui_file.rs)
+//   ui.setVars(vars) / ui.sizeClass() → string
 //   ui.on(action, Classe::methode)    // gestionnaire (ui:UI, event:UIEvent): void
 //   ui.get(id, prop) → mixed / ui.set(id, prop, valeur) / ui.setItems(id, rows)
 //   ui.navigate(screen) / ui.back() / ui.run() / ui.close()
@@ -60,8 +61,13 @@ fn handler_ty() -> Type {
 
 pub fn class() -> ClassInfo {
     let mut methods = HashMap::new();
-    // Constructeur : `use UI("x.oc.ui")`, dont l'argument devient l'arbre JSON.
-    methods.insert("__init__".to_string(), static_m(vec![("path", Type::String)], Type::Named("UI".into())));
+    // Constructeur : `use UI("x.oc.ui", vars)` ; le chemin devient l'arbre JSON,
+    // `vars` (facultatif : complété par src/core/ui_file.rs) remplit les `${nom}`.
+    methods.insert("__init__".to_string(), static_m(vec![("path", Type::String), ("vars", Type::Map(Box::new(Type::String), Box::new(Type::Mixed)))], Type::Named("UI".into())));
+    // Textes : nouvelles valeurs des variables `${nom}` (changement de langue).
+    methods.insert("setVars".to_string(), inst_m(vec![("vars", Type::Map(Box::new(Type::String), Box::new(Type::Mixed)))], Type::Void));
+    // Classe de taille de la fenêtre ou de l'écran (`xxs` … `xxl`, "" avant run()).
+    methods.insert("sizeClass".to_string(), inst_m(vec![], Type::String));
     methods.insert("on".to_string(), inst_m(vec![("action", Type::String), ("handler", handler_ty())], Type::Void));
     methods.insert("get".to_string(), inst_m(vec![("id", Type::String), ("prop", Type::String)], Type::Mixed));
     methods.insert("set".to_string(), inst_m(vec![("id", Type::String), ("prop", Type::String), ("value", Type::Mixed)], Type::Void));

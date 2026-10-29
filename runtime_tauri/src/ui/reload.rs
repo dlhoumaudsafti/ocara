@@ -16,8 +16,10 @@ use crate::window::live;
 
 const PERIOD: Duration = Duration::from_millis(400);
 
-fn modified(path: &PathBuf) -> Option<SystemTime> {
-    std::fs::metadata(path).and_then(|m| m.modified()).ok()
+/// Dernière modification parmi les fichiers de l'interface (includes et
+/// variantes de taille compris).
+fn modified(files: &[PathBuf]) -> Option<SystemTime> {
+    files.iter().filter_map(|f| std::fs::metadata(f).and_then(|m| m.modified()).ok()).max()
 }
 
 /// Lance la surveillance si l'arbre de `this` le permet.
@@ -26,11 +28,14 @@ pub(crate) fn watch(this: i64) {
     let text = |key: &str| source.get(key).and_then(Value::as_str).map(str::to_string);
     let (Some(path), Some(compiler)) = (text("path"), text("compiler")) else { return };
     let path = PathBuf::from(path);
+    let mut files: Vec<PathBuf> = source.get("files").and_then(Value::as_array).into_iter().flatten()
+        .filter_map(Value::as_str).map(PathBuf::from).collect();
+    files.push(path.clone());
     if !std::path::Path::new(&compiler).exists() {
         return;
     }
     std::thread::spawn(move || {
-        let mut last = modified(&path);
+        let mut last = modified(&files);
         // La fenêtre peut ne pas être encore construite au démarrage du thread.
         let mut seen = false;
         loop {
@@ -40,7 +45,7 @@ pub(crate) fn watch(this: i64) {
                 (false, true) => return,
                 (false, false) => continue,
             }
-            let now = modified(&path);
+            let now = modified(&files);
             if now == last {
                 continue;
             }
@@ -63,9 +68,7 @@ fn reload(this: i64, compiler: &str, path: &PathBuf) {
     if let Some(source) = core::tree(this).and_then(|t| t.get("source").cloned()) {
         tree["source"] = source;
     }
-    core::reload(this, tree.clone());
-    if let Some(window) = live(this) {
-        let _ = window.eval(format!("OcaraUI.reload({tree})"));
-    }
+    let shown = core::reload(this, tree);
+    super::show_tree(this, &shown);
     eprintln!("UI : {} rechargé", path.display());
 }

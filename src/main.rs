@@ -265,7 +265,7 @@ fn run() {
 /// affiche l'arbre JSON normalisé qu'embarque le binaire, `--preview` écrit
 /// une page HTML qui l'affiche avec le moteur de rendu desktop.
 fn check_ui_file(args: &core::cli::CliArgs) {
-    match core::ui_schema::check_file(&args.input) {
+    match core::ui_schema::check_interface(&args.input) {
         Ok(spec) if args.preview => {
             let page = core::ui_schema::preview::page(&spec);
             let out = core::ui_schema::preview::output_path(&args.input, &args.output);
@@ -276,7 +276,17 @@ fn check_ui_file(args: &core::cli::CliArgs) {
             println!("aperçu : file://{}", fs::canonicalize(&out).unwrap_or(out).display());
         }
         Ok(spec) if args.dump => println!("{}", serde_json::to_string_pretty(&spec.tree).unwrap_or_default()),
-        Ok(spec) => println!("check ok — {} id, {} action(s).", spec.ids.len(), spec.actions.len()),
+        Ok(spec) => {
+            let variants: Vec<String> = spec.tree["variants"].as_object().map(|v| v.keys().cloned().collect()).unwrap_or_default();
+            let mut extra = String::new();
+            if !variants.is_empty() {
+                extra += &format!(", variante(s) : {}", variants.join(", "));
+            }
+            if !spec.vars.is_empty() {
+                extra += &format!(", variable(s) : {}", spec.vars.iter().cloned().collect::<Vec<_>>().join(", "));
+            }
+            println!("check ok — {} id, {} action(s){extra}.", spec.ids.len(), spec.actions.len());
+        }
         Err(diagnostics) => {
             for d in &diagnostics {
                 d.print();

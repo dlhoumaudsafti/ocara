@@ -16,7 +16,9 @@ const fn event(name: &'static str, returns: clt::Type) -> BuiltinDesc {
 const I: clt::Type = clt::I64;
 
 pub const UI_BUILTINS: &[BuiltinDesc] = &[
-    ui("UI_init",     &[I, I],       None), // this, arbre JSON (littéral, src/core/ui_file.rs)
+    ui("UI_init",     &[I, I, I],    None), // this, arbre JSON (littéral, src/core/ui_file.rs), vars
+    ui("UI_setVars",  &[I, I],       None),
+    ui("UI_sizeClass", &[I],         Some(I)),
     ui("UI_on",       &[I, I, I],    None), // this, action, gestionnaire
     ui("UI_get",      &[I, I, I],    Some(I)),
     ui("UI_set",      &[I, I, I, I], None),

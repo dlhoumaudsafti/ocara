@@ -74,7 +74,20 @@
   OcaraUI.back();
   check("back au départ → hôte", last().action === "back");
 
-  // Vue web : rectangle envoyé à l'image suivante (requestAnimationFrame).
+  // Variantes de taille : seuils autour de la largeur de la page.
+  var wide = JSON.parse(JSON.stringify(TREE));
+  wide.screens.form.layout.children[0].value = "Large";
+  var sized = JSON.parse(JSON.stringify(TREE));
+  sized.sizes = { petit: 0, large: window.innerWidth, immense: window.innerWidth + 1 };
+  sized.variants = { large: wide };
+  OcaraUI.reload(sized);
+  check("variante de la largeur", q("h1.oc-heading").textContent === "Large");
+  check("classe rapportée", sent.some(function (m) { return m.action === "resize" && m.value === "large"; }));
+  check("état gardé entre variantes", node("name").value === "Grace");
+  OcaraUI.reload(TREE);
+  check("retour à l'arbre de base", q("h1.oc-heading").textContent === "Inscription");
+
+  // Vue web : rectangle envoyé après le rendu (setTimeout).
   OcaraUI.navigate("list");
   setTimeout(function () {
     var shown = placements(true)[0] || {};

@@ -3804,6 +3804,10 @@
           {
             "name": "path",
             "type": "string"
+          },
+          {
+            "name": "vars",
+            "type": "map<string, mixed>"
           }
         ],
         "returns": "UI",
@@ -3937,7 +3941,7 @@
         ],
         "returns": "void",
         "static": false,
-        "doc": "Actions : `ui.on(action, handler)`\n\n`handler` est une méthode statique `(ui:UI, event:UIEvent): void`, comme\nun gestionnaire de route d'`HTTPServer`. L'action doit être déclarée dans le\n`.oc.ui` (`onClick: search`…) ; sinon `UIException` 101. Plusieurs\ngestionnaires d'une même action sont appelés dans l'ordre.\n\nActions particulières :\n\n| Action | Sans gestionnaire | Avec `ui.on` |\n|--------|-------------------|--------------|\n| `back` | écran précédent ; sur l'écran de départ : rien (desktop), fermeture de l'app (Android) | le gestionnaire est appelé à la place sur l'écran de départ |\n| `close` | ferme la fenêtre (l'app sur Android) | le gestionnaire décide (`ui.close()`) |\n| `ready` | — | interface affichée (page chargée, premier rendu Compose) |\n\nLes gestionnaires s'exécutent sur **un thread Ocara dédié, l'un après\nl'autre** : un gestionnaire lent ne gèle pas l'interface, et deux\ngestionnaires ne tournent jamais en même temps. Une exception non rattrapée\nest signalée sur la sortie d'erreur ; les actions suivantes sont traitées.",
+        "doc": "Actions : `ui.on(action, handler)`\n\n`handler` est une méthode statique `(ui:UI, event:UIEvent): void`, comme\nun gestionnaire de route d'`HTTPServer`. L'action doit être déclarée dans le\n`.oc.ui` (`onClick: search`…) ; sinon `UIException` 101. Plusieurs\ngestionnaires d'une même action sont appelés dans l'ordre.\n\nActions particulières :\n\n| Action | Sans gestionnaire | Avec `ui.on` |\n|--------|-------------------|--------------|\n| `back` | écran précédent ; sur l'écran de départ : rien (desktop), fermeture de l'app (Android) | le gestionnaire est appelé à la place sur l'écran de départ |\n| `close` | ferme la fenêtre (l'app sur Android) | le gestionnaire décide (`ui.close()`) |\n| `ready` | — | interface affichée (page chargée, premier rendu Compose) |\n| `resize` | — | classe de taille changée (`event.value()` : la classe) ; aussi au premier affichage |\n\nLes gestionnaires s'exécutent sur **un thread Ocara dédié, l'un après\nl'autre** : un gestionnaire lent ne gèle pas l'interface, et deux\ngestionnaires ne tournent jamais en même temps. Une exception non rattrapée\nest signalée sur la sortie d'erreur ; les actions suivantes sont traitées.",
         "docFile": "UI.md",
         "docHeading": "Actions : `ui.on(action, handler)`"
       },
@@ -4042,6 +4046,25 @@
         "static": false,
         "doc": "`ui.setItems(id, rows)` — éléments d'une `list` (`array<map<string, mixed>>`, lus par `bind`)",
         "docFile": "UI.md"
+      },
+      {
+        "name": "setVars",
+        "params": [
+          {
+            "name": "vars",
+            "type": "map<string, mixed>"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "Exemple :\n\n```ocara\nui.setVars({\"title\": \"My cars\"})\n```",
+        "docFile": "UI.md"
+      },
+      {
+        "name": "sizeClass",
+        "params": [],
+        "returns": "string",
+        "static": false
       },
       {
         "name": "tauri",

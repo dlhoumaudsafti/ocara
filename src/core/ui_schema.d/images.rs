@@ -42,7 +42,7 @@ fn base64(bytes: &[u8]) -> String {
     out
 }
 
-impl Checker<'_> {
+impl Checker {
     /// Remplace le `src` local de l'image `props` par son contenu.
     pub(super) fn embed_image(&mut self, node: &Node, props: &mut Map<String, Json>) {
         let Some(src) = props.get("src").and_then(Json::as_str).map(str::to_string) else { return };

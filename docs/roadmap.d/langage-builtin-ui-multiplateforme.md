@@ -463,10 +463,10 @@ Règles proposées :
    Texte d'origine : **`.oc.ui` hors d'`ocara.UI`** : `ocara.Tauri` et `ocara.AndroidUI`
    peuvent-ils afficher un `.oc.ui` eux-mêmes ? Proposé : non, un `.oc.ui`
    passe toujours par `ocara.UI`, les builtins de plateforme complètent.
-5. **Nœuds propres à une plateforme dans un `.oc.ui`** (bouton flottant,
-   tiroir…) : préfixe de type (`type: android.fab`, ignoré ou refusé sur
-   l'autre cible) ou seulement les surcharges `tauri:`/`android:` et le
-   builtin dédié ?
+5. ~~**Nœuds propres à une plateforme dans un `.oc.ui`**~~ — **tranché**
+   (étape 4) : préfixe de type (`type: android.fab`, `android.drawer`,
+   `android.bottomSheet`), validé à la compilation partout et ignoré sur
+   desktop ; les surcharges `tauri:`/`android:` restent pour les propriétés.
 6. **`ocara.Tauri` compilé pour Android** : aujourd'hui talon sans effet avec
    un avertissement ; lever une exception à l'appel, comme `ocara.Android*`
    hors Android, pour la cohérence des trois builtins ?
@@ -484,9 +484,21 @@ avec les noms et signatures d'`ocara.UI`, une seule fois par plateforme.
 | 1 | ~~**Finaliser `ocara.Tauri`**~~ — **fait** (2026-10-28) : état de fenêtre réel, `emit`/`listen`, boîtes de dialogue et notifications natives, menus, plusieurs fenêtres, tray, raccourcis globaux | — | `docs/builtins/Tauri.md` |
 | 2 | ~~**Créer `ocara.AndroidUI`**~~ — **fait** (2026-10-28) : canal d'événements Kotlin → Ocara (`OcaraBridge.nativeEvent`, file, thread Ocara dédié), bouton retour intercepté, style des barres, plein écran, orientation, écran allumé, vibration, partage, `alert`/`confirm`/`toast`, `close` ; vérifié sur téléphone | — | `docs/builtins/AndroidUI.md` |
 | 3 | ~~**Schéma `.oc.ui`**~~ — **fait** (2026-10-28) : lecteur YAML positionné et validation dans le compilateur (types, propriétés, valeurs, `id` uniques, styles, actions, surcharges `tauri:`/`android:`), arbre JSON normalisé (`ids`, `actions` compris), `ocara x.oc.ui [--dump]`, tests des erreurs. L'embarquement dans le binaire se fait par `use UI(…)` (étape 5) | — | [docs/oc-ui.md](../oc-ui.md) |
-| 4 | **Les deux moteurs de rendu** — **fait pour l'essentiel** (2026-10-28) : moteur desktop en JS sans framework (`runtime_tauri/src/ui/engine.js`, testé dans Chrome sans écran par `ci/ui_engine.sh`) et moteur Compose (`OcaraUIEngine.kt`, `OcaraUINodes.kt`, vérifié sur téléphone), tous les nœuds du schéma sauf `webview` (place réservée, étape 6), écrans et retour, état par `set`, événements `{ id, prop, value }` et `{ action, … }`, jeu d'icônes commun copié dans l'arbre, aperçus (`ocara x.oc.ui --preview`, intent debug `ocara.ui.preview`). **Reste** : les composants Material sans équivalent desktop (bouton flottant, panneau inférieur, tiroir) dans `ocara.AndroidUI`, qui attendent la question 5 . Sélecteurs natifs de date et d'heure sur Android et page du moteur dans la fenêtre Tauri : faits | Massive | [docs/oc-ui.md](../oc-ui.md), §2 et §3 |
+| 4 | ~~**Les deux moteurs de rendu**~~ — **fait** (2026-10-29) : moteur desktop en JS sans framework et moteur Compose, tous les nœuds du schéma, écrans et retour, état par `set`, événements, icônes communes, aperçus, sélecteurs natifs de date et d'heure sur Android ; composants Material propres à Android (`android.fab`, `android.drawer`, `android.bottomSheet`, question 5), ignorés sur desktop | — | [docs/oc-ui.md](../oc-ui.md) |
 | 5 | ~~**Façade `ocara.UI`**~~ — **fait** (2026-10-28) : `use UI("x.oc.ui")` lu et validé à la compilation, arbre en littéral (`src/core/ui_file.rs`) ; `ui.on(action, Classe::methode)` (`on` accepté comme nom de membre après un point), `get`/`set`/`setItems`, `navigate`/`back`, `run`/`close`, `toast`/`alert`/`confirm`/`pickFile`/`saveFile`/`notify` ; `UIEvent` (`action()`, `id()`, `value()`, `index()` : des méthodes, comme `HTTPServerRequest`) ; `UIException` 101 à 105. Partie commune `runtime_ui` (état, gestionnaires sur un thread Ocara dédié, `UIEvent`), backend desktop `runtime_tauri/src/ui` (l'objet `UI` est une fenêtre Tauri dont la page est le moteur), backend Android `runtime_android/ui/src/ui.rs`. Vérifié : auto-test en fenêtre (`ci/ui_app.sh`) et `examples/ui/garage.oc` sur téléphone. **Non fait** : `ui.tauri()`/`ui.android()` (question 3), vérification à la compilation des `ui.on`/`get`/`set` contre le `.oc.ui` (faite à l'exécution, codes 101 et 102), `pickFile`/`saveFile` sur Android | — | [docs/builtins/UI.md](../builtins/UI.md) |
 | 6 | ~~**Suite**~~ — **fait pour l'essentiel** (2026-10-29) : composant `webview` (vraie vue isolée : WebKit posé sur la fenêtre au rectangle du nœud sous Linux, `WebView` sur Android ; `onMessage`/`postMessage`, `eval`, `onLoad`/`onError`, `allow`, historique), images locales embarquées à la compilation, schéma JSON des `.oc.ui` (`ocara --ui-schema`) et validation dans VS Code, rechargement à chaud (desktop, build de debug), vérification à la compilation des `ui.on`/`get`/`set`/`navigate` sur la variable du `use UI`, `ui.tauri()` (question 3), `pickFile` sur Android. **Reste** : vue web sous Windows et macOS, composants Material propres à Android (question 5), `webHandlers` (appel typé d'une méthode Ocara depuis une vue web), `menu:` du `.oc.ui` (desktop et Android), liaisons déclaratives (question 2) | — | [docs/builtins/UI.md](../builtins/UI.md) |
+
+## Ajouts du 2026-10-29
+
+- **Écrans inclus** : `screens.includes` liste d'autres `.oc.ui` (écrans
+  seulement), résolus à la compilation, erreurs situées dans le fichier
+  inclus, doublons et cycles refusés.
+- **Variables** : `${nom}` dans les textes, remplies par
+  `use UI(path, vars)` et `ui.setVars(vars)` (textes de langue).
+- **Tailles d'écran** : variantes `x.<classe>.oc.ui` (`xxs` 0, `xs` 360,
+  `sm` 600, `md` 840, `lg` 1200, `xl` 1600, `xxl` 1920, largeur minimale en
+  px/dp, seuils de Material 3), toutes embarquées ; la plus grande atteinte
+  est affichée, changée à la volée ; `ui.sizeClass()`, action `resize`.
 
 ## Fichiers clés
 

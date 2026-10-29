@@ -333,7 +333,7 @@ tests:
 # `cargo test` à la racine ne couvre que le crate `ocara` : le runtime
 # (runtime/src/tests/) a ses propres tests, lancés séparément.
 tests-runtime: pkgconfig-shim
-	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo test -p ocara_runtime -p ocara_runtime_image -j4
+	PKG_CONFIG_PATH="$(PKGCONFIG_SHIM):$$PKG_CONFIG_PATH" RUSTFLAGS="-D warnings" cargo test -p ocara_runtime -p ocara_runtime_image -p ocara_runtime_ui -j4
 
 tests-tools:
 	RUSTFLAGS="-D warnings" cargo test -p ocaracs -p ocaraunit

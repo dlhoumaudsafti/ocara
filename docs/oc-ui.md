@@ -143,6 +143,9 @@ Un nœud est une table dont `type` est l'un des types ci-dessous.
 | `date`, `time` | `value` (ISO), `onChange` | |
 | `button` | `text`, `icon`, `variant` (`primary`, `secondary`, `text`), `onClick` | |
 | `iconButton` | `icon`, `onClick` | `icon`, `label` |
+| `android.fab` | `icon`, `text` (bouton étendu), `onClick` | `icon`, `label` |
+| `android.bottomSheet` | `children`, `spacing`, `open`, `onDismiss` | `id` |
+| `android.drawer` | `children`, `spacing`, `open`, `onDismiss` | `id` |
 
 Propriétés communes à tous les nœuds :
 
@@ -159,6 +162,24 @@ Propriétés communes à tous les nœuds :
 | `contextMenu` | entrées de menu (clic droit, appui long) |
 | `tauri`, `android` | surcharge de propriétés pour une plateforme (voir plus bas) |
 | présentation | `fontSize`, `bold`, `italic`, `color`, `background`, `padding`, `margin`, `radius`, `border`, `elevation` (aussi permises dans `styles`) |
+
+### Composants propres à Android
+
+Les types préfixés `android.` sont des composants Material sans
+équivalent desktop ; ils sont validés partout et **ignorés sur desktop**.
+Déclarés n'importe où dans la disposition d'un écran, ils sont placés là
+où Material les attend :
+
+- `android.fab` : bouton flottant de l'écran (le premier compte) ; avec
+  `text`, bouton étendu (icône et texte) ;
+- `android.drawer` : tiroir de navigation de l'écran (le premier compte),
+  ouvert par l'icône de menu de la barre de titre ou par
+  `ui.set(id, "open", true)` ;
+- `android.bottomSheet` : panneau inférieur, ouvert par
+  `ui.set(id, "open", true)`.
+
+Fermé par l'utilisateur (geste, toucher à côté), un tiroir ou un panneau
+repasse à `open: false` (lu par `ui.get`) et déclenche `onDismiss`.
 
 ### Tailles par défaut
 
@@ -221,6 +242,82 @@ plateforme seulement :
 
 `type`, `id`, `children` et `item` ne se surchargent pas.
 
+## Écrans inclus
+
+`screens:` peut lister d'autres fichiers sous la clé `includes` (chemins
+relatifs au fichier qui les inclut) ; chacun ne contient que `screens:`, et
+peut lui-même en inclure d'autres :
+
+```yaml
+screens:
+  form:
+    title: "Formulaire"
+    layout: { type: column, children: [] }
+  includes:
+    - ui.d/list.oc.ui
+    - ui.d/other.oc.ui
+```
+
+Les écrans inclus partagent les styles, les `id` (uniques dans toute
+l'interface) et les actions du fichier principal. Une erreur est située
+dans le fichier inclus ; un écran déclaré deux fois, ou un fichier inclus
+deux fois (inclusion circulaire comprise), est une erreur.
+
+## Variables
+
+Tout texte peut contenir des variables `${nom}` (lettres, chiffres, `_`),
+remplies à l'exécution par la map passée à `use UI(path, vars)` et
+changées par `ui.setVars(vars)` : textes de langue, nom de l'utilisateur…
+
+```yaml
+- { type: heading, value: "${cars_title}" }
+- { type: input, id: search, placeholder: "${search}" }
+```
+
+Une variable sans valeur reste affichée telle quelle (`${nom}`) et un
+avertissement l'indique ; `$${` écrit un `${` littéral. Les variables
+utilisées sont listées par `ocara x.oc.ui` et dans l'arbre (`vars`).
+
+## Tailles d'écran
+
+Une interface peut avoir des **variantes** pour les fenêtres ou écrans plus
+larges, à côté du fichier principal, qui reste le défaut :
+
+```text
+garage.oc.ui        défaut
+garage.sm.oc.ui     à partir de 600
+garage.md.oc.ui     à partir de 840
+```
+
+La largeur disponible, en pixels logiques (px CSS sur desktop, dp sur
+Android, indépendants de la densité de l'écran), donne une **classe** ; le
+moteur affiche la plus grande variante dont le seuil est atteint, sinon le
+défaut. Seuils (largeur minimale), calés sur les classes de taille de
+Material 3 :
+
+| Classe | À partir de | Typiquement |
+|--------|-------------|-------------|
+| `xxs` | 0 | montre, très petit écran |
+| `xs` | 360 | téléphone en portrait |
+| `sm` | 600 | grand téléphone en paysage, petite tablette, pliable ouvert |
+| `md` | 840 | tablette en paysage, petite fenêtre de bureau |
+| `lg` | 1200 | fenêtre de bureau |
+| `xl` | 1600 | grand écran |
+| `xxl` | 1920 | très grand écran |
+
+Les variantes sont validées et embarquées à la compilation avec le fichier
+principal ; un même `id` y a le même type (l'état d'un nœud passe d'une
+variante à l'autre). Le changement se fait **à la volée** : fenêtre
+redimensionnée, rotation, écran plié ou déplié, état et écran courant
+gardés (un écran absent de la variante affichée fait revenir à `start`, et
+`ui.navigate` vers lui ne change rien). Côté Ocara, `ui.sizeClass()` donne
+la classe courante, et l'action `resize` (valeur : la classe) prévient d'un
+changement.
+
+Une variante est un `.oc.ui` complet, vérifiable seul
+(`ocara garage.md.oc.ui`) ; elle peut inclure les mêmes écrans que le
+défaut (`screens.includes`).
+
 ## Actions
 
 Les événements (`onClick`, `onChange`, `onSubmit`, `onSelect`, `onFocus`,
@@ -252,8 +349,9 @@ une clé en double dans une table est une erreur.
 ## Arbre normalisé
 
 `--dump` affiche ce que le binaire embarque : `window`, `styles`, `start`,
-`screens` (chaque écran : `title`, `layout`), `menu`, `icons`, `source`
-(build de debug : chemins pour le rechargement à chaud), plus `ids`
+`screens` (chaque écran : `title`, `layout`), `menu`, `icons`, `vars`,
+`sizes` (seuils des classes), `variants` (arbres des variantes de taille),
+`source` (build de debug : chemins pour le rechargement à chaud), plus `ids`
 (chaque `id` et le type de son nœud) et `actions` (liste triée), qui
 servent à vérifier les `ui.on` et les `get`/`set`.
 

@@ -54,7 +54,7 @@ fn is_color(s: &str) -> bool {
     (hex.len() == 6 || hex.len() == 8) && hex.chars().all(|c| c.is_ascii_hexdigit())
 }
 
-impl Checker<'_> {
+impl Checker {
     /// Contrôle `node` contre un type simple et rend sa valeur normalisée ;
     /// `what` nomme la valeur dans les messages (`propriété 'width' de 'row'`).
     pub(super) fn simple(&mut self, node: &Node, ty: Ty, what: &str) -> Option<Json> {
@@ -63,7 +63,10 @@ impl Checker<'_> {
         let string = value.as_ref().and_then(Json::as_str).map(str::to_string);
         match ty {
             Ty::Text => match value {
-                Some(Json::String(s)) => Some(Json::String(s)),
+                Some(Json::String(s)) => {
+                    self.scan_vars(node, &s, what)?;
+                    Some(Json::String(s))
+                }
                 Some(Json::Null) | None => self.fail(node, format!("{what} : texte attendu")),
                 Some(other) => Some(Json::String(other.to_string())),
             },
@@ -142,6 +145,29 @@ impl Checker<'_> {
             },
             _ => unreachable!("type composé contrôlé par nodes.rs"),
         }
+    }
+
+    /// Variables `${nom}` d'un texte (remplacées à l'exécution par les
+    /// valeurs de `use UI(path, vars)`) ; `$${` écrit un `${` littéral.
+    fn scan_vars(&mut self, node: &Node, text: &str, what: &str) -> Option<()> {
+        let mut rest = text;
+        while let Some(at) = rest.find("${") {
+            if rest[..at].ends_with('$') {
+                rest = &rest[at + 2..];
+                continue;
+            }
+            let after = &rest[at + 2..];
+            let Some(end) = after.find('}') else {
+                return self.fail(node, format!("{what} : '${{' sans '}}' fermant (écrire '$${{' pour un '${{' littéral)"));
+            };
+            let name = &after[..end];
+            if !is_ident(name) {
+                return self.fail(node, format!("{what} : variable '${{{name}}}' invalide (lettres, chiffres, '_')"));
+            }
+            self.vars.insert(name.to_string());
+            rest = &after[end + 1..];
+        }
+        Some(())
     }
 
     fn spacing(&mut self, node: &Node, what: &str) -> Option<Json> {

@@ -33,13 +33,17 @@ fn resolve(raw: &str, span: &Span) -> PathBuf {
 
 /// Remplace le chemin `raw` (argument de `use UI`) par l'arbre JSON.
 pub fn desugar_new(args: &mut Vec<Expr>, span: &Span, raw: Option<String>) -> Result<(), DesugarError> {
-    if args.len() != 1 {
-        return Err((span.clone(), format!("use UI(path) : 1 argument attendu, {} reçu(s)", args.len())));
+    if args.is_empty() || args.len() > 2 {
+        return Err((span.clone(), format!("use UI(path, vars) : 1 ou 2 arguments attendus, {} reçu(s)", args.len())));
+    }
+    // `use UI(path)` : pas de variables (`UI_init` reçoit toujours les deux).
+    if args.len() == 1 {
+        args.push(Expr::Map { entries: Vec::new(), span: span.clone() });
     }
     let raw = raw.ok_or_else(|| (span.clone(),
         "use UI(path) : le chemin du .oc.ui doit être connu à la compilation (littéral ou constante)".to_string()))?;
     let path = resolve(&raw, span);
-    let spec = crate::core::ui_schema::check_file(&path).map_err(|errors| {
+    let spec = crate::core::ui_schema::check_interface(&path).map_err(|errors| {
         let first = &errors[0];
         let mut at = Span::new(first.line, first.col);
         at.file = Some(first.file.display().to_string());
@@ -55,7 +59,10 @@ pub fn desugar_new(args: &mut Vec<Expr>, span: &Span, raw: Option<String>) -> Re
     if crate::parsing::build::current().get("BUILD").unwrap_or("debug") == "debug" {
         let absolute = std::fs::canonicalize(&path).unwrap_or(path.clone());
         let compiler = std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_default();
-        tree["source"] = serde_json::json!({ "path": absolute.display().to_string(), "compiler": compiler });
+        let files: Vec<String> = spec.files.iter()
+            .map(|f| std::fs::canonicalize(f).unwrap_or(f.clone()).display().to_string())
+            .collect();
+        tree["source"] = serde_json::json!({ "path": absolute.display().to_string(), "compiler": compiler, "files": files });
     }
     args[0] = Expr::Literal(Literal::String(tree.to_string()), span.clone());
     Ok(())
@@ -98,7 +105,7 @@ pub fn check_call(tree: &str, method: &str, args: &[Expr], span: &Span) -> Resul
     match method {
         "on" => {
             let mut actions: Vec<&str> = tree["actions"].as_array().into_iter().flatten().filter_map(|a| a.as_str()).collect();
-            actions.extend(["back", "close", "ready"]);
+            actions.extend(["back", "close", "ready", "resize"]);
             if actions.contains(&name.as_str()) { Ok(()) } else {
                 Err((span.clone(), format!("ui.on : action '{name}' absente du .oc.ui{}", suggestion(name, &actions))))
             }

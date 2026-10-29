@@ -92,7 +92,11 @@ pub fn schema() -> Json {
             "window": window,
             "styles": { "type": "object", "additionalProperties": object(schema::STYLE_PROPS) },
             "start": { "type": "string" },
-            "screens": { "type": "object", "additionalProperties": object(schema::SCREEN_PROPS) },
+            "screens": {
+                "type": "object",
+                "properties": { "includes": { "type": "array", "items": { "type": "string", "pattern": "\\.oc\\.ui$" } } },
+                "additionalProperties": object(schema::SCREEN_PROPS),
+            },
             "layout": { "$ref": "#/definitions/node" },
             "menu": ty(Ty::Menu),
         },

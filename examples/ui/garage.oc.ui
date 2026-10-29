@@ -1,7 +1,9 @@
 # Interface décrite en YAML (schéma : docs/oc-ui.md). Validée par
 # `ocara examples/ui/garage.oc.ui` ; `--dump` affiche l'arbre JSON normalisé.
+# Textes : variables `${…}` remplies par `use UI("garage.oc.ui", lang)`.
+# Fenêtre ou écran large (≥ 840) : garage.md.oc.ui.
 window:
-  title: "Garage"
+  title: "${app_title}"
   width: 900
   height: 640
   theme: auto
@@ -17,12 +19,12 @@ screens:
       spacing: 12
       padding: 16
       children:
-        - { type: heading, value: "Mes voitures", style: titre }
+        - { type: heading, value: "${cars_title}", style: titre }
         - type: row
           spacing: 8
           children:
-            - { type: input, id: search, placeholder: "Rechercher", onSubmit: search, width: fill }
-            - { type: iconButton, icon: search, label: "Rechercher", onClick: search }
+            - { type: input, id: search, placeholder: "${search}", onSubmit: search, width: fill }
+            - { type: iconButton, icon: search, label: "${search}", onClick: search }
         - type: list
           id: cars
           onSelect: open_car
@@ -32,11 +34,18 @@ screens:
             children:
               - { type: text, bind: brand }
               - { type: text, bind: model }
-  details:
-    title: "Détail"
-    layout:
-      type: column
-      padding: 16
-      children:
-        - { type: text, id: car_title, style: titre }
-        - { type: button, text: "Retour", onClick: back }
+        - { type: button, text: "${switch_lang}", variant: text, onClick: switch_lang }
+        # Android seulement : bouton flottant, tiroir et panneau.
+        - { type: android.fab, icon: info, label: "${about}", onClick: about }
+        - type: android.drawer
+          id: menu
+          children:
+            - { type: heading, value: "${app_title}", level: 3 }
+            - { type: button, text: "${switch_lang}", variant: text, onClick: switch_lang }
+        - type: android.bottomSheet
+          id: about_sheet
+          children:
+            - { type: heading, value: "${about}", level: 3 }
+            - { type: text, value: "${about_text}" }
+  includes:
+    - ui.d/details.oc.ui

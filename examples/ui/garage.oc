@@ -1,10 +1,30 @@
 // Interface native décrite par garage.oc.ui (docs/builtins/UI.md) : la même
 // source s'affiche dans une fenêtre Tauri (desktop) et en Compose (Android).
+// Textes : variables `${…}` remplies par une map de langue ; fenêtre large :
+// variante garage.md.oc.ui, choisie à la volée.
 architecture permissive
 
 import ocara.UI
 import ocara.UIEvent
 import ocara.IO
+
+class Lang {
+    public static method fr(): map<string, mixed> {
+        return {
+            "app_title": "Garage", "cars_title": "Mes voitures", "search": "Rechercher",
+            "details": "Détail", "back": "Retour", "switch_lang": "English",
+            "about": "À propos", "about_text": "Exemple d'interface ocara.UI.",
+        }
+    }
+
+    public static method en(): map<string, mixed> {
+        return {
+            "app_title": "Garage", "cars_title": "My cars", "search": "Search",
+            "details": "Details", "back": "Back", "switch_lang": "Français",
+            "about": "About", "about_text": "An ocara.UI interface example.",
+        }
+    }
+}
 
 class GarageController {
     public static method search(ui:UI, event:UIEvent): void {
@@ -24,7 +44,22 @@ class GarageController {
     public static method openCar(ui:UI, event:UIEvent): void {
         var car:map<string, mixed> = event.value()
         ui.set("car_title", "value", `${car["brand"]} ${car["model"]}`)
+        // La variante large (garage.md.oc.ui) affiche déjà le détail et n'a
+        // pas d'écran « details » : le moteur n'y change pas d'écran.
         ui.navigate("details")
+    }
+
+    public static method switchLang(ui:UI, event:UIEvent): void {
+        var english:bool = ui.get("search", "placeholder") equal "Rechercher"
+        if english {
+            ui.setVars(Lang::en())
+        } else {
+            ui.setVars(Lang::fr())
+        }
+    }
+
+    public static method about(ui:UI, event:UIEvent): void {
+        ui.set("about_sheet", "open", true)
     }
 
     public static method all(): array<map<string, mixed>> {
@@ -37,9 +72,11 @@ class GarageController {
 }
 
 function main(): void {
-    const ui:UI = use UI("garage.oc.ui")
+    const ui:UI = use UI("garage.oc.ui", Lang::fr())
     ui.on("search", GarageController::search)
     ui.on("open_car", GarageController::openCar)
+    ui.on("switch_lang", GarageController::switchLang)
+    ui.on("about", GarageController::about)
     ui.setItems("cars", GarageController::all())
     ui.run()
     IO::writeln("fermé")

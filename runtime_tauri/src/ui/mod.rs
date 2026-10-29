@@ -77,17 +77,36 @@ fn default_action(this: i64, action: &str) {
 /// `use UI(arbre)` : l'arbre normalisé, mis en littéral par le compilateur
 /// (src/core/ui_file.rs).
 #[unsafe(no_mangle)]
-pub extern "C" fn UI_init(this: i64, tree_ptr: i64) {
+pub extern "C" fn UI_init(this: i64, tree_ptr: i64, vars: i64) {
     unsafe { crate::__rc_register_window_finalizer(crate::finalize_window) };
-    let tree_json = str_arg(tree_ptr);
-    let tree = core::init(this, &tree_json, default_action);
+    let tree = core::init(this, &str_arg(tree_ptr), ocara_runtime_ui::ffi::to_json(vars), default_action);
     let window = tree.get("window").cloned().unwrap_or(json!({}));
     let mut options = window.as_object().cloned().unwrap_or_default();
     if let Some(Value::Object(tauri)) = options.remove("tauri") {
         options.extend(tauri);
     }
     options.remove("android");
-    crate::register_window(this, &Value::Object(options), Some(tree_json));
+    crate::register_window(this, &Value::Object(options), Some(tree.to_string()));
+}
+
+/// Nouvel arbre affiché (variables, rechargement) : gardé pour une page
+/// rechargée ou une fenêtre ouverte plus tard, et remis au moteur.
+pub(crate) fn show_tree(this: i64, tree: &Value) {
+    crate::window::state(this, |w| w.ui_tree = Some(tree.to_string()));
+    eval(this, &format!("OcaraUI.reload({tree})"));
+}
+
+/// `ui.setVars(vars)` : textes remplis à nouveau (changement de langue).
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_setVars(this: i64, vars: i64) {
+    let tree = core::set_vars(this, ocara_runtime_ui::ffi::to_json(vars));
+    show_tree(this, &tree);
+}
+
+/// `ui.sizeClass()` → `string` : classe de taille de la fenêtre.
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_sizeClass(this: i64) -> i64 {
+    ocara_runtime_ui::ffi::string(&core::size_class(this))
 }
 
 #[unsafe(no_mangle)]

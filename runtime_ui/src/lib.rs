@@ -7,6 +7,7 @@
 
 pub mod event;
 pub mod ffi;
+mod vars;
 
 use std::collections::HashMap;
 use std::sync::{mpsc, Mutex, OnceLock};
@@ -24,12 +25,18 @@ pub const ERR_UNAVAILABLE: i64 = 104;
 pub const ERR_TREE: i64 = 105;
 
 struct Ui {
+    /// Arbre du compilateur (textes avec `${nom}`) et variables.
+    raw: Value,
+    vars: Map<String, Value>,
+    /// Arbre affiché : textes remplis.
     tree: Value,
-    /// Nœuds qui ont un `id` (propriétés déclarées).
+    /// Nœuds qui ont un `id` (propriétés déclarées), toutes variantes.
     nodes: HashMap<String, Map<String, Value>>,
     /// État posé par `set` ou par l'utilisateur, par `id` puis propriété.
     state: HashMap<String, Map<String, Value>>,
     handlers: HashMap<String, Vec<i64>>,
+    /// Classe de taille rapportée par le moteur (action `resize`).
+    size_class: String,
 }
 
 static UIS: Mutex<Option<HashMap<i64, Ui>>> = Mutex::new(None);
@@ -47,7 +54,7 @@ static DEFAULT_ACTION: OnceLock<DefaultAction> = OnceLock::new();
 fn collect_nodes(node: &Value, out: &mut HashMap<String, Map<String, Value>>) {
     let Some(object) = node.as_object() else { return };
     if let Some(id) = object.get("id").and_then(Value::as_str) {
-        out.insert(id.to_string(), object.clone());
+        out.entry(id.to_string()).or_insert_with(|| object.clone());
     }
     for child in object.get("children").and_then(Value::as_array).into_iter().flatten() {
         collect_nodes(child, out);
@@ -55,32 +62,84 @@ fn collect_nodes(node: &Value, out: &mut HashMap<String, Map<String, Value>>) {
     // Les nœuds du gabarit `item` d'une liste se répètent : pas d'état propre.
 }
 
-/// `use UI(…)` : enregistre l'arbre (JSON produit par le compilateur).
-pub fn init(this: i64, tree_json: &str, default_action: DefaultAction) -> Value {
+/// Nœuds à `id` de l'arbre et de ses variantes de taille.
+fn nodes_of(tree: &Value) -> HashMap<String, Map<String, Value>> {
+    let mut nodes = HashMap::new();
+    let variants = tree.get("variants").and_then(Value::as_object).into_iter().flat_map(|v| v.values());
+    for t in std::iter::once(tree).chain(variants) {
+        for screen in t.get("screens").and_then(Value::as_object).into_iter().flat_map(|s| s.values()) {
+            collect_nodes(&screen["layout"], &mut nodes);
+        }
+    }
+    nodes
+}
+
+fn vars_of(vars: Value) -> Map<String, Value> {
+    match vars {
+        Value::Object(map) => map,
+        _ => Map::new(),
+    }
+}
+
+fn warn_missing(raw: &Value, vars: &Map<String, Value>) {
+    let missing = vars::missing(raw, vars);
+    if !missing.is_empty() {
+        eprintln!("UI : variable(s) sans valeur, affichée(s) telle(s) quelle(s) : {}", missing.join(", "));
+    }
+}
+
+/// `use UI(…)` : enregistre l'arbre (JSON produit par le compilateur) et
+/// ses variables ; rend l'arbre aux textes remplis.
+pub fn init(this: i64, tree_json: &str, vars: Value, default_action: DefaultAction) -> Value {
     let _ = DEFAULT_ACTION.set(default_action);
-    let tree: Value = match serde_json::from_str(tree_json) {
+    let raw: Value = match serde_json::from_str(tree_json) {
         Ok(tree) => tree,
         Err(e) => raise(ERR_TREE, format!("arbre d'interface invalide : {e}")),
     };
-    let mut nodes = HashMap::new();
-    for screen in tree.get("screens").and_then(Value::as_object).into_iter().flat_map(|s| s.values()) {
-        collect_nodes(&screen["layout"], &mut nodes);
-    }
-    let ui = Ui { tree: tree.clone(), nodes, state: HashMap::new(), handlers: HashMap::new() };
+    let vars = vars_of(vars);
+    warn_missing(&raw, &vars);
+    let tree = vars::resolve(&raw, &vars);
+    let ui = Ui {
+        nodes: nodes_of(&tree),
+        raw,
+        vars,
+        tree: tree.clone(),
+        state: HashMap::new(),
+        handlers: HashMap::new(),
+        size_class: String::new(),
+    };
     UIS.lock().unwrap().get_or_insert_with(HashMap::new).insert(this, ui);
     tree
 }
 
-/// Rechargement à chaud : nouvel arbre, état et gestionnaires gardés.
-pub fn reload(this: i64, tree: Value) {
-    let mut nodes = HashMap::new();
-    for screen in tree.get("screens").and_then(Value::as_object).into_iter().flat_map(|s| s.values()) {
-        collect_nodes(&screen["layout"], &mut nodes);
-    }
+fn rebuild(ui: &mut Ui) -> Value {
+    ui.tree = vars::resolve(&ui.raw, &ui.vars);
+    ui.nodes = nodes_of(&ui.tree);
+    ui.tree.clone()
+}
+
+/// Rechargement à chaud : nouvel arbre, variables, état et gestionnaires
+/// gardés ; rend l'arbre affiché.
+pub fn reload(this: i64, raw: Value) -> Value {
     with(this, |ui| {
-        ui.tree = tree;
-        ui.nodes = nodes;
-    });
+        warn_missing(&raw, &ui.vars);
+        ui.raw = raw;
+        rebuild(ui)
+    }).unwrap_or(Value::Null)
+}
+
+/// `ui.setVars(vars)` : nouvelles valeurs (ajoutées aux précédentes) ;
+/// rend l'arbre affiché.
+pub fn set_vars(this: i64, vars: Value) -> Value {
+    with(this, |ui| {
+        ui.vars.extend(vars_of(vars));
+        rebuild(ui)
+    }).unwrap_or(Value::Null)
+}
+
+/// `ui.sizeClass()` : classe rapportée par le moteur, `""` avant l'affichage.
+pub fn size_class(this: i64) -> String {
+    with(this, |ui| ui.size_class.clone()).unwrap_or_default()
 }
 
 /// Libération de l'objet `UI` : gestionnaires rendus.
@@ -96,11 +155,11 @@ pub fn tree(this: i64) -> Option<Value> {
 }
 
 /// `ui.on(action, handler)` : action déclarée par le `.oc.ui`, ou `back`,
-/// `close`, `ready`.
+/// `close`, `ready`, `resize`.
 pub fn on(this: i64, action: &str, handler: i64) {
     let known = with(this, |ui| {
         let declared = ui.tree["actions"].as_array().is_some_and(|a| a.iter().any(|v| v == action));
-        declared || matches!(action, "back" | "close" | "ready")
+        declared || matches!(action, "back" | "close" | "ready" | "resize")
     }).unwrap_or(false);
     if !known {
         let declared = tree(this).map(|t| t["actions"].to_string()).unwrap_or_default();
@@ -185,6 +244,10 @@ pub fn post(this: i64, message: &Value) {
         return;
     }
     let Some(action) = message.get("action").and_then(Value::as_str) else { return };
+    if action == "resize" {
+        let class = message.get("value").and_then(Value::as_str).unwrap_or_default().to_string();
+        with(this, |ui| ui.size_class = class);
+    }
     let event = Event {
         action: action.to_string(),
         id: id.map(str::to_string),
