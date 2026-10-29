@@ -1,4 +1,5 @@
-/// Raffinement de type (narrowing) d'une variable locale par une condition :
+/// Raffinement de type (narrowing) d'une variable locale, ou d'un chemin de
+/// champ (`d.id`, `self.owner.id`), par une condition :
 /// `x is T`, `x equal null`, `x not equal null`, combinés par `not`, `and`,
 /// `or`. Une union n'étant compatible avec un type que si toutes ses
 /// variantes le sont (voir `types_compat`), `if x is null { return }` doit
@@ -45,9 +46,25 @@ fn is_null(e: &Expr) -> bool {
     matches!(e, Expr::Literal(Literal::Null, _))
 }
 
+/// Nom raffinable d'une expression : variable locale (`x`) ou chemin de
+/// champ partant d'une variable ou de `self` (`d.id`, `self.owner.id`).
+pub fn path_of(e: &Expr) -> Option<String> {
+    match e {
+        Expr::Ident(name, _) => Some(name.clone()),
+        Expr::SelfExpr(_) => Some("self".to_string()),
+        Expr::Field { object, field, .. } => path_of(object).map(|base| format!("{base}.{field}")),
+        _ => None,
+    }
+}
+
+/// Chemin d'un accès de champ (`d.id`) ; `None` pour une variable seule.
+pub fn field_path(e: &Expr) -> Option<String> {
+    matches!(e, Expr::Field { .. }).then(|| path_of(e)).flatten()
+}
+
 fn test(subject: &Expr, tested: &Type, declared: &dyn Fn(&str) -> Option<Type>) -> Narrowings {
-    let Expr::Ident(name, _) = subject else { return Narrowings::default() };
-    let Some(current) = declared(name) else { return Narrowings::default() };
+    let Some(name) = path_of(subject).filter(|n| n != "self") else { return Narrowings::default() };
+    let Some(current) = declared(&name) else { return Narrowings::default() };
     let (then, other) = split(&current, tested);
     Narrowings {
         then: then.map(|t| (name.clone(), t)).into_iter().collect(),

@@ -1,0 +1,101 @@
+architecture permissive
+
+import ocara.UnitTest
+
+// Raffinement d'un chemin de champ (`d.id`, `self.id`, `d.inner.id`) par
+// `is`/`equal null`, comme une variable locale : `d.id.toStr()` sur un
+// `int|null` raffiné appelait `String_toStr` (échec du codegen). Un scalaire
+// raffiné passé à un paramètre `int`/`float` est déboxé (`r.toStr()` sur un
+// `float|null` lisait le pointeur de la boîte comme un nombre).
+class NarrowInner {
+    public property id:int|null
+    init(id:int|null) { self.id = id }
+}
+
+class NarrowDto {
+    public property id:int|null
+    public property ratio:float|null
+    public property inner:NarrowInner
+
+    init(id:int|null, ratio:float|null) {
+        self.id = id
+        self.ratio = ratio
+        self.inner = use NarrowInner(id)
+    }
+
+    public method label(): string {
+        if self.id is int {
+            return "id " + self.id.toStr()
+        }
+        return "sans id"
+    }
+
+    public method early(): string {
+        if self.id is null {
+            return "aucun"
+        }
+        return self.id.toStr()
+    }
+}
+
+class FieldNarrowingTest extends UnitTest {
+
+    public method isIntTest(): int {
+        const d:NarrowDto = use NarrowDto(7, null)
+        var text:string = ""
+        if d.id is int {
+            text = d.id.toStr()
+        }
+        self::assertEquals("7", text)
+        return 0
+    }
+
+    public method notNullAndElseTest(): int {
+        const d:NarrowDto = use NarrowDto(null, 2.5)
+        var text:string = ""
+        if d.ratio not equal null {
+            text = d.ratio.toStr()
+        }
+        self::assertEquals("2.5", text)
+        if d.id is int {
+            text = "int"
+        } else {
+            text = "null"
+        }
+        self::assertEquals("null", text)
+        return 0
+    }
+
+    public method selfAndEarlyReturnTest(): int {
+        self::assertEquals("id 3", use NarrowDto(3, null).label())
+        self::assertEquals("sans id", use NarrowDto(null, null).label())
+        self::assertEquals("4", use NarrowDto(4, null).early())
+        self::assertEquals("aucun", use NarrowDto(null, null).early())
+        return 0
+    }
+
+    public method nestedPathTest(): int {
+        const d:NarrowDto = use NarrowDto(12, null)
+        var text:string = ""
+        if d.inner.id is int {
+            text = d.inner.id.toStr()
+        }
+        self::assertEquals("12", text)
+        return 0
+    }
+
+    public method unboxedArgumentsTest(): int {
+        const r:float|null = 2.5
+        var text:string = ""
+        if r is float {
+            text = r.toStr()
+        }
+        self::assertEquals("2.5", text)
+        const d:NarrowDto = use NarrowDto(1000000, null)
+        if d.id is int {
+            text = d.id.toStr()
+        }
+        self::assertEquals("1000000", text)
+        return 0
+    }
+}

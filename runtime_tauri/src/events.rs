@@ -45,10 +45,10 @@ pub(crate) const EVENTS_SHIM: &str = r#"(function() {
 #[unsafe(no_mangle)]
 pub extern "C" fn Tauri_listen(this: i64, event_ptr: i64, callback_ptr: i64) {
     let event = unsafe { ptr_to_str(event_ptr).to_string() };
-    ocara_runtime::rc::__rc_retain(callback_ptr);
-    let kept = state(this, |w| w.event_callbacks.entry(event).or_default().push(callback_ptr));
-    if kept.is_none() {
-        ocara_runtime::rc::__rc_release(callback_ptr);
+    // Référence gardée par l'objet (`__kept`), pas par l'état natif : un
+    // callback qui capture sa fenêtre forme un cycle visible du collecteur.
+    if state(this, |w| w.event_callbacks.entry(event).or_default().push(callback_ptr)).is_some() {
+        ocara_runtime::rc::__rc_keep(this, 1, callback_ptr);
     }
 }
 
@@ -88,9 +88,3 @@ pub(crate) fn dispatch_to_ocara(this: i64, payload: &serde_json::Value) {
     }
 }
 
-/// Rend les callbacks retenus par `Tauri_listen` (fenêtre fermée).
-pub(crate) fn release_listeners(callbacks: &std::collections::HashMap<String, Vec<i64>>) {
-    for &callback in callbacks.values().flatten() {
-        ocara_runtime::rc::__rc_release(callback);
-    }
-}

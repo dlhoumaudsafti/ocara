@@ -30,10 +30,9 @@ class CarView implements CarViewPort {
             sale_date = "${not_set}"
         }
         // Voiture lue en base : son `id` est toujours connu.
-        const car_id:int|null = details.car.id
         var id:string = ""
-        if car_id is int {
-            id = car_id.toStr()
+        if details.car.id is int {
+            id = details.car.id.toStr()
         }
         return {
             "car_id": {"value": id},

@@ -285,9 +285,11 @@ impl ScopeStack {
         }
     }
 
-    /// Raffine `name` dans le frame courant.
+    /// Raffine `name` (variable locale ou chemin de champ `d.id`, `self.id`)
+    /// dans le frame courant.
     pub fn narrow(&mut self, name: String, ty: crate::parsing::ast::Type) {
-        if self.lookup(&name).is_some() {
+        let root = root_of(&name);
+        if root == "self" || self.lookup(root).is_some() {
             if let Some(top) = self.narrowed.last_mut() {
                 if top.insert(name.clone(), ty).is_none() {
                     *self.narrowed_names.entry(name).or_insert(0) += 1;
@@ -301,26 +303,39 @@ impl ScopeStack {
         if !self.narrowed_names.contains_key(name) {
             return self.lookup(name).map(|b| b.ty.clone());
         }
+        // Un chemin n'a pas de type déclaré : seul son raffinement compte,
+        // jusqu'au frame qui déclare sa variable.
+        let root = root_of(name);
         for (frame, narrowed) in self.frames.iter().zip(&self.narrowed).rev() {
             if let Some(ty) = narrowed.get(name) {
                 return Some(ty.clone());
             }
-            if let Some(b) = frame.get(name) {
-                return Some(b.ty.clone());
+            if let Some(b) = frame.get(root) {
+                return (root == name).then(|| b.ty.clone());
             }
         }
         None
     }
 
-    /// Affectation de `name` : ses raffinements ne valent plus.
+    /// Affectation de `name` : ses raffinements ne valent plus, ni ceux des
+    /// champs qui en partent (`d = …` oublie `d.id`).
     pub fn forget_narrowing(&mut self, name: &str) {
-        if !self.narrowed_names.contains_key(name) {
-            return;
+        let prefix = format!("{name}.");
+        let names: Vec<String> = self.narrowed_names.keys()
+            .filter(|n| n.as_str() == name || n.starts_with(&prefix))
+            .cloned()
+            .collect();
+        for n in names {
+            self.forget_one(&n);
         }
+    }
+
+    fn forget_one(&mut self, name: &str) {
+        let root = root_of(name);
         let mut removed = 0;
         for (frame, narrowed) in self.frames.iter().zip(self.narrowed.iter_mut()).rev() {
             removed += usize::from(narrowed.remove(name).is_some());
-            if frame.contains_key(name) {
+            if frame.contains_key(root) {
                 break;
             }
         }
@@ -464,4 +479,9 @@ impl ScopeStack {
             }
         }
     }
+}
+
+/// Variable d'un chemin de champ (`d` pour `d.id`), le nom lui-même sinon.
+fn root_of(name: &str) -> &str {
+    name.split('.').next().unwrap_or(name)
 }

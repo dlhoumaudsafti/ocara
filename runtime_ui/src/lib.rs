@@ -150,12 +150,10 @@ pub fn size_class(this: i64) -> String {
     with(this, |ui| ui.size_class.clone()).unwrap_or_default()
 }
 
-/// Libération de l'objet `UI` : gestionnaires rendus.
+/// Libération de l'objet `UI` : son état natif.
 pub fn release(this: i64) {
-    let removed = UIS.lock().unwrap().as_mut().and_then(|uis| uis.remove(&this));
-    for &handler in removed.iter().flat_map(|ui| ui.handlers.values().flatten()) {
-        unsafe { ffi::__rc_release(handler) };
-    }
+    // Gestionnaires : rendus avec le champ `__kept` de l'objet (`on`).
+    UIS.lock().unwrap().as_mut().and_then(|uis| uis.remove(&this));
 }
 
 pub fn tree(this: i64) -> Option<Value> {
@@ -173,8 +171,11 @@ pub fn on(this: i64, action: &str, handler: i64) {
         let declared = tree(this).map(|t| t["actions"].to_string()).unwrap_or_default();
         raise(ERR_ACTION, format!("action '{action}' absente du .oc.ui (actions : {declared})"));
     }
-    unsafe { ffi::__rc_retain(handler) };
-    with(this, |ui| ui.handlers.entry(action.to_string()).or_default().push(handler));
+    // Référence gardée par l'objet (`__kept`), pas par l'état natif : un
+    // gestionnaire qui capture `ui` forme un cycle visible du collecteur.
+    if with(this, |ui| ui.handlers.entry(action.to_string()).or_default().push(handler)).is_some() {
+        unsafe { ffi::__rc_keep(this, 1, handler) };
+    }
 }
 
 fn check_id(this: i64, id: &str) {

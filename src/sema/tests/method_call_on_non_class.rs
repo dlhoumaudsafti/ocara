@@ -201,3 +201,59 @@ fn chained_call_on_class_return_is_still_accepted() {
     let errors = check_errors(src);
     assert!(method_call_on_non_class(&errors).is_none(), "errors = {:?}", errors);
 }
+
+const FIELD_UNION: &str = r#"
+    class Dto {
+        public property id:int|null
+        init(id:int|null) { self.id = id }
+    }
+"#;
+
+/// Union de scalaires non raffinée (`int|null`) : aucune classe, refusé
+/// (le codegen devinait `String_toStr`).
+#[test]
+fn method_on_unnarrowed_scalar_union_is_rejected() {
+    let src = format!("{FIELD_UNION}
+        function main(): int {{
+            const d:Dto = use Dto(7)
+            const s:string = d.id.toStr()
+            return 0
+        }}
+    ");
+    assert_eq!(method_call_on_non_class(&check_errors(&src)).map(|(_, m)| m), Some("toStr"));
+}
+
+/// Champ raffiné par `is int` (et par un retour anticipé) : accepté.
+#[test]
+fn narrowed_field_path_is_accepted() {
+    let src = format!("{FIELD_UNION}
+        function main(): int {{
+            const d:Dto = use Dto(7)
+            if d.id is int {{
+                const s:string = d.id.toStr()
+            }}
+            if d.id is null {{
+                return 0
+            }}
+            const t:string = d.id.toStr()
+            return 0
+        }}
+    ");
+    assert!(check_errors(&src).is_empty(), "{:?}", check_errors(&src));
+}
+
+/// Champ réaffecté dans le bloc : son raffinement ne vaut plus.
+#[test]
+fn reassigned_field_path_loses_its_narrowing() {
+    let src = format!("{FIELD_UNION}
+        function main(): int {{
+            const d:Dto = use Dto(7)
+            if d.id is int {{
+                d.id = null
+                const s:string = d.id.toStr()
+            }}
+            return 0
+        }}
+    ");
+    assert!(method_call_on_non_class(&check_errors(&src)).is_some());
+}

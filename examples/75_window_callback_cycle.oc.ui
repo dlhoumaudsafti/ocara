@@ -1,0 +1,5 @@
+# Interface de 75_window_callback_cycle.oc.
+layout:
+  type: column
+  children:
+    - { type: button, id: go, text: "Go", onClick: go }

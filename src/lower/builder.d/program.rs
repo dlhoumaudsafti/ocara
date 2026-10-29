@@ -501,9 +501,12 @@ pub fn lower_program_with(program: &Program, source_file: &str, coverage: bool) 
     module.class_layouts.insert("HTTPServer".to_string(), opaque_layout.clone());
     module.class_layouts.insert("Thread".to_string(), opaque_layout.clone());
     module.class_layouts.insert("Mutex".to_string(), opaque_layout.clone());
-    module.class_layouts.insert("Tauri".to_string(), opaque_layout.clone());
-    // `UI` : une fenêtre Tauri sur desktop (même finaliseur, rc_layout.rs).
-    module.class_layouts.insert("UI".to_string(), opaque_layout.clone());
+    // Fenêtres (`UI` : une fenêtre Tauri sur desktop, même finaliseur) :
+    // second mot compté, tableau des callbacks retenus par l'état natif
+    // (`__rc_keep`, rc_layout.rs).
+    let window_layout = vec![("__opaque_ptr".to_string(), IrType::Ptr), ("__kept".to_string(), IrType::Ptr)];
+    module.class_layouts.insert("Tauri".to_string(), window_layout.clone());
+    module.class_layouts.insert("UI".to_string(), window_layout);
     module.class_layouts.insert("HTMLComponent".to_string(), opaque_layout);
     super::rc_layout::compute_rc_objects(&mut module, program);
     

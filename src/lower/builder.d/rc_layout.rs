@@ -50,7 +50,7 @@ pub fn compute_rc_objects(module: &mut IrModule, program: &Program) {
 const NATIVE_COUNTED: &[&str] = &["Image", "UIEvent"];
 
 fn is_opaque(layout: &[(String, crate::ir::types::IrType)]) -> bool {
-    matches!(layout, [(field, _)] if field == "__opaque_ptr")
+    matches!(layout, [(field, _), ..] if field == "__opaque_ptr")
 }
 
 /// Un caractère par champ : `1` valeur comptée, `s` chaîne (comptée, sans
@@ -58,12 +58,14 @@ fn is_opaque(layout: &[(String, crate::ir::types::IrType)]) -> bool {
 /// jamais par le tampon des racines de cycle), `0` rien à faire, une
 /// lettre pour un handle de ressource fermé avec l'objet (voir
 /// `rc::finalize_object`). Les classes builtin opaques qui se ferment
-/// elles-mêmes : `X` (`Mutex`), `T` (`Thread`), `W` (`Tauri`, `UI`).
+/// elles-mêmes : `X` (`Mutex`), `T` (`Thread`), `W` (`Tauri`, `UI`) ; une
+/// fenêtre a en plus un tableau compté (`1`) des callbacks que son état
+/// natif appelle (`rc::__rc_keep`) : le collecteur de cycles les voit.
 fn mask_for(module: &IrModule, class: &str, objects: &HashSet<String>) -> String {
     match class {
         "Mutex" => return "X".into(),
         "Thread" => return "T".into(),
-        "Tauri" | "UI" => return "W".into(),
+        "Tauri" | "UI" => return "W1".into(),
         _ => {}
     }
     let layout = &module.class_layouts[class];

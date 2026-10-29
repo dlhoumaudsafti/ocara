@@ -67,6 +67,9 @@ pub struct TypeChecker<'a> {
     pub(crate) last_map_literal: Option<std::collections::HashMap<String, Type>>,
     /// Variables des handlers `on e` sans filtre en cours (voir `sema::mixed_access`).
     pub(crate) catch_all_bindings: std::collections::HashSet<String>,
+    /// Dernier type inféré de chaque chemin de champ (`d.id`, `self.id`),
+    /// type de départ de son raffinement (voir `sema::narrowing`).
+    pub(crate) path_types: std::collections::HashMap<String, Type>,
 }
 
 impl<'a> TypeChecker<'a> {
@@ -95,6 +98,7 @@ impl<'a> TypeChecker<'a> {
             map_keys: std::collections::HashMap::new(),
             catch_all_bindings: std::collections::HashSet::new(),
             last_map_literal: None,
+            path_types: std::collections::HashMap::new(),
         }
     }
     
@@ -998,7 +1002,9 @@ impl<'a> TypeChecker<'a> {
                 // ni un type raffiné par une condition.
                 if let Expr::Ident(name, _) = target {
                     self.forget_map_keys(name);
-                    self.scopes.forget_narrowing(name);
+                }
+                if let Some(path) = crate::sema::narrowing::path_of(target) {
+                    self.scopes.forget_narrowing(&path);
                 }
                 // `target = value` : `value` peut être une `scoped`/
                 // `consumed` qui s'échappe vers `target`.
@@ -1116,7 +1122,12 @@ impl<'a> TypeChecker<'a> {
     // ── Raffinement de type (narrowing) ───────────────────────────────────────
 
     fn condition_narrowings(&self, condition: &Expr) -> crate::sema::narrowing::Narrowings {
-        crate::sema::narrowing::of_condition(condition, &|name| self.scopes.current_type(name))
+        crate::sema::narrowing::of_condition(condition, &|name| self.declared_type(name))
+    }
+
+    /// Type courant d'une variable locale ou d'un chemin de champ.
+    fn declared_type(&self, name: &str) -> Option<Type> {
+        self.scopes.current_type(name).or_else(|| self.path_types.get(name).cloned())
     }
 
     /// Bloc vérifié avec les variables `narrowed` raffinées.
@@ -1176,7 +1187,7 @@ impl<'a> TypeChecker<'a> {
             let narrowed = match &arm.pattern {
                 Some(MatchPattern::IsType(ty)) => crate::sema::narrowing::of_condition(
                     &Expr::IsCheck { expr: Box::new(subject.clone()), ty: ty.clone(), span: arm.span.clone() },
-                    &|name| self.scopes.current_type(name),
+                    &|name| self.declared_type(name),
                 ).then,
                 _ => Vec::new(),
             };
@@ -1369,7 +1380,21 @@ impl<'a> TypeChecker<'a> {
         *ret_ty
     }
 
+    /// Type d'une expression ; un chemin de champ raffiné (`if d.id is int`)
+    /// a son type raffiné.
     pub fn infer_expr(&mut self, expr: &Expr) -> Type {
+        let Some(path) = crate::sema::narrowing::field_path(expr) else {
+            return self.infer_expr_unnarrowed(expr);
+        };
+        let ty = self.infer_expr_unnarrowed(expr);
+        if let Some(narrowed) = self.scopes.current_type(&path) {
+            return narrowed;
+        }
+        self.path_types.insert(path, ty.clone());
+        ty
+    }
+
+    fn infer_expr_unnarrowed(&mut self, expr: &Expr) -> Type {
         let hint = self.expected_hint.take();
         match expr {
             Expr::Literal(lit, _) => literal_type(lit),
@@ -1741,7 +1766,11 @@ impl<'a> TypeChecker<'a> {
                     // retomberait sur exactement le même `Type::Mixed`
                     // silencieux que ce correctif a fermé pour les autres
                     // types sans classe associée.
-                    if matches!(obj_ty, Type::Int | Type::Float | Type::Bool | Type::Null | Type::Message(_) | Type::Function { .. } | Type::Resolvable(_)) {
+                    // Union de scalaires (`int|null`) : aucune classe ; raffiner
+                    // d'abord (`if x is int`), sinon le codegen devinait `String_*`.
+                    let scalar_union = matches!(&obj_ty, Type::Union(vs)
+                        if vs.iter().all(|v| matches!(v, Type::Int | Type::Float | Type::Bool | Type::Null)));
+                    if scalar_union || matches!(obj_ty, Type::Int | Type::Float | Type::Bool | Type::Null | Type::Message(_) | Type::Function { .. } | Type::Resolvable(_)) {
                         self.errors.push(SemaError::MethodCallOnNonClass {
                             type_name: type_name(&obj_ty),
                             method: field.clone(),

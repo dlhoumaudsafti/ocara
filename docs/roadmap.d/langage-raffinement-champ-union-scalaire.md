@@ -1,5 +1,7 @@
 # Raffinement `is int` sur un champ `int|null` : le générateur de code appelle `String_toStr`
 
+Statut : **corrigé** le 2026-10-29 (constaté le 2026-10-29).
+
 ## Constat
 
 La sema accepte le raffinement d'un **champ** typé `int|null`, mais le
@@ -34,15 +36,20 @@ Le même raffinement sur une **variable locale** fonctionne
 contournement utilisé par `examples/advanced/mini_project_ui_hexa`
 (`context/car/infra/view/CarView.oc`).
 
-## Pistes
+## Correctif
 
-- Le raffinement par `is` n'est enregistré que pour un `Expr::Ident` ; un
-  `Expr::Field` garde son type union au lowering, et l'appel de méthode sur
-  l'union retombe sur `String_*`.
-- L'erreur sans position (`0:0`) est elle-même à corriger.
+- **Sema** : le raffinement porte aussi sur un chemin de champ partant d'une
+  variable ou de `self` (`d.id`, `self.owner.id`) — `sema::narrowing::path_of`,
+  pile des portées (`sema/scope.rs`) indexée par chemin, type de départ pris
+  au dernier type inféré du chemin (`TypeChecker::path_types`). Une
+  affectation de `d` ou de `d.id` annule le raffinement de `d.id`.
+- **Sema** : un appel de méthode sur une union de scalaires non raffinée
+  (`int|null`) est refusé (E37) au lieu de retomber en silence sur `mixed`.
+- **Lowering** : un argument `mixed`/union passé à un paramètre `int`/`float`/
+  `bool` est déboxé (`lower_call_arg_at`). Défaut voisin trouvé en route :
+  `r.toStr()` sur un `float|null` raffiné (même une variable locale)
+  affichait le pointeur de la boîte, et un grand `int` boxé aussi.
 
-## À faire
-
-- Raffiner les accès de champ (`a.b`, `self.b`) comme les variables, ou
-  refuser le raffinement d'un champ à la sema avec un message clair.
-- Test de non-régression dans `examples/tests/`.
+Tests : `examples/tests/122_field_narrowingTest.oc` (8 assertions),
+`src/sema/tests/method_call_on_non_class.rs` (3 tests). Contournement
+retiré de `examples/advanced/mini_project_ui_hexa` (`CarView.oc`).

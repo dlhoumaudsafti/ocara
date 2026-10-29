@@ -148,15 +148,13 @@ unsafe extern "C" {
     pub(crate) fn __rc_register_window_finalizer(finalizer: extern "C" fn(i64));
 }
 
-/// Libération de l'objet `Tauri` : son état et les callbacks `listen` retenus.
+/// Libération de l'objet `Tauri` : son état natif.
 pub(crate) extern "C" fn finalize_window(this: i64) {
     tray::remove(this);
     ui::release_webviews(this);
     ocara_runtime_ui::release(this);
-    let closed = TAURI_WINDOWS.lock().unwrap().remove(&this);
-    if let Some(win) = closed {
-        events::release_listeners(&win.lock().unwrap().event_callbacks);
-    }
+    // Callbacks `listen` : rendus avec le champ `__kept` de l'objet.
+    TAURI_WINDOWS.lock().unwrap().remove(&this);
 }
 
 /// Crée une nouvelle fenêtre Tauri avec les options (title, width, height, url...).

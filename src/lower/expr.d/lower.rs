@@ -207,6 +207,18 @@ fn lower_call_arg_at(builder: &mut LowerBuilder, callee: &str, idx: usize, built
     match (arg, param) {
         (Expr::Array { elements, .. }, Some(Type::Array(inner))) => lower_array_literal(builder, elements, &inner),
         (Expr::Map { entries, .. }, Some(Type::Map(_, val))) => lower_map_literal(builder, entries, &val),
+        // Scalaire attendu, valeur `mixed`/union raffinée (`if r is float {
+        // r.toStr() }`) : déboxée, sinon le pointeur était lu comme un nombre.
+        (_, Some(scalar @ (Type::Int | Type::Float | Type::Bool))) => {
+            let val = crate::lower::builder::message_gen::lower_arg_or_message(builder, arg);
+            let target = match scalar {
+                Type::Float => IrType::F64,
+                Type::Bool => IrType::Bool,
+                _ => IrType::I64,
+            };
+            let val_ty = expr_ir_type(builder, arg);
+            crate::lower::stmt::statements::box_for_any(builder, &target, val_ty, val)
+        }
         _ => crate::lower::builder::message_gen::lower_arg_or_message(builder, arg),
     }
 }

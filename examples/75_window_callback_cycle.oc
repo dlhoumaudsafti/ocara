@@ -1,0 +1,31 @@
+architecture permissive
+
+import ocara.IO
+import ocara.Tauri
+import ocara.UI
+
+// Callbacks gardés par une fenêtre qui capturent cette fenêtre, sans
+// `run()` : `ui.listen` (Tauri) et `ui.on` (UI). L'objet retient ses
+// callbacks dans un champ compté (`__kept`) : le cycle fenêtre → callback →
+// fenêtre est libéré par le collecteur (`./ci/leak_check.sh`).
+function listenCycle(): void {
+    const win:Tauri = use Tauri({ "title": "cycle", "url": "index.html" })
+    win.listen("rename", nameless(data:string): void {
+        win.setTitle(data)
+    })
+}
+
+function onCycle(): void {
+    const ui:UI = use UI("75_window_callback_cycle.oc.ui")
+    ui.on("go", nameless(u:UI, event:UIEvent): void {
+        ui.set("go", "text", "ok")
+    })
+    ui.set("go", "text", "prêt")
+    IO::writeln(ui.get("go", "text"))
+}
+
+function main(): void {
+    listenCycle()
+    onCycle()
+    IO::writeln("fin")
+}

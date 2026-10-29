@@ -870,7 +870,7 @@ function divide(a:int, b:int): int|float {
 
 **Type narrowing (raffinement de type) :**
 
-Le compilateur raffine le type d'une **variable locale** (ou d'un paramètre) d'après les conditions qui la testent :
+Le compilateur raffine le type d'une **variable locale** (ou d'un paramètre), ou d'un **chemin de champ** partant d'une variable ou de `self` (`d.id`, `self.owner.id`), d'après les conditions qui la testent :
 
 | Condition | Dans le bloc si vraie | Dans `else` / après un `if` qui sort |
 |---|---|---|
@@ -880,7 +880,9 @@ Le compilateur raffine le type d'une **variable locale** (ou d'un paramètre) d'
 | `not c`, `c1 and c2`, `c1 or c2` | combinaisons des cas ci-dessus | |
 
 - Le raffinement vaut dans la branche (`if`, `elseif`, `else`, corps d'un `while`, bras `is T` d'un `match`), et **après** un `if` dont les autres branches sortent toujours (`return`, `raise`, `break`, `continue`, `result`) : `if x is null { return }` fait de `x` un `T` pour la suite du bloc.
-- Une affectation de la variable annule son raffinement.
+- Une affectation de la variable annule son raffinement, et celui des chemins qui en partent (`d = …` annule `d.id`) ; une affectation du champ (`d.id = …`) annule celui du champ.
+- Un champ raffiné garde son type raffiné même si une méthode appelée dans la branche le modifie : le tester à nouveau après un tel appel.
+- Un appel de méthode sur une union de scalaires non raffinée (`x.toStr()` pour `x:int|null`) est refusé (E37) : raffiner d'abord.
 
 Ocara supporte le narrowing via l'opérateur `is` dans les expressions `match` et les conditions, pour **tous les types** :
 

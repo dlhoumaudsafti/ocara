@@ -300,6 +300,28 @@ pub extern "C" fn __rc_register_window_finalizer(finalizer: extern "C" fn(i64)) 
     WINDOW_FINALIZER.store(finalizer as usize, Ordering::SeqCst);
 }
 
+/// Garde `value` dans le tableau du champ compté `field` de l'objet `owner`
+/// (`__kept` d'une fenêtre `Tauri`/`UI`, masque `W1`) : un callback que
+/// l'état natif de la fenêtre appelle sans le compter. Le tableau est un
+/// enfant ordinaire de l'objet : le collecteur voit le cycle fenêtre →
+/// callback → fenêtre capturée, et les callbacks partent avec l'objet.
+#[unsafe(no_mangle)]
+pub extern "C" fn __rc_keep(owner: i64, field: i64, value: i64) {
+    let slot = unsafe { &*((owner + 8 * field) as *const AtomicI64) };
+    let mut kept = slot.load(Ordering::Acquire);
+    if kept == 0 {
+        let fresh = crate::__array_new();
+        kept = match slot.compare_exchange(0, fresh, Ordering::AcqRel, Ordering::Acquire) {
+            Ok(_) => fresh,
+            Err(existing) => {
+                __rc_release(fresh);
+                existing
+            }
+        };
+    }
+    crate::__array_push(kept, value);
+}
+
 /// Finalisations d'un objet, une seule fois avant sa libération : un champ
 /// marqué d'une lettre est un handle de ressource fermé avec l'objet (puis
 /// remis à zéro) ; `X`/`T`/`W` ferment l'objet builtin opaque lui-même

@@ -15,6 +15,7 @@ unsafe extern "C" {
     fn JSON_encode(data: i64, leaf_kind: i64) -> i64;
     fn JSON_decode(json: i64) -> i64;
     pub(crate) fn __rc_retain(val: i64);
+    pub(crate) fn __rc_keep(owner: i64, field: i64, value: i64);
     pub(crate) fn __rc_release(val: i64);
     pub(crate) fn __rc_thread_enter();
     pub(crate) fn __rc_thread_leave();

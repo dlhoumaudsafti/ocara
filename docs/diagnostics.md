@@ -784,7 +784,15 @@ Avant ce diagnostic, un récepteur de l'un de ces types était traité comme n'i
 
 **Important :** `mixed` n'est **pas** concerné par ce diagnostic — son imprécision (aucune vérification de type) est un choix de langage assumé, documenté par l'avertissement W02 (voir plus bas), pas un oubli comme les types ci-dessus.
 
-**Correction :** ne pas appeler de méthode (hors conversions listées) sur un récepteur de l'un de ces types — s'assurer que la méthode précédente de la chaîne retourne bien une instance de classe (ou `string`/`array`/`map`, qui ont leurs propres méthodes d'instance sucrées) avant de chaîner un appel dessus.
+Une **union de scalaires** (`int|null`, `int|float`…) est aussi concernée : `d.id.toStr()` pour `id:int|null` est refusé tant que `d.id` n'est pas raffiné (le générateur de code appelait `String_toStr` et échouait).
+
+```ocara
+if d.id is int {
+    IO::writeln(d.id.toStr())   // ✅ d.id est un int ici
+}
+```
+
+**Correction :** ne pas appeler de méthode (hors conversions listées) sur un récepteur de l'un de ces types — s'assurer que la méthode précédente de la chaîne retourne bien une instance de classe (ou `string`/`array`/`map`, qui ont leurs propres méthodes d'instance sucrées) avant de chaîner un appel dessus. Pour une union, raffiner d'abord (`if x is int { … }`, voir docs/EBNF.md §6.3).
 
 ---
 

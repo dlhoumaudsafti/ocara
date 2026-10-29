@@ -1,6 +1,22 @@
 # Fuite : callback `listen` qui capture sa fenêtre `Tauri`, sans `run()`
 
-Statut : **à faire** (constaté le 2026-10-28).
+Statut : **corrigé** le 2026-10-29 (constaté le 2026-10-28).
+
+## Correctif
+
+Les objets `Tauri` et `UI` ont un second mot compté, `__kept` (masque
+`W1`, `src/lower/builder.d/rc_layout.rs`) : un tableau Ocara des callbacks
+que l'état natif de la fenêtre appelle. `ui.listen` (`runtime_tauri/src/events.rs`)
+et `ui.on` (`runtime_ui/src/lib.rs`) y rangent le callback par
+`__rc_keep(objet, 1, callback)` (`runtime/src/rc.rs`) ; l'état natif n'en
+garde qu'une référence empruntée et le finaliseur ne les rend plus. Le
+tableau est un enfant ordinaire de l'objet : le collecteur voit le cycle
+fenêtre → callback → fenêtre capturée et le libère, et sans cycle les
+callbacks partent avec l'objet. Un crochet du collecteur sur l'état natif a
+été écarté : il aurait verrouillé l'état d'une fenêtre pendant la collecte.
+
+Test : `examples/75_window_callback_cycle.oc` (`listen` et `on` capturant
+leur fenêtre, sans `run()`), vérifié par `./ci/leak_check.sh`.
 
 ## Constat
 
