@@ -183,6 +183,32 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
   Un fichier renommé avec sa classe est rouvert sous son nouveau nom, l'analyse est relancée,
   et le compte rendu complet est dans la sortie « Ocara ».
 
+- **Fichiers `.oc.ui`** (interfaces d'`ocara.UI`, docs/oc-ui.md) : complétion et validation à la
+  frappe par le schéma `schemas/oc-ui.schema.json` (`ocara --ui-schema`, avec l'extension YAML de
+  Red Hat), et un **designer** : le bouton en haut à droite de l'éditeur bascule entre le source et
+  le designer (Alt+clic : designer à côté), comme l'aperçu Markdown. Le designer agit sur le même
+  document (annulation Ctrl+Z, enregistrement Ctrl+S, commentaires et mise en forme du YAML gardés,
+  seules les lignes modifiées changent) :
+  - **aperçu** de l'écran avec l'apparence du moteur desktop (`engine.css` copié à la compilation),
+    largeur réglable sur les classes de taille (`xs` à `xl`), desktop ou Android (surcharges
+    `tauri:`/`android:` appliquées), thème clair ou sombre ; double-clic sur un texte, un titre ou un
+    bouton pour le modifier sur place ;
+  - **palette** des composants (tirée du schéma du compilateur) à glisser dans l'aperçu ou dans la
+    **structure** ; les nœuds se déplacent de même, entre conteneurs, dans le gabarit `item` d'une
+    liste ou dans un écran vide ; menu contextuel (dupliquer, copier, couper, coller, envelopper
+    dans une colonne, une ligne ou une carte, voir dans le source, supprimer) et raccourcis
+    (Suppr, Ctrl+D, Ctrl+C/X/V, Alt+↑/↓, Échap pour le parent) ;
+  - **propriétés** : toutes celles du type sélectionné, par rubrique (propriétés, événements avec
+    complétion des actions, disposition, présentation avec les valeurs héritées du style,
+    accessibilité, `binds` dans un gabarit de liste, menu contextuel, surcharges desktop et
+    Android), changement de type ; onglets **Fenêtre** (`window`, `start`), **Styles** (création,
+    renommage avec mise à jour des nœuds, suppression) et **Menu** (entrées, sous-menus,
+    séparateurs) ;
+  - **écrans** : ajout, renommage, écran de démarrage ; écrans inclus (`screens.includes`) et
+    **variantes de taille** (`x.md.oc.ui`) ouverts en un clic, variante manquante créée par copie ;
+  - **vérification** par le compilateur (`ocara x.oc.ui`) à l'ouverture et à chaque
+    enregistrement : erreurs listées sous l'aperçu et posées sur les nœuds concernés.
+
 ## Réglages
 
 | Réglage | Défaut | Rôle |

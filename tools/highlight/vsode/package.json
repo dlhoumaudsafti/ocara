@@ -20,7 +20,8 @@
     "onView:ocara.benchmark",
     "onView:ocara.coverage",
     "onView:ocara.linter",
-    "onView:ocara.architecture"
+    "onView:ocara.architecture",
+    "onCustomEditor:ocara.uiDesigner"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -467,6 +468,24 @@
         "title": "Mode automatique désactivé (Architecture) — activer",
         "category": "Ocara",
         "icon": "$(sync-ignored)"
+      },
+      {
+        "command": "ocara.ui.openDesigner",
+        "title": "Ouvrir le designer",
+        "category": "Ocara UI",
+        "icon": "$(layout)"
+      },
+      {
+        "command": "ocara.ui.openDesignerToSide",
+        "title": "Ouvrir le designer à côté",
+        "category": "Ocara UI",
+        "icon": "$(layout-sidebar-right)"
+      },
+      {
+        "command": "ocara.ui.openSource",
+        "title": "Afficher le source",
+        "category": "Ocara UI",
+        "icon": "$(go-to-file)"
       }
     ],
     "menus": {
@@ -532,6 +551,11 @@
           "command": "ocara.fixStyle",
           "when": "resourceExtname == .oc || explorerResourceIsFolder",
           "group": "ocara@6"
+        },
+        {
+          "command": "ocara.ui.openDesigner",
+          "when": "resourceFilename =~ /\\.oc\\.ui$/",
+          "group": "navigation@9"
         }
       ],
       "commandPalette": [
@@ -626,6 +650,18 @@
         {
           "command": "ocara.architecture.autoOn",
           "when": "false"
+        },
+        {
+          "command": "ocara.ui.openDesigner",
+          "when": "resourceFilename =~ /\\.oc\\.ui$/"
+        },
+        {
+          "command": "ocara.ui.openDesignerToSide",
+          "when": "resourceFilename =~ /\\.oc\\.ui$/"
+        },
+        {
+          "command": "ocara.ui.openSource",
+          "when": "activeCustomEditorId == ocara.uiDesigner"
         }
       ],
       "view/title": [
@@ -715,6 +751,17 @@
           "command": "ocara.nav.forward",
           "when": "ocara.nav.active",
           "group": "navigation@-2"
+        },
+        {
+          "command": "ocara.ui.openDesigner",
+          "alt": "ocara.ui.openDesignerToSide",
+          "when": "resourceFilename =~ /\\.oc\\.ui$/ && activeCustomEditorId != ocara.uiDesigner",
+          "group": "navigation"
+        },
+        {
+          "command": "ocara.ui.openSource",
+          "when": "activeCustomEditorId == ocara.uiDesigner",
+          "group": "navigation"
         }
       ]
     },
@@ -824,12 +871,24 @@
         "fileMatch": "*.oc.ui",
         "url": "./schemas/oc-ui.schema.json"
       }
+    ],
+    "customEditors": [
+      {
+        "viewType": "ocara.uiDesigner",
+        "displayName": "Designer Ocara UI",
+        "selector": [
+          {
+            "filenamePattern": "*.oc.ui"
+          }
+        ],
+        "priority": "option"
+      }
     ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "node scripts/copy-docs.js && tsc -p ./",
-    "watch": "node scripts/copy-docs.js && tsc -watch -p ./",
+    "compile": "node scripts/copy-docs.js && node scripts/copy-ui.js && tsc -p ./",
+    "watch": "node scripts/copy-docs.js && node scripts/copy-ui.js && tsc -watch -p ./",
     "package": "vsce package",
     "test:grammar": "node scripts/test-grammar.js"
   },
@@ -843,6 +902,7 @@
     "vscode-textmate": "^9.1.0"
   },
   "dependencies": {
-    "vscode-languageclient": "^9.0.1"
+    "vscode-languageclient": "^9.0.1",
+    "yaml": "^2.8.1"
   }
 }

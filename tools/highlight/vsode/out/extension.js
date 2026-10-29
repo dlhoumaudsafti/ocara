@@ -17,6 +17,7 @@ const quality_1 = require("./quality");
 const linterview_1 = require("./linterview");
 const architecture_1 = require("./architecture");
 const filestatus_1 = require("./filestatus");
+const designer_1 = require("./uidesigner/designer");
 function activate(context) {
     // Serveur de langage du compilateur : diagnostics en direct, définition,
     // survol des noms, symboles du document, complétion, aide à la signature,
@@ -50,6 +51,8 @@ function activate(context) {
     workflow.register(context);
     new graph_1.GraphProvider(context.extensionUri).register(context, workflow.onData);
     new benchmark_1.BenchmarkProvider(context.workspaceState).register(context);
+    // Designer des fichiers .oc.ui (bouton source ↔ designer en haut à droite).
+    new designer_1.UiDesigner(context.extensionUri).register(context);
 }
 function deactivate() {
     return (0, lspclient_1.stopLanguageServer)();

@@ -362,6 +362,14 @@ du compilateur ; l'extension VS Code d'Ocara l'associe aux fichiers `.oc.ui`
 `redhat.vscode-yaml`). La validation qui fait foi reste celle du
 compilateur (styles déclarés, `id` uniques, `bind`, images).
 
+Le bouton en haut à droite d'un `.oc.ui` ouvre le **designer** de
+l'extension (comme l'aperçu Markdown) : aperçu de l'écran avec l'apparence
+du moteur desktop, composants glissés depuis une palette, structure des
+nœuds, panneau de toutes les propriétés, styles, menu et fenêtre. Il
+modifie le même document que l'éditeur texte (annulable, seules les lignes
+touchées changent) et affiche les erreurs du compilateur sur les nœuds
+(`tools/highlight/vsode/README.md`).
+
 ## Limites du YAML accepté
 
 Un seul document par fichier ; pas d'ancres ni d'alias (`&nom`, `*nom`) ;

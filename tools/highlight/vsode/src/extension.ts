@@ -14,6 +14,7 @@ import { QualityMonitor } from './quality';
 import { LinterProvider } from './linterview';
 import { ArchitectureProvider } from './architecture';
 import { registerFileStatus } from './filestatus';
+import { UiDesigner } from './uidesigner/designer';
 
 export function activate(context: vscode.ExtensionContext): void {
     // Serveur de langage du compilateur : diagnostics en direct, définition,
@@ -51,6 +52,9 @@ export function activate(context: vscode.ExtensionContext): void {
     workflow.register(context);
     new GraphProvider(context.extensionUri).register(context, workflow.onData);
     new BenchmarkProvider(context.workspaceState).register(context);
+
+    // Designer des fichiers .oc.ui (bouton source ↔ designer en haut à droite).
+    new UiDesigner(context.extensionUri).register(context);
 }
 
 export function deactivate(): Thenable<void> | undefined {
