@@ -80,7 +80,7 @@ pub fn print_help() {
     println!("  ocara --ui-schema   Schéma JSON des fichiers .oc.ui (complétion dans les éditeurs)");
     println!();
     println!("Options :");
-    println!("  -o <sortie>   Fichier de sortie (défaut : out)");
+    println!("  -o <sortie>   Fichier de sortie (défaut : {DEFAULT_OUTPUT})");
     println!("  --src <dir>   Répertoire racine pour la résolution des imports");
     println!("  --check       Analyse sémantique uniquement, sans compilation");
     println!("  --dump        Affiche les tokens, l'AST et la représentation intermédiaire (HIR)");
@@ -143,13 +143,16 @@ pub fn parse_args() -> CliArgs {
     })
 }
 
+/// Binaire produit sans `-o` (ignoré par git, comme son objet `.o`).
+pub const DEFAULT_OUTPUT: &str = "oc.out.bin";
+
 /// Analyse les arguments (sans le nom du programme). Option inconnue, option
 /// sans sa valeur, second fichier d'entrée, fichier manquant ou sortie qui
 /// écraserait le source : erreur, jamais un repli silencieux. Un premier
 /// argument `build` (forme historique `ocara build main.oc`) est ignoré.
 pub fn parse(args: &[String]) -> Result<CliArgs, String> {
     let mut input: Option<PathBuf> = None;
-    let mut output  = PathBuf::from("out");
+    let mut output  = PathBuf::from(DEFAULT_OUTPUT);
     let mut dump    = false;
     let mut check   = false;
     let mut preview = false;

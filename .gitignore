@@ -23,6 +23,9 @@ target
 *node_modules/
 out
 out.o
+# Binaire produit sans -o (ocara, extension VS Code) et son objet
+oc.out.bin
+oc.out.bin.o
 __pycache__/
 *.pyc
 *.db

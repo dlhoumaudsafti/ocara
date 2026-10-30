@@ -285,6 +285,12 @@
           "minItems": 2,
           "maxItems": 2,
           "markdownDescription": "Valeurs du marqueur `__N__` pour la détection de fuite : le pic mémoire est comparé entre les deux (voir docs/benchmarking.md)."
+        },
+        "ocara.startupScript": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "Script de démarrage du projet, relatif au dossier de l'espace de travail (ex. `main.oc`) : « Compiler et lancer » le compile et le lance quel que soit le script affiché. Vide : le script cliqué ou affiché (comportement par défaut). Commande **Ocara : Choisir le script de démarrage**."
         }
       }
     },
@@ -486,6 +492,11 @@
         "title": "Afficher le source",
         "category": "Ocara UI",
         "icon": "$(go-to-file)"
+      },
+      {
+        "command": "ocara.chooseStartupScript",
+        "title": "Choisir le script de démarrage",
+        "category": "Ocara"
       }
     ],
     "menus": {

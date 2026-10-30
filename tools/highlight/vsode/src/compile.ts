@@ -10,9 +10,16 @@ import { ocaraOutput, parseToolMessages, runTool, toDiagnostic, ToolResult } fro
 // de l'arborescence, palette de commandes ; Release = `--release`) — compilateur configurable (`ocara.compilerPath`). Voir
 // docs/roadmap.d/tooling-vscode-lint-compile-dump.md et
 // docs/roadmap.d/tooling-vscode-run-and-fix.md.
+// « Compiler et lancer » vise le script de démarrage du projet s'il est
+// réglé (`ocara.startupScript`, commande « Choisir le script de démarrage »),
+// sinon le script cliqué ou affiché. Binaire proposé : `oc.out.bin` (sortie
+// par défaut du compilateur, ignorée par git).
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SOURCE = 'ocara';
+
+/** Nom de binaire proposé : sortie par défaut du compilateur (src/core/cli.rs). */
+const DEFAULT_BINARY = 'oc.out.bin';
 
 export class OcaraCompiler implements vscode.Disposable {
     private readonly output = ocaraOutput();
@@ -29,6 +36,7 @@ export class OcaraCompiler implements vscode.Disposable {
             vscode.commands.registerCommand('ocara.compileAndRunRelease', (uri?: vscode.Uri) => this.compileAndRun(uri, true)),
             vscode.window.onDidCloseTerminal(t => { if (t === this.terminal) { this.terminal = undefined; } }),
             vscode.commands.registerCommand('ocara.dump', (uri?: vscode.Uri) => this.dump(uri)),
+            vscode.commands.registerCommand('ocara.chooseStartupScript', () => chooseStartupScript()),
             // Diagnostics de compilation périmés dès que le fichier change.
             vscode.workspace.onDidChangeTextDocument(e => { if (e.contentChanges.length) { this.diagnostics.delete(e.document.uri); } }),
             vscode.workspace.onDidSaveTextDocument(doc => this.diagnostics.delete(doc.uri)),
@@ -54,7 +62,7 @@ export class OcaraCompiler implements vscode.Disposable {
         const name = await vscode.window.showInputBox({
             title,
             prompt: `Nom du binaire (créé dans ${dir})`,
-            value: path.basename(file.fsPath, '.oc'),
+            value: DEFAULT_BINARY,
             validateInput: v => (v.trim() === '' || /[\\/]/.test(v) ? 'Nom de fichier simple attendu (sans dossier)' : undefined),
         });
         return name === undefined ? undefined : path.join(dir, name.trim());
@@ -83,7 +91,9 @@ export class OcaraCompiler implements vscode.Disposable {
      *  binaire EST le processus du terminal : aucun shell, donc aucune
      *  syntaxe propre à un shell (POSIX, PowerShell, cmd). */
     private async compileAndRun(uri: vscode.Uri | undefined, release: boolean): Promise<void> {
-        const file = await this.targetFile(uri);
+        const startup = startupScript();
+        if (startup === null) { return; }
+        const file = startup ? await this.targetFile(startup) : await this.targetFile(uri);
         const binary = file && await this.askBinary(file, `Compiler et lancer le script Ocara (${release ? 'Release' : 'Debug'})`);
         if (!file || !binary || !await this.build(file, binary, release)) { return; }
         this.terminal?.dispose();
@@ -145,4 +155,41 @@ export class OcaraCompiler implements vscode.Disposable {
     dispose(): void {
         this.diagnostics.dispose();
     }
+}
+
+/** Script de démarrage réglé (`ocara.startupScript`, relatif au dossier de
+ *  l'espace de travail) ; `undefined` s'il n'est pas réglé, `null` s'il est
+ *  introuvable (message affiché). */
+function startupScript(): vscode.Uri | undefined | null {
+    const value = vscode.workspace.getConfiguration('ocara').get<string>('startupScript', '').trim();
+    if (!value) { return undefined; }
+    const candidates = path.isAbsolute(value) ? [value] : (vscode.workspace.workspaceFolders ?? []).map(f => path.join(f.uri.fsPath, value));
+    const found = candidates.find(f => fs.existsSync(f));
+    if (!found) {
+        vscode.window.showErrorMessage(`Ocara : script de démarrage introuvable — ${value} (réglage « ocara.startupScript »).`);
+        return null;
+    }
+    return vscode.Uri.file(found);
+}
+
+/** Choix du script de démarrage parmi les `.oc` de l'espace de travail
+ *  (ceux qui déclarent `function main` d'abord) ; enregistré dans les
+ *  réglages de l'espace de travail. */
+async function chooseStartupScript(): Promise<void> {
+    const files = await vscode.workspace.findFiles('**/*.oc', '**/{node_modules,target,out,tests,.git}/**', 5000);
+    const current = vscode.workspace.getConfiguration('ocara').get<string>('startupScript', '');
+    const items = files.map(uri => {
+        let main = false;
+        try { main = /^\s*function\s+main\s*\(/m.test(fs.readFileSync(uri.fsPath, 'utf8')); } catch { /* illisible */ }
+        const relative = vscode.workspace.asRelativePath(uri, false);
+        return { label: relative, description: main ? 'function main' : '', main, picked: relative === current };
+    }).sort((a, b) => Number(b.main) - Number(a.main) || a.label.localeCompare(b.label));
+    const none = { label: '$(close) Aucun', description: 'compiler et lancer le script affiché', main: false, picked: false };
+    const choice = await vscode.window.showQuickPick([none, ...items], {
+        title: 'Ocara : script de démarrage (Compiler et lancer)',
+        placeHolder: current ? `Actuel : ${current}` : 'Aucun : le script affiché est lancé',
+    });
+    if (!choice) { return; }
+    const target = vscode.workspace.workspaceFolders ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+    await vscode.workspace.getConfiguration('ocara').update('startupScript', choice === none ? undefined : choice.label, target);
 }

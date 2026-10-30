@@ -53,7 +53,7 @@ ocara [OPTIONS] [FICHIER]
 | Argument | Description |
 |----------|-------------|
 | `FICHIER` | Chemin vers le script source `.oc` (défaut : `test.oc`) |
-| `-o NOM` | Nom du binaire de sortie (défaut : `out`) |
+| `-o NOM` | Nom du binaire de sortie (défaut : `oc.out.bin`, ignoré par git) |
 | `--check` | Analyse sémantique uniquement — n'émet aucun binaire |
 | `--no-link` | Génère le fichier objet `.o` sans lier |
 | `--dump` | Affiche les tokens, l'AST et le HIR puis s'arrête |

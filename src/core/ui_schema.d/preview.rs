@@ -44,7 +44,7 @@ pub fn page(spec: &UiSpec) -> String {
 /// `-o` s'il est donné, sinon `<nom>.preview.html` dans le répertoire
 /// temporaire (jamais à côté du `.oc.ui`).
 pub fn output_path(input: &Path, output: &Path) -> PathBuf {
-    if output != Path::new("out") {
+    if output != Path::new(crate::core::cli::DEFAULT_OUTPUT) {
         return output.to_path_buf();
     }
     let name = input.file_name().map(|n| n.to_string_lossy().trim_end_matches(".oc.ui").to_string()).unwrap_or_default();

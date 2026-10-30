@@ -164,12 +164,16 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
   (fichier fermé ou ré-analysé entre-temps) est ignoré ; désactiver `ocara.lint.enable` efface
   diagnostics et surlignage.
 - **Clic droit → « Compiler (Debug) » / « Compiler (Release) »** (éditeur ou arborescence,
-  aussi dans la palette) : demande le nom du binaire, créé dans le dossier du script (l'objet
+  aussi dans la palette) : demande le nom du binaire (`oc.out.bin` proposé, sortie par défaut du
+  compilateur, ignorée par git), créé dans le dossier du script (l'objet
   intermédiaire `<nom>.o` est supprimé après la liaison) ; Release compile avec `--release` (`System::BUILD`
   vaut `release`). Erreurs dans le panneau Problèmes et la sortie « Ocara » ; celles d'un fichier
   disparaissent dès qu'il est modifié ou enregistré.
 - **Clic droit → « Compiler et lancer (Debug) » / « (Release) »** : demande le nom du binaire
   comme « Compiler », puis l'exécute **depuis le dossier du script** dans le terminal intégré « Ocara »
+  (le **script de démarrage** du projet s'il est réglé — `ocara.startupScript`, commande **Ocara :
+  Choisir le script de démarrage** ou ligne **MAIN** du panneau Ocara — quel que soit le script
+  affiché ; sinon le script cliqué ou affiché)
   (entrée clavier et programmes longs, comme un serveur, fonctionnent). Le binaire est le processus
   même du terminal (aucun shell : fonctionne avec bash, PowerShell ou cmd) ; un nouveau lancement
   ferme le terminal « Ocara » précédent et le programme qui y tournait.
@@ -247,6 +251,7 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
 | `ocara.osOther` | `""` | Valeur personnalisée de `System::OS` (avec `ocara.os` = `other`). |
 | `ocara.arch` | `system` | `System::ARCH` de l'éditeur : `system`, `x86_64`, `aarch64`, `arm`, ou `other` (valeur de `ocara.archOther`). |
 | `ocara.archOther` | `""` | Valeur personnalisée de `System::ARCH` (avec `ocara.arch` = `other`). |
+| `ocara.startupScript` | *(vide)* | Script de démarrage, relatif au dossier de l'espace de travail (`main.oc`) : lancé par « Compiler et lancer » quel que soit le script affiché. Vide : le script cliqué ou affiché. |
 | `ocara.build` | `debug` | `System::BUILD` de l'éditeur : `debug` ou `release`. Les commandes de compilation gardent leur propre mode (Debug/Release). |
 
 Laissé à sa valeur par défaut et absent du PATH, un outil est cherché dans

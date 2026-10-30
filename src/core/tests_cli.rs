@@ -38,6 +38,13 @@ fn object_file_appends_its_extension() {
 }
 
 #[test]
+fn default_output_is_oc_out_bin() {
+    let cli = parse(&args(&["main.oc"])).expect("ocara main.oc");
+    assert_eq!(cli.output, PathBuf::from("oc.out.bin"));
+    assert_eq!(object_path(&cli.output), PathBuf::from("oc.out.bin.o"));
+}
+
+#[test]
 fn when_overrides_are_validated() {
     let cli = parse(&args(&["main.oc", "--when", "System::OS=android", "--when", "BUILD='release'"])).expect("--when valide");
     assert_eq!(cli.when, vec![("OS".to_string(), "android".to_string()), ("BUILD".to_string(), "release".to_string())]);

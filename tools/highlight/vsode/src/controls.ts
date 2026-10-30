@@ -4,7 +4,8 @@ import type { QualityMonitor, QualityState } from './quality';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // En-tête de la barre latérale Ocara : configuration `when` de l'éditeur
-// (OS, ARCH, BUILD — réglages ocara.os/arch/build) et boutons Compiler,
+// (OS, ARCH, BUILD — réglages ocara.os/arch/build), script de démarrage
+// (ocara.startupScript, lancé par « Lancer ») et boutons Compiler,
 // Lancer, Fixer, Dump (mode Debug/Release suivant BUILD), accès aux réglages.
 // Barre ← / → de l'historique de navigation, visible après une ouverture
 // depuis le panneau (navigation.ts). En tête, la LED « prêt pour la release »
@@ -18,7 +19,7 @@ const BUILD = ['debug', 'release'];
 
 type Message =
     | { type: 'set'; key: string; value: string }
-    | { type: 'run'; action: 'compile' | 'run' | 'fix' | 'dump' | 'settings' }
+    | { type: 'run'; action: 'compile' | 'run' | 'fix' | 'dump' | 'settings' | 'startup' }
     | { type: 'nav'; action: 'back' | 'forward' | 'clear' }
     | { type: 'nav-go'; index: number };
 
@@ -64,6 +65,7 @@ export class ControlsProvider implements vscode.WebviewViewProvider {
             os: c.get('os', 'system'), osOther: c.get('osOther', ''),
             arch: c.get('arch', 'system'), archOther: c.get('archOther', ''),
             build: c.get('build', 'debug'),
+            startup: c.get('startupScript', ''),
         } });
     }
 
@@ -87,6 +89,7 @@ export class ControlsProvider implements vscode.WebviewViewProvider {
             run: release ? 'ocara.compileAndRunRelease' : 'ocara.compileAndRun',
             fix: 'ocara.fixStyle',
             dump: 'ocara.dump',
+            startup: 'ocara.chooseStartupScript',
         };
         if (msg.action === 'settings') {
             await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:david-lhoumaud.ocara-language');
@@ -124,6 +127,7 @@ function html(n: string): string {
   button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
   button.primary:hover { background: var(--vscode-button-hoverBackground); }
   .settings { width: 100%; margin-top: 4px; }
+  .startup { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 6px; }
   .nav { display: grid; grid-template-columns: auto auto 1fr auto; gap: 4px; align-items: center; margin-bottom: 8px;
     padding-bottom: 6px; border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-widget-border, transparent)); }
   .nav[hidden] { display: none; }
@@ -161,9 +165,10 @@ function html(n: string): string {
   <div class="row"><label for="os">OS</label><div><select id="os">${options(OS)}</select><input id="osOther" placeholder="valeur de System::OS" hidden></div></div>
   <div class="row"><label for="arch">ARCH</label><div><select id="arch">${options(ARCH)}</select><input id="archOther" placeholder="valeur de System::ARCH" hidden></div></div>
   <div class="row"><label for="build">BUILD</label><select id="build">${options(BUILD)}</select></div>
+  <div class="row"><label for="startup">MAIN</label><button id="startup" class="startup" data-action="startup" title="Script de démarrage lancé par « Lancer » (réglage ocara.startupScript) — cliquer pour le choisir">script affiché</button></div>
   <div class="buttons">
     <button class="primary" data-action="compile" title="Compiler le script affiché (mode BUILD)">Compiler</button>
-    <button class="primary" data-action="run" title="Compiler et lancer le script affiché (mode BUILD)">Lancer</button>
+    <button class="primary" data-action="run" title="Compiler et lancer le script de démarrage, sinon le script affiché (mode BUILD)">Lancer</button>
     <button data-action="fix" title="Fixer la mise en forme (ocaracs --fix)">Fixer</button>
     <button data-action="dump" title="Afficher le dump (tokens, AST, IR)">Dump</button>
   </div>
@@ -189,6 +194,10 @@ function html(n: string): string {
       .forEach(b => b.classList.toggle('ready', releaseReady && $('build').value === 'release'));
   };
   window.addEventListener('message', ({ data: msg }) => {
+    if (msg.config) {
+      $('startup').textContent = msg.config.startup || 'script affiché';
+      $('startup').classList.toggle('set', !!msg.config.startup);
+    }
     if (msg.quality) {
       const q = msg.quality;
       $('led').className = 'led ' + ledColor(q.score);
