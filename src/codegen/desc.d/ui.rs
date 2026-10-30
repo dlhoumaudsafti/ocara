@@ -31,6 +31,7 @@ pub const UI_BUILTINS: &[BuiltinDesc] = &[
     ui("UI_bind",     &[I, I, I, I, I], None), // this, racine, objet, chemins de l'accesseur (JSON), accesseur
     ui("UI_unbind",   &[I, I],       None),
     ui("UI_refresh",  &[I],          None),
+    ui("UI_validate", &[I, I],       Some(I)),
     ui("UI_setItems", &[I, I, I],    None),
     ui("UI_navigate", &[I, I],       None),
     ui("UI_back",     &[I],          None),

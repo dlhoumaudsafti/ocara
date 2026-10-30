@@ -116,6 +116,9 @@
                     "minimum": 1.0,
                     "type": "number"
                   },
+                  "form": {
+                    "type": "boolean"
+                  },
                   "height": {
                     "anyOf": [
                       {
@@ -156,6 +159,34 @@
                         "type": "array"
                       }
                     ]
+                  },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
                   },
                   "padding": {
                     "anyOf": [
@@ -268,6 +299,9 @@
                 "minimum": 1.0,
                 "type": "number"
               },
+              "form": {
+                "type": "boolean"
+              },
               "height": {
                 "anyOf": [
                   {
@@ -312,6 +346,34 @@
                     "type": "array"
                   }
                 ]
+              },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
               },
               "padding": {
                 "anyOf": [
@@ -397,6 +459,9 @@
                     "minimum": 1.0,
                     "type": "number"
                   },
+                  "form": {
+                    "type": "boolean"
+                  },
                   "height": {
                     "anyOf": [
                       {
@@ -437,6 +502,34 @@
                         "type": "array"
                       }
                     ]
+                  },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
                   },
                   "padding": {
                     "anyOf": [
@@ -612,6 +705,9 @@
                     "minimum": 1.0,
                     "type": "number"
                   },
+                  "form": {
+                    "type": "boolean"
+                  },
                   "height": {
                     "anyOf": [
                       {
@@ -652,6 +748,34 @@
                         "type": "array"
                       }
                     ]
+                  },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
                   },
                   "padding": {
                     "anyOf": [
@@ -764,6 +888,9 @@
                 "minimum": 1.0,
                 "type": "number"
               },
+              "form": {
+                "type": "boolean"
+              },
               "height": {
                 "anyOf": [
                   {
@@ -808,6 +935,34 @@
                     "type": "array"
                   }
                 ]
+              },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
               },
               "padding": {
                 "anyOf": [
@@ -893,6 +1048,9 @@
                     "minimum": 1.0,
                     "type": "number"
                   },
+                  "form": {
+                    "type": "boolean"
+                  },
                   "height": {
                     "anyOf": [
                       {
@@ -933,6 +1091,34 @@
                         "type": "array"
                       }
                     ]
+                  },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
                   },
                   "padding": {
                     "anyOf": [
@@ -1108,6 +1294,9 @@
                     "minimum": 1.0,
                     "type": "number"
                   },
+                  "form": {
+                    "type": "boolean"
+                  },
                   "height": {
                     "anyOf": [
                       {
@@ -1148,6 +1337,34 @@
                         "type": "array"
                       }
                     ]
+                  },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
                   },
                   "padding": {
                     "anyOf": [
@@ -1260,6 +1477,9 @@
                 "minimum": 1.0,
                 "type": "number"
               },
+              "form": {
+                "type": "boolean"
+              },
               "height": {
                 "anyOf": [
                   {
@@ -1304,6 +1524,34 @@
                     "type": "array"
                   }
                 ]
+              },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
               },
               "padding": {
                 "anyOf": [
@@ -1389,6 +1637,9 @@
                     "minimum": 1.0,
                     "type": "number"
                   },
+                  "form": {
+                    "type": "boolean"
+                  },
                   "height": {
                     "anyOf": [
                       {
@@ -1429,6 +1680,34 @@
                         "type": "array"
                       }
                     ]
+                  },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
                   },
                   "padding": {
                     "anyOf": [
@@ -1609,6 +1888,9 @@
                     "minimum": 1.0,
                     "type": "number"
                   },
+                  "form": {
+                    "type": "boolean"
+                  },
                   "height": {
                     "anyOf": [
                       {
@@ -1649,6 +1931,34 @@
                         "type": "array"
                       }
                     ]
+                  },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
                   },
                   "padding": {
                     "anyOf": [
@@ -1766,6 +2076,9 @@
                 "minimum": 1.0,
                 "type": "number"
               },
+              "form": {
+                "type": "boolean"
+              },
               "height": {
                 "anyOf": [
                   {
@@ -1810,6 +2123,34 @@
                     "type": "array"
                   }
                 ]
+              },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
               },
               "padding": {
                 "anyOf": [
@@ -1900,6 +2241,9 @@
                     "minimum": 1.0,
                     "type": "number"
                   },
+                  "form": {
+                    "type": "boolean"
+                  },
                   "height": {
                     "anyOf": [
                       {
@@ -1940,6 +2284,34 @@
                         "type": "array"
                       }
                     ]
+                  },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
                   },
                   "padding": {
                     "anyOf": [
@@ -2115,6 +2487,9 @@
                     "minimum": 1.0,
                     "type": "number"
                   },
+                  "form": {
+                    "type": "boolean"
+                  },
                   "height": {
                     "anyOf": [
                       {
@@ -2156,7 +2531,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -2268,6 +2671,9 @@
                 "minimum": 1.0,
                 "type": "number"
               },
+              "form": {
+                "type": "boolean"
+              },
               "height": {
                 "anyOf": [
                   {
@@ -2313,7 +2719,35 @@
                   }
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "onClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
@@ -2398,6 +2832,9 @@
                     "minimum": 1.0,
                     "type": "number"
                   },
+                  "form": {
+                    "type": "boolean"
+                  },
                   "height": {
                     "anyOf": [
                       {
@@ -2439,7 +2876,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -2655,6 +3120,34 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "padding": {
                     "anyOf": [
                       {
@@ -2797,6 +3290,34 @@
                   }
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "padding": {
                 "anyOf": [
                   {
@@ -2913,6 +3434,34 @@
                         "type": "array"
                       }
                     ]
+                  },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
                   },
                   "padding": {
                     "anyOf": [
@@ -3121,6 +3670,34 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "padding": {
                     "anyOf": [
                       {
@@ -3263,6 +3840,34 @@
                   }
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "padding": {
                 "anyOf": [
                   {
@@ -3379,6 +3984,34 @@
                         "type": "array"
                       }
                     ]
+                  },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
                   },
                   "padding": {
                     "anyOf": [
@@ -3590,6 +4223,34 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "padding": {
                     "anyOf": [
                       {
@@ -3742,6 +4403,34 @@
                   }
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "padding": {
                 "anyOf": [
                   {
@@ -3861,6 +4550,34 @@
                         "type": "array"
                       }
                     ]
+                  },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
                   },
                   "padding": {
                     "anyOf": [
@@ -4091,6 +4808,34 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "padding": {
                     "anyOf": [
                       {
@@ -4248,6 +4993,34 @@
                   }
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "padding": {
                 "anyOf": [
                   {
@@ -4372,6 +5145,34 @@
                         "type": "array"
                       }
                     ]
+                  },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
                   },
                   "padding": {
                     "anyOf": [
@@ -4605,6 +5406,34 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "padding": {
                     "anyOf": [
                       {
@@ -4765,6 +5594,34 @@
                   }
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "padding": {
                 "anyOf": [
                   {
@@ -4899,6 +5756,34 @@
                         "type": "array"
                       }
                     ]
+                  },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
                   },
                   "padding": {
                     "anyOf": [
@@ -5137,6 +6022,34 @@
                       "star"
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "padding": {
                     "anyOf": [
                       {
@@ -5300,6 +6213,34 @@
                   "star"
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "padding": {
                 "anyOf": [
                   {
@@ -5437,6 +6378,34 @@
                       "share",
                       "star"
                     ]
+                  },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
                   },
                   "padding": {
                     "anyOf": [
@@ -5647,6 +6616,34 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "padding": {
                     "anyOf": [
                       {
@@ -5794,6 +6791,34 @@
                   }
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "padding": {
                 "anyOf": [
                   {
@@ -5910,6 +6935,34 @@
                         "type": "array"
                       }
                     ]
+                  },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
                   },
                   "padding": {
                     "anyOf": [
@@ -6157,7 +7210,35 @@
                     "minimum": 1,
                     "type": "integer"
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onSelect": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -6340,7 +7421,35 @@
                 "minimum": 1,
                 "type": "integer"
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "onSelect": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
@@ -6495,7 +7604,35 @@
                     "minimum": 1,
                     "type": "integer"
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onSelect": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -6742,7 +7879,27 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onError": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -6750,7 +7907,15 @@
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onMessage": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -6942,7 +8107,27 @@
                   }
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "onError": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
@@ -6950,7 +8135,15 @@
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "onMessage": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
@@ -7097,7 +8290,27 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onError": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -7105,7 +8318,15 @@
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onMessage": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -7393,11 +8614,31 @@
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onFocus": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onSubmit": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -7431,6 +8672,9 @@
                     "type": "number"
                   },
                   "readonly": {
+                    "type": "boolean"
+                  },
+                  "required": {
                     "type": "boolean"
                   },
                   "style": {
@@ -7580,11 +8824,31 @@
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "onFocus": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "onSubmit": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
@@ -7618,6 +8882,9 @@
                 "type": "number"
               },
               "readonly": {
+                "type": "boolean"
+              },
+              "required": {
                 "type": "boolean"
               },
               "style": {
@@ -7735,11 +9002,31 @@
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onFocus": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onSubmit": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -7773,6 +9060,9 @@
                     "type": "number"
                   },
                   "readonly": {
+                    "type": "boolean"
+                  },
+                  "required": {
                     "type": "boolean"
                   },
                   "style": {
@@ -7980,7 +9270,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onChange": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -8005,6 +9323,9 @@
                     "maximum": 10000.0,
                     "minimum": 0.0,
                     "type": "number"
+                  },
+                  "required": {
+                    "type": "boolean"
                   },
                   "style": {
                     "type": "string"
@@ -8132,7 +9453,35 @@
                   }
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "onChange": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
@@ -8157,6 +9506,9 @@
                 "maximum": 10000.0,
                 "minimum": 0.0,
                 "type": "number"
+              },
+              "required": {
+                "type": "boolean"
               },
               "style": {
                 "type": "string"
@@ -8259,7 +9611,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onChange": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -8284,6 +9664,9 @@
                     "maximum": 10000.0,
                     "minimum": 0.0,
                     "type": "number"
+                  },
+                  "required": {
+                    "type": "boolean"
                   },
                   "style": {
                     "type": "string"
@@ -8476,7 +9859,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onChange": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -8501,6 +9912,9 @@
                     "maximum": 10000.0,
                     "minimum": 0.0,
                     "type": "number"
+                  },
+                  "required": {
+                    "type": "boolean"
                   },
                   "style": {
                     "type": "string"
@@ -8628,7 +10042,35 @@
                   }
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "onChange": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
@@ -8653,6 +10095,9 @@
                 "maximum": 10000.0,
                 "minimum": 0.0,
                 "type": "number"
+              },
+              "required": {
+                "type": "boolean"
               },
               "style": {
                 "type": "string"
@@ -8755,7 +10200,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onChange": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -8780,6 +10253,9 @@
                     "maximum": 10000.0,
                     "minimum": 0.0,
                     "type": "number"
+                  },
+                  "required": {
+                    "type": "boolean"
                   },
                   "style": {
                     "type": "string"
@@ -8966,7 +10442,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onChange": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -9016,6 +10520,9 @@
                     "maximum": 10000.0,
                     "minimum": 0.0,
                     "type": "number"
+                  },
+                  "required": {
+                    "type": "boolean"
                   },
                   "style": {
                     "type": "string"
@@ -9144,7 +10651,35 @@
                   }
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "onChange": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
@@ -9194,6 +10729,9 @@
                 "maximum": 10000.0,
                 "minimum": 0.0,
                 "type": "number"
+              },
+              "required": {
+                "type": "boolean"
               },
               "style": {
                 "type": "string"
@@ -9290,7 +10828,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onChange": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -9340,6 +10906,9 @@
                     "maximum": 10000.0,
                     "minimum": 0.0,
                     "type": "number"
+                  },
+                  "required": {
+                    "type": "boolean"
                   },
                   "style": {
                     "type": "string"
@@ -9542,7 +11111,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onChange": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -9592,6 +11189,9 @@
                     "maximum": 10000.0,
                     "minimum": 0.0,
                     "type": "number"
+                  },
+                  "required": {
+                    "type": "boolean"
                   },
                   "style": {
                     "type": "string"
@@ -9720,7 +11320,35 @@
                   }
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "onChange": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
@@ -9770,6 +11398,9 @@
                 "maximum": 10000.0,
                 "minimum": 0.0,
                 "type": "number"
+              },
+              "required": {
+                "type": "boolean"
               },
               "style": {
                 "type": "string"
@@ -9866,7 +11497,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onChange": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -9916,6 +11575,9 @@
                     "maximum": 10000.0,
                     "minimum": 0.0,
                     "type": "number"
+                  },
+                  "required": {
+                    "type": "boolean"
                   },
                   "style": {
                     "type": "string"
@@ -10124,7 +11786,35 @@
                   "min": {
                     "type": "number"
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onChange": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -10283,7 +11973,35 @@
               "min": {
                 "type": "number"
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "onChange": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
@@ -10414,7 +12132,35 @@
                   "min": {
                     "type": "number"
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onChange": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -10635,7 +12381,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onChange": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -10667,6 +12441,9 @@
                     "maximum": 10000.0,
                     "minimum": 0.0,
                     "type": "number"
+                  },
+                  "required": {
+                    "type": "boolean"
                   },
                   "style": {
                     "type": "string"
@@ -10795,7 +12572,35 @@
                   }
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "onChange": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
@@ -10827,6 +12632,9 @@
                 "maximum": 10000.0,
                 "minimum": 0.0,
                 "type": "number"
+              },
+              "required": {
+                "type": "boolean"
               },
               "style": {
                 "type": "string"
@@ -10923,7 +12731,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onChange": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -10955,6 +12791,9 @@
                     "maximum": 10000.0,
                     "minimum": 0.0,
                     "type": "number"
+                  },
+                  "required": {
+                    "type": "boolean"
                   },
                   "style": {
                     "type": "string"
@@ -11155,7 +12994,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onChange": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -11187,6 +13054,9 @@
                     "maximum": 10000.0,
                     "minimum": 0.0,
                     "type": "number"
+                  },
+                  "required": {
+                    "type": "boolean"
                   },
                   "style": {
                     "type": "string"
@@ -11315,7 +13185,35 @@
                   }
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "onChange": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
@@ -11347,6 +13245,9 @@
                 "maximum": 10000.0,
                 "minimum": 0.0,
                 "type": "number"
+              },
+              "required": {
+                "type": "boolean"
               },
               "style": {
                 "type": "string"
@@ -11443,7 +13344,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onChange": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -11475,6 +13404,9 @@
                     "maximum": 10000.0,
                     "minimum": 0.0,
                     "type": "number"
+                  },
+                  "required": {
+                    "type": "boolean"
                   },
                   "style": {
                     "type": "string"
@@ -11696,7 +13628,39 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onInvalid": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -11724,6 +13688,9 @@
                   },
                   "style": {
                     "type": "string"
+                  },
+                  "submit": {
+                    "type": "boolean"
                   },
                   "text": {
                     "type": [
@@ -11877,7 +13844,39 @@
                   }
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "onClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onInvalid": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
@@ -11905,6 +13904,9 @@
               },
               "style": {
                 "type": "string"
+              },
+              "submit": {
+                "type": "boolean"
               },
               "tauri": {
                 "additionalProperties": false,
@@ -12019,7 +14021,39 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onInvalid": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -12047,6 +14081,9 @@
                   },
                   "style": {
                     "type": "string"
+                  },
+                  "submit": {
+                    "type": "boolean"
                   },
                   "text": {
                     "type": [
@@ -12279,7 +14316,39 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onInvalid": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -12307,6 +14376,9 @@
                   },
                   "style": {
                     "type": "string"
+                  },
+                  "submit": {
+                    "type": "boolean"
                   },
                   "tooltip": {
                     "type": [
@@ -12446,7 +14518,39 @@
                   }
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "onClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onInvalid": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
@@ -12474,6 +14578,9 @@
               },
               "style": {
                 "type": "string"
+              },
+              "submit": {
+                "type": "boolean"
               },
               "tauri": {
                 "additionalProperties": false,
@@ -12588,7 +14695,39 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onInvalid": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -12616,6 +14755,9 @@
                   },
                   "style": {
                     "type": "string"
+                  },
+                  "submit": {
+                    "type": "boolean"
                   },
                   "tooltip": {
                     "type": [
@@ -12823,7 +14965,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -12997,7 +15167,35 @@
                   }
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "onClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
@@ -13139,7 +15337,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -13367,7 +15593,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onDismiss": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -13527,7 +15781,35 @@
                   }
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "onDismiss": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
@@ -13656,7 +15938,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onDismiss": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -13877,7 +16187,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onDismiss": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },
@@ -14037,7 +16375,35 @@
                   }
                 ]
               },
+              "onBlur": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
               "onDismiss": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onDoubleClick": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onFocus": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onHover": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLeave": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onLongPress": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                "type": "string"
+              },
+              "onSwipe": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "type": "string"
               },
@@ -14166,7 +16532,35 @@
                       }
                     ]
                   },
+                  "onBlur": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
                   "onDismiss": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onDoubleClick": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onFocus": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onHover": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLeave": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onLongPress": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "type": "string"
                   },

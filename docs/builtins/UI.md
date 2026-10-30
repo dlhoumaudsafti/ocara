@@ -201,6 +201,23 @@ ui.on("older", nameless(u:UI, event:UIEvent): void {
   `bind` ou sa propre libération ; un objet qui garde `ui` dans un champ
   forme un cycle repris par le collecteur.
 
+## Formulaires
+
+Champs `required`, conteneur `form: true`, bouton `submit: true` et action
+`onInvalid` : voir [oc-ui.md](../oc-ui.md#formulaires). Une action qui
+soumet un formulaire incomplet n'arrive pas aux gestionnaires ; `onInvalid`
+reçoit la liste des champs vides :
+
+```ocara
+ui.on("missing", nameless(u:UI, event:UIEvent): void {
+    u.toast(`Champs à remplir : ${event.value()}`)
+})
+```
+
+| Méthode | Rôle |
+|---------|------|
+| `ui.validate(container)` → `array<string>` | `id` des champs obligatoires vides du conteneur `container` (sans les marquer `invalid`) ; `UIException` 102 si l'`id` est absent |
+
 ## Navigation et cycle de vie
 
 | Méthode | Rôle |

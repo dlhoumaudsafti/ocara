@@ -80,7 +80,20 @@ impl Checker {
         }
     }
 
-    /// `id` d'un nœud lié qui n'en a pas : `@chemin`, puis `@chemin#2`…
+    /// Champ `required`, bouton `submit`, champ à `onSubmit` : leur état et
+    /// leurs actions passent par leur `id` (runtime_ui/src/form.rs) ; sans
+    /// `id` écrit, `@type` (`@input`, `@button#2`…).
+    pub(super) fn form_id(&mut self, node: &Node, ty: &str, out: &mut Map<String, Json>) {
+        let flagged = |key: &str| out.get(key) == Some(&Json::Bool(true));
+        if out.contains_key("id") || !(flagged("required") || flagged("submit") || out.contains_key("onSubmit")) {
+            return;
+        }
+        let id = self.generated_id(ty);
+        self.ids.insert(id.clone(), (ty.to_string(), node.line));
+        out.insert("id".into(), Json::String(id));
+    }
+
+    /// `id` donné à un nœud qui n'en a pas : `@nom`, puis `@nom#2`…
     fn generated_id(&self, path: &str) -> String {
         let base = format!("@{path}");
         (1..).map(|n| if n == 1 { base.clone() } else { format!("{base}#{n}") })

@@ -1,0 +1,49 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.UI
+import ocara.UIException
+
+// Champs obligatoires (ui/form.oc.ui) : `ui.validate(conteneur)` rend les
+// `id` des champs `required` vides du conteneur, d'après l'état gardé
+// (saisies, `ui.set`, liaisons). Un champ obligatoire sans `id` en reçoit
+// un (`@input`).
+class UIFormTest extends UnitTest {
+
+    public method emptyRequiredFieldsTest(): int {
+        const ui:UI = use UI("ui/form.oc.ui")
+        const empty:array<string> = ui.validate("signup")
+        self::assertEquals(3, empty.len())
+        self::assertEquals("name", empty[0])
+        self::assertEquals("terms", empty[1])
+        self::assertEquals("@input", empty[2])
+        return 0
+    }
+
+    public method filledFieldsTest(): int {
+        const ui:UI = use UI("ui/form.oc.ui")
+        ui.set("name", "value", "Ana")
+        ui.set("terms", "checked", true)
+        ui.set("@input", "value", "   ")
+        const empty:array<string> = ui.validate("signup")
+        self::assertEquals(1, empty.len())
+        self::assertEquals("@input", empty[0])
+        ui.set("@input", "value", "x")
+        self::assertEquals(0, ui.validate("signup").len())
+        self::assertEquals(1, ui.validate("search").len())
+        return 0
+    }
+
+    public method unknownContainerTest(): int {
+        const ui:UI = use UI("ui/form.oc.ui")
+        const name:string = "nope"
+        var code:int = 0
+        try {
+            ui.validate(name)
+        } on e is UIException {
+            code = e.code
+        }
+        self::assertEquals(102, code)
+        return 0
+    }
+}

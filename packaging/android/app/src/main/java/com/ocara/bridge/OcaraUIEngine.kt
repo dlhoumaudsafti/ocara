@@ -32,6 +32,9 @@ object OcaraUIEngine {
     /** État des nœuds, clé [key] : valeurs posées par [set] ou par l'utilisateur. */
     val state = mutableStateMapOf<String, Any?>()
 
+    /** Demandes de focus par `id` (compteur) : premier champ obligatoire vide (runtime_ui/src/form.rs). */
+    val focusRequests = mutableStateMapOf<String, Int>()
+
     /** Écrans ouverts, le courant en dernier. */
     val backStack = mutableStateListOf<String>()
 
@@ -104,6 +107,7 @@ object OcaraUIEngine {
     /** État `prop` du nœud `id` ; `valueJson` : la valeur en JSON. */
     @JvmStatic
     fun set(id: String, prop: String, valueJson: String) {
+        if (prop == "focus") return onMain { focusRequests[id] = (focusRequests[id] ?: 0) + 1 }
         val value = JSONTokener(valueJson).nextValue()
         onMain { state[key(id, prop)] = value }
     }

@@ -7,6 +7,7 @@
 
 mod bind;
 pub mod component;
+mod form;
 pub mod event;
 pub mod ffi;
 mod vars;
@@ -17,6 +18,7 @@ use std::sync::{mpsc, Mutex, OnceLock};
 use serde_json::{Map, Value};
 
 pub use bind::{bind, unbind, SendSet};
+pub use form::validate;
 use event::Event;
 use ffi::{raise, string, to_json};
 
@@ -302,6 +304,10 @@ pub fn post(this: i64, message: &Value) {
     if let (Some(id), Some(prop)) = (id, message.get("prop").and_then(Value::as_str)) {
         let value = message.get("value").cloned().unwrap_or(Value::Null);
         set_json(this, id, prop, value.clone());
+        // Champ marqué `invalid` par une soumission : la saisie le libère.
+        if with(this, |ui| ui.state.get(id).and_then(|s| s.get("invalid")) == Some(&Value::Bool(true))).unwrap_or(false) {
+            form::set_invalid(this, id, false);
+        }
         // Nœud lié : la saisie est écrite dans l'objet, avant l'action suivante.
         if bind::target(this, id, prop).is_some() {
             enqueue(this, Job::Write { id: id.to_string(), prop: prop.to_string(), value });
@@ -312,6 +318,20 @@ pub fn post(this: i64, message: &Value) {
     if action == "resize" {
         let class = message.get("value").and_then(Value::as_str).unwrap_or_default().to_string();
         with(this, |ui| ui.size_class = class);
+    }
+    // Action qui soumet un formulaire incomplet : `onInvalid` à la place.
+    if let Some(source) = id {
+        let node = props(this, source);
+        if form::submits(&node, action) {
+            let empty = form::check_submit(this, source);
+            if !empty.is_empty() {
+                if let Some(invalid) = node.get("onInvalid").and_then(Value::as_str) {
+                    let event = Event { action: invalid.to_string(), id: Some(source.to_string()), instance: String::new(), value: Value::from(empty), index: None };
+                    enqueue(this, Job::Action(event));
+                }
+                return;
+            }
+        }
     }
     // Action propre d'un composant (`composant.nom`) : l'instance d'où elle vient.
     let instance = if action.contains('.') {

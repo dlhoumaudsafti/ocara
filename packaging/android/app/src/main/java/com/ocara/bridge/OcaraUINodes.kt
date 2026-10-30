@@ -281,8 +281,12 @@ private fun decorate(modifier: Modifier, p: Map<String, Any?>): Modifier {
     parseColor(p["border"])?.let { m = m.border(BorderStroke(1.dp, it), shape) }
     spacing(p["padding"])?.let { m = m.padding(it) }
     p.text("label")?.let { label -> m = m.semantics { contentDescription = label } }
+    // Champ obligatoire vide après une soumission (même rouge que engine.css).
+    if (p["invalid"] == true && p["type"] != "input") m = m.border(BorderStroke(2.dp, INVALID), shape)
     return m
 }
+
+private val INVALID = Color(0xFFC62828)
 
 private fun textStyle(p: Map<String, Any?>, base: TextStyle): TextStyle = base.copy(
     fontSize = p.num("fontSize")?.sp ?: base.fontSize,
@@ -346,7 +350,7 @@ internal fun Node(node: JSONObject, ctx: Ctx, modifier: Modifier) {
     if (p["visible"] == false) return
     val id = node.optString("id").takeIf { it.isNotEmpty() }
     val enabled = p.flag("enabled", true)
-    val m = decorate(modifier, p)
+    val m = decorate(modifier, p).events(p, id, ctx)
     val type = node.getString("type")
     if (type in CONTAINERS) return Container(node, type, p, id, ctx, m)
     when (type) {
@@ -551,6 +555,7 @@ private fun Input(type: String, p: Map<String, Any?>, id: String?, ctx: Ctx, ena
         modifier = modifier,
         enabled = enabled,
         readOnly = p["readonly"] == true,
+        isError = p["invalid"] == true,
         placeholder = placeholder?.let { { Text(it) } },
         singleLine = !multiline,
         minLines = if (multiline) 3 else 1,

@@ -96,6 +96,7 @@ impl Checker {
         }
         if self.in_item == 0 {
             self.collect_bindings(node, ty, &mut out);
+            self.form_id(node, ty, &mut out);
         }
         let written: Vec<&str> = entries.iter().map(|&(_, name, _)| name).collect();
         self.node_rules(node, ty, &written, &out);
@@ -137,6 +138,9 @@ impl Checker {
                     self.fail::<()>(node, format!("'list' : 'minColumns' ({min}) doit être inférieur ou égal à 'maxColumns' ({max})"));
                 }
             }
+        }
+        if written.contains(&"onInvalid") && props.get("submit") != Some(&Json::Bool(true)) {
+            self.fail::<()>(node, format!("'{ty}' : 'onInvalid' n'a de sens qu'avec 'submit: true'"));
         }
         if ty == "slider" {
             let bound = |k: &str| props.get(k).and_then(Json::as_f64);

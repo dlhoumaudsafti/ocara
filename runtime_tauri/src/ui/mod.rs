@@ -154,6 +154,12 @@ pub extern "C" fn UI_refresh(this: i64) {
     core::refresh(this);
 }
 
+/// `ui.validate(container)` → `array<string>` : champs obligatoires vides.
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_validate(this: i64, container: i64) -> i64 {
+    ocara_runtime_ui::ffi::from_json(&serde_json::Value::from(core::validate(this, &str_arg(container))))
+}
+
 /// `ui.setItems(id, rows)` : éléments d'une `list`.
 #[unsafe(no_mangle)]
 pub extern "C" fn UI_setItems(this: i64, id: i64, rows: i64) {

@@ -89,6 +89,8 @@ textarea.oc-input { min-height: 80px; resize: vertical; }
 .oc-icon-button:hover, .oc-variant-secondary:hover, .oc-variant-text:hover { background: color-mix(in srgb, var(--oc-primary) 12%, transparent); }
 .oc-button:focus-visible { outline: 2px solid var(--oc-primary); outline-offset: 2px; }
 .oc-disabled, .oc-button:disabled { opacity: .45; pointer-events: none; }
+/* Champ obligatoire vide après une soumission (runtime_ui/src/form.rs). */
+.oc-invalid { outline: 2px solid #c62828; outline-offset: 2px; border-radius: 4px; }
 .oc-webview {
   min-height: 120px; border: 1px dashed var(--oc-line); border-radius: 8px;
   display: flex; align-items: center; justify-content: center; color: var(--oc-muted);

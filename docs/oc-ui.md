@@ -126,9 +126,9 @@ Un nœud est une table dont `type` est l'un des types ci-dessous.
 
 | Type | Propriétés propres | Obligatoires |
 |------|--------------------|--------------|
-| `column`, `row`, `stack` | `children`, `spacing`, `scroll` | |
-| `grid` | `children`, `spacing`, `scroll`, `columns` (1 à 64) | |
-| `card` | `children`, `spacing`, `onClick` | |
+| `column`, `row`, `stack` | `children`, `spacing`, `scroll`, `form` | |
+| `grid` | `children`, `spacing`, `scroll`, `columns` (1 à 64), `form` | |
+| `card` | `children`, `spacing`, `onClick`, `form` | |
 | `divider`, `spacer` | | |
 | `text` | `value`, `bind` | |
 | `heading` | `value`, `bind`, `level` (1 à 3) | |
@@ -137,13 +137,13 @@ Un nœud est une table dont `type` est l'un des types ci-dessous.
 | `progress` | `value` (0 à 1 ; absente : indéterminée) | |
 | `list` | `item` (gabarit d'un élément), `spacing`, `onSelect` ; `display` (`list`, `grid`) et, en grille, `itemWidth`, `minColumns`, `maxColumns` (1 à 64), `direction` (`ltr`, `rtl`, `ltr-snake`, `rtl-snake`) | `item` |
 | `webview` | une source parmi `url`, `file`, `html` ; `javascript`, `storage`, `allow` (liste d'hôtes), `zoom`, `userAgent`, `webHandlers` (nom → action), `onLoad`, `onError`, `onMessage` | |
-| `input` | `value`, `bind`, `placeholder`, `kind` (`text`, `password`, `email`, `number`, `multiline`), `readonly`, `onChange`, `onSubmit`, `onFocus`, `onBlur` | |
-| `checkbox`, `switch` | `checked`, `bind`, `onChange` | |
-| `radio`, `select` | `options`, `value`, `onChange` | `options` |
+| `input` | `value`, `bind`, `placeholder`, `kind` (`text`, `password`, `email`, `number`, `multiline`), `readonly`, `required`, `onChange`, `onSubmit` | |
+| `checkbox`, `switch` | `checked`, `bind`, `required`, `onChange` | |
+| `radio`, `select` | `options`, `value`, `required`, `onChange` | `options` |
 | `slider` | `min` (< `max`), `max`, `step`, `value`, `onChange` | |
-| `date`, `time` | `value` (ISO), `placeholder`, `onChange` | |
-| `button` | `text`, `icon`, `variant` (`primary`, `secondary`, `text`), `onClick` | |
-| `iconButton` | `icon`, `onClick` | `icon`, `label` |
+| `date`, `time` | `value` (ISO), `placeholder`, `required`, `onChange` | |
+| `button` | `text`, `icon`, `variant` (`primary`, `secondary`, `text`), `onClick`, `submit`, `onInvalid` | |
+| `iconButton` | `icon`, `onClick`, `submit`, `onInvalid` | `icon`, `label` |
 | `android.fab` | `icon`, `text` (bouton étendu), `onClick` | `icon`, `label` |
 | `android.bottomSheet` | `children`, `spacing`, `open`, `onDismiss` | `id` |
 | `android.drawer` | `children`, `spacing`, `open`, `onDismiss` | `id` |
@@ -162,6 +162,7 @@ Propriétés communes à tous les nœuds :
 | `label` | texte lu par l'accessibilité |
 | `tooltip` | texte |
 | `contextMenu` | entrées de menu (clic droit, appui long) |
+| événements | `onHover`, `onLeave`, `onFocus`, `onBlur`, `onLongPress`, `onDoubleClick`, `onSwipe` (voir [Événements](#événements)) |
 | `tauri`, `android` | surcharge de propriétés pour une plateforme (voir plus bas) |
 | présentation | `fontSize`, `bold`, `italic`, `color`, `background`, `padding`, `margin`, `radius`, `border`, `elevation` (aussi permises dans `styles`) |
 
@@ -531,11 +532,72 @@ défaut (`screens.includes`).
 
 ## Actions
 
-Les événements (`onClick`, `onChange`, `onSubmit`, `onSelect`, `onFocus`,
-`onBlur`, `onLoad`, `onError`, `onMessage`), les `webHandlers` et le
-`action` des entrées de menu nomment une **action** (lettres, chiffres,
-`_`). Le code Ocara la lie par `ui.on(action, Classe::méthode)`. Les actions
-`back` et `close` sont prises en charge par le moteur sans `ui.on`.
+Les événements (`onClick`, `onChange`, `onSubmit`, `onSelect`, `onLoad`,
+`onError`, `onMessage`, `onInvalid` et les événements communs ci-dessous),
+les `webHandlers` et le `action` des entrées de menu nomment une **action**
+(lettres, chiffres, `_`). Le code Ocara la lie par
+`ui.on(action, Classe::méthode)`. Les actions `back` et `close` sont prises
+en charge par le moteur sans `ui.on`.
+
+## Événements
+
+Tout nœud affiché accepte :
+
+| Événement | Déclenché | `event.value()` |
+|---|---|---|
+| `onHover` / `onLeave` | le pointeur (souris, stylet) entre dans le nœud / en sort | valeur du champ, sinon `null` |
+| `onFocus` / `onBlur` | le focus entre dans le nœud / en sort (pas d'un de ses enfants à l'autre) ; un nœud qui ne le prend pas de lui-même devient focalisable | valeur du champ (texte, case cochée), sinon `null` |
+| `onLongPress` | appui maintenu 500 ms sans bouger (pointeur ou doigt) ; le relâchement n'est pas un clic | valeur du champ, sinon `null` |
+| `onDoubleClick` | double clic ou double tape (les deux clics restent des clics) | valeur du champ, sinon `null` |
+| `onSwipe` | balayage d'au moins 50 px | `"left"`, `"right"`, `"up"` ou `"down"` |
+
+Dans un gabarit `item`, `event.value()` est l'élément (sauf pour
+`onSwipe`) et `event.index()` son rang. Sur un écran tactile, `onHover`
+et `onLeave` ne partent jamais.
+
+```yaml
+- type: card
+  id: car
+  onHover: preview_car
+  onLeave: hide_preview
+  onLongPress: car_menu
+  onSwipe: car_swiped
+  children:
+    - { type: text, value: "Clio" }
+```
+
+## Formulaires
+
+`required: true` marque un champ obligatoire (`input`, `date`, `time`,
+`select`, `radio`, `checkbox`/`switch` — cochée attendue). Une action qui
+**soumet** — l'`onSubmit` d'un champ, ou l'action d'un bouton
+`submit: true` — n'est remise aux gestionnaires que si chaque champ
+obligatoire de son formulaire est renseigné (texte non blanc, case cochée,
+choix fait). Le formulaire est le conteneur `form: true` le plus proche
+(`column`, `row`, `stack`, `grid`, `card`), sinon l'écran.
+
+Sinon, rien n'est envoyé à la place de l'action :
+
+- chaque champ vide passe à l'état `invalid` (contour rouge), levé dès qu'il
+  est modifié ;
+- le premier reçoit le focus ;
+- l'action `onInvalid` du bouton, si elle est déclarée, part avec la liste
+  des `id` des champs vides (`event.value()`).
+
+```yaml
+- type: card
+  form: true
+  children:
+    - { type: input, id: email, kind: email, placeholder: "E-mail", required: true }
+    - { type: checkbox, id: terms, label: "J'accepte", required: true }
+    - { type: button, text: "Créer le compte", submit: true, onClick: create, onInvalid: missing }
+```
+
+La vérification est faite par le runtime sur l'état gardé (saisies,
+`ui.set`, liaisons) : la même sur desktop et sur Android. `ui.validate(id)`
+rend les champs obligatoires vides d'un conteneur, sans les marquer (voir
+[UI.md](builtins/UI.md#formulaires)). Un champ `required`, un bouton `submit`
+ou un champ à `onSubmit` sans `id` en reçoit un (`@input`, `@button#2`…).
 
 ## Menus
 

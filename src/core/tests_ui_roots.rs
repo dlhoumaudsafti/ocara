@@ -79,3 +79,20 @@ fn size_variants_add_their_bindings_to_the_base_roots() {
         { "id": "city", "prop": "value", "path": 1, "kind": "text" },
     ]));
 }
+
+#[test]
+fn form_fields_and_buttons_get_an_id() {
+    let tree = tree("    - { type: input, required: true }\n    - { type: input, onSubmit: go }\n    - { type: button, text: Ok, submit: true, onClick: save }\n    - { type: input }\n");
+    let children = &tree["screens"]["main"]["layout"]["children"];
+    assert_eq!(children[0]["id"], "@input");
+    assert_eq!(children[1]["id"], "@input#2");
+    assert_eq!(children[2]["id"], "@button");
+    assert!(children[3].get("id").is_none());
+}
+
+#[test]
+fn events_on_any_node_and_on_invalid_needs_submit() {
+    let tree = tree("    - { type: text, value: a, onHover: h, onLeave: l, onFocus: f, onBlur: b, onLongPress: p, onDoubleClick: d, onSwipe: s }\n");
+    assert_eq!(tree["actions"], json!(["b", "d", "f", "h", "l", "p", "s"]));
+    assert!(first_error("    - { type: button, text: Ok, onClick: save, onInvalid: missing }\n").contains("'onInvalid' n'a de sens qu'avec 'submit: true'"));
+}

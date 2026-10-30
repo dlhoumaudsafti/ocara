@@ -1,0 +1,14 @@
+# Interface de 126_ui_formTest.oc : champs obligatoires d'un formulaire.
+layout:
+  type: column
+  children:
+    - type: card
+      id: signup
+      form: true
+      children:
+        - { type: input, id: name, required: true }
+        - { type: checkbox, id: terms, required: true }
+        - { type: input, required: true }
+        - { type: input, id: nickname }
+        - { type: button, text: "Ok", submit: true, onClick: save, onInvalid: missing }
+    - { type: input, id: search, required: true, onHover: hover, onSwipe: swipe }

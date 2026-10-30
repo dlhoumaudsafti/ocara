@@ -80,26 +80,38 @@ pub const COMMON_PROPS: &[(&str, Ty)] = &[
     ("tooltip", Ty::Text),
     ("label", Ty::Text),
     ("contextMenu", Ty::Menu),
+    // Pointeur, focus et gestes, sur tout nœud affiché (docs/oc-ui.md, « Événements »).
+    ("onHover", Ty::Action),
+    ("onLeave", Ty::Action),
+    ("onFocus", Ty::Action),
+    ("onBlur", Ty::Action),
+    ("onLongPress", Ty::Action),
+    ("onDoubleClick", Ty::Action),
+    ("onSwipe", Ty::Action),
     ("tauri", Ty::Override),
     ("android", Ty::Override),
     ("binds", Ty::Binds),
 ];
 
+// `form` : portée des champs `required` vérifiés par un bouton `submit`.
 const CONTAINER: &[(&str, Ty)] = &[
     ("children", Ty::Children),
     ("spacing", Ty::Number(0.0, 10_000.0)),
     ("scroll", Ty::Bool),
+    ("form", Ty::Bool),
 ];
 const GRID: &[(&str, Ty)] = &[
     ("children", Ty::Children),
     ("spacing", Ty::Number(0.0, 10_000.0)),
     ("scroll", Ty::Bool),
     ("columns", Ty::Int(1, 64)),
+    ("form", Ty::Bool),
 ];
 const CARD: &[(&str, Ty)] = &[
     ("children", Ty::Children),
     ("spacing", Ty::Number(0.0, 10_000.0)),
     ("onClick", Ty::Action),
+    ("form", Ty::Bool),
 ];
 const NONE: &[(&str, Ty)] = &[];
 const TEXT: &[(&str, Ty)] = &[("value", Ty::Text), ("bind", Ty::Field)];
@@ -145,19 +157,20 @@ const INPUT: &[(&str, Ty)] = &[
     ("placeholder", Ty::Text),
     ("kind", Ty::Enum(&["text", "password", "email", "number", "multiline"])),
     ("readonly", Ty::Bool),
+    ("required", Ty::Bool),
     ("onChange", Ty::Action),
     ("onSubmit", Ty::Action),
-    ("onFocus", Ty::Action),
-    ("onBlur", Ty::Action),
 ];
 const CHECK: &[(&str, Ty)] = &[
     ("checked", Ty::Bool),
     ("bind", Ty::Field),
+    ("required", Ty::Bool),
     ("onChange", Ty::Action),
 ];
 const CHOICE: &[(&str, Ty)] = &[
     ("options", Ty::Options),
     ("value", Ty::Text),
+    ("required", Ty::Bool),
     ("onChange", Ty::Action),
 ];
 const SLIDER: &[(&str, Ty)] = &[
@@ -167,14 +180,18 @@ const SLIDER: &[(&str, Ty)] = &[
     ("value", Ty::Number(f64::MIN, f64::MAX)),
     ("onChange", Ty::Action),
 ];
-const DATE: &[(&str, Ty)] = &[("value", Ty::Text), ("placeholder", Ty::Text), ("onChange", Ty::Action)];
+const DATE: &[(&str, Ty)] = &[("value", Ty::Text), ("placeholder", Ty::Text), ("required", Ty::Bool), ("onChange", Ty::Action)];
+// `submit` : l'action n'est envoyée que si les champs `required` du
+// formulaire sont renseignés, sinon `onInvalid` (runtime_ui/src/form.rs).
 const BUTTON: &[(&str, Ty)] = &[
     ("text", Ty::Text),
     ("icon", Ty::Icon),
     ("variant", Ty::Enum(&["primary", "secondary", "text"])),
     ("onClick", Ty::Action),
+    ("submit", Ty::Bool),
+    ("onInvalid", Ty::Action),
 ];
-const ICON_BUTTON: &[(&str, Ty)] = &[("icon", Ty::Icon), ("onClick", Ty::Action)];
+const ICON_BUTTON: &[(&str, Ty)] = &[("icon", Ty::Icon), ("onClick", Ty::Action), ("submit", Ty::Bool), ("onInvalid", Ty::Action)];
 
 // Composants Material propres à Android (préfixe `android.`), ignorés sur
 // desktop : bouton flottant de l'écran, panneau inférieur et tiroir de

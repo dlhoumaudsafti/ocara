@@ -87,6 +87,8 @@ pub fn class() -> ClassInfo {
     methods.insert("bind".to_string(), inst_m(vec![("root", Type::String), ("object", Type::Mixed)], Type::Void));
     methods.insert("unbind".to_string(), inst_m(vec![("root", Type::String)], Type::Void));
     methods.insert("refresh".to_string(), inst_m(vec![], Type::Void));
+    // Champs `required` vides du conteneur (docs/oc-ui.md, « Formulaires »).
+    methods.insert("validate".to_string(), inst_m(vec![("container", Type::String)], Type::Array(Box::new(Type::String))));
     methods.insert("navigate".to_string(), inst_m(vec![("screen", Type::String)], Type::Void));
     methods.insert("back".to_string(), inst_m(vec![], Type::Void));
     methods.insert("run".to_string(), inst_m(vec![], Type::Void));

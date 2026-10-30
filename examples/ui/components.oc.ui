@@ -33,7 +33,7 @@ screens:
       children:
         - { type: heading, level: 1, value: "Inscription" }
         - { type: text, value: "Champs, choix et boutons", style: section }
-        - { type: input, id: name, placeholder: "Nom", onSubmit: save }
+        - { type: input, id: name, placeholder: "Nom", required: true, onSubmit: save, onFocus: name_focus, onBlur: name_blur }
         - { type: input, id: password, kind: password, placeholder: "Mot de passe" }
         - { type: input, id: notes, kind: multiline, placeholder: "Notes" }
         - type: row
@@ -49,13 +49,22 @@ screens:
           children:
             - { type: date, id: birthday }
             - { type: time, id: alarm }
+        - type: card
+          id: zone
+          onHover: zone_hover
+          onLeave: zone_leave
+          onDoubleClick: zone_double
+          onLongPress: zone_long
+          onSwipe: zone_swipe
+          children:
+            - { type: text, value: "Survol, double clic, appui long, balayage" }
         - { type: progress, id: upload, value: 0.4 }
         - { type: progress }
         - { type: divider }
         - type: row
           spacing: 8
           children:
-            - { type: button, id: save, text: "Enregistrer", icon: check, onClick: save }
+            - { type: button, id: save, text: "Enregistrer", icon: check, onClick: save, submit: true, onInvalid: save_invalid }
             - { type: button, text: "Annuler", variant: secondary, onClick: cancel }
             - { type: button, text: "Désactivé", variant: text, enabled: false }
             - { type: spacer }

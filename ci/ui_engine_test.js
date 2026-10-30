@@ -43,6 +43,31 @@
   node("save").click();
   check("clic → onClick", last().action === "save" && last().id === "save");
 
+  // Événements communs : survol, focus, double clic, balayage.
+  var zone = node("zone");
+  zone.dispatchEvent(new PointerEvent("pointerenter"));
+  check("survol → onHover", last().action === "zone_hover" && last().id === "zone");
+  zone.dispatchEvent(new PointerEvent("pointerleave"));
+  check("sortie → onLeave", last().action === "zone_leave");
+  zone.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+  check("double clic → onDoubleClick", last().action === "zone_double");
+  zone.dispatchEvent(new PointerEvent("pointerdown", { clientX: 10, clientY: 10 }));
+  zone.dispatchEvent(new PointerEvent("pointerup", { clientX: 120, clientY: 14 }));
+  check("balayage → onSwipe", last().action === "zone_swipe" && last().value === "right");
+  // Chrome sans écran ne donne pas le focus système à la page : événements simulés.
+  node("name").dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+  check("focus → onFocus", last().action === "name_focus" && last().value === "Ada");
+  node("name").dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+  check("perte du focus → onBlur", last().action === "name_blur");
+  check("champ obligatoire", node("name").getAttribute("aria-required") === "true");
+  OcaraUI.set("name", "invalid", true);
+  check("état invalid", node("name").classList.contains("oc-invalid"));
+  OcaraUI.set("name", "focus", true);
+  check("focus demandé par l'hôte", document.activeElement === node("name") && OcaraUI.get("name", "focus") === undefined);
+  OcaraUI.set("name", "invalid", false);
+  check("état invalid levé sans perdre le focus", !node("name").classList.contains("oc-invalid") && document.activeElement === node("name"));
+  node("name").blur();
+
   OcaraUI.set("save", "text", "Valider");
   check("set réaffiche le nœud", node("save").textContent === "Valider");
   OcaraUI.set("save", "visible", false);
@@ -107,7 +132,14 @@
     OcaraUI.back();
     setTimeout(function () {
       check("webview masquée hors de son écran", placements(false).length >= 1);
-      finish();
+      // Appui long : après 500 ms, sans clic au relâchement.
+      var zone = node("zone");
+      zone.dispatchEvent(new PointerEvent("pointerdown", { clientX: 10, clientY: 10 }));
+      setTimeout(function () {
+        check("appui long → onLongPress", last().action === "zone_long");
+        zone.dispatchEvent(new PointerEvent("pointerup", { clientX: 10, clientY: 10 }));
+        finish();
+      }, 600);
     }, 100);
   }, 100);
   return;

@@ -235,8 +235,6 @@
     if (!multiline) e.addEventListener("keydown", function (ev) {
       if (ev.key === "Enter") fire(p, "onSubmit", node.id, e.value);
     });
-    e.addEventListener("focus", function () { fire(p, "onFocus", node.id, e.value); });
-    e.addEventListener("blur", function () { fire(p, "onBlur", node.id, e.value); });
     return e;
   }
 
@@ -303,6 +301,78 @@
     return e;
   }
 
+  /// Valeur courante du champ porté par `e` (case : cochée), `null` sinon.
+  function fieldValue(e) {
+    var field = e.matches("input, textarea, select") ? e : e.querySelector("input:checked, input, textarea, select");
+    if (!field) return null;
+    return field.type === "checkbox" ? field.checked : field.value;
+  }
+
+  var LONG_PRESS_MS = 500;
+  var SWIPE_PX = 50;
+  var MOVE_TOLERANCE_PX = 10;
+
+  /// Appui long et balayage, au pointeur comme au toucher. Un appui long
+  /// n'est pas aussi un clic.
+  function gestures(e, p, send) {
+    var start = null, timer = null, pressed = false;
+    e.addEventListener("pointerdown", function (ev) {
+      start = { x: ev.clientX, y: ev.clientY };
+      pressed = false;
+      if (p.onLongPress) timer = setTimeout(function () { timer = null; pressed = true; send("onLongPress"); }, LONG_PRESS_MS);
+    });
+    e.addEventListener("pointermove", function (ev) {
+      if (start && timer && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) > MOVE_TOLERANCE_PX) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    });
+    e.addEventListener("pointerup", function (ev) {
+      clearTimeout(timer);
+      timer = null;
+      if (!start) return;
+      var dx = ev.clientX - start.x, dy = ev.clientY - start.y;
+      start = null;
+      if (p.onSwipe && Math.max(Math.abs(dx), Math.abs(dy)) >= SWIPE_PX) {
+        send("onSwipe", Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"));
+      }
+    });
+    e.addEventListener("pointercancel", function () { clearTimeout(timer); timer = null; start = null; });
+    e.addEventListener("click", function (ev) {
+      if (!pressed) return;
+      pressed = false;
+      ev.stopImmediatePropagation();
+      ev.preventDefault();
+    }, true);
+  }
+
+  /// Survol, focus et gestes de tout nœud. La valeur : celle donnée
+  /// (direction d'un balayage), sinon l'élément de liste, sinon la valeur du
+  /// champ ; dans une liste, le rang de l'élément.
+  function events(e, node, p, ctx) {
+    var item = ctx && ctx.item;
+    function send(event, value) {
+      if (value === undefined) value = item || fieldValue(e);
+      fire(p, event, node.id, value, item ? ctx.index : undefined);
+    }
+    if (p.onHover) e.addEventListener("pointerenter", function () { send("onHover"); });
+    if (p.onLeave) e.addEventListener("pointerleave", function () { send("onLeave"); });
+    if (p.onFocus || p.onBlur) {
+      // Le focus entre dans le nœud ou en sort (pas d'un enfant à l'autre).
+      if (e.tabIndex < 0 && !e.querySelector("input, select, textarea, button")) e.tabIndex = 0;
+      if (p.onFocus) e.addEventListener("focusin", function (ev) { if (!e.contains(ev.relatedTarget)) send("onFocus"); });
+      if (p.onBlur) e.addEventListener("focusout", function (ev) { if (!e.contains(ev.relatedTarget)) send("onBlur"); });
+    }
+    if (p.onDoubleClick) e.addEventListener("dblclick", function () { send("onDoubleClick"); });
+    if (p.onLongPress || p.onSwipe) gestures(e, p, send);
+  }
+
+  /// Focus demandé par l'hôte (premier champ obligatoire vide).
+  function focusIn(e) {
+    var field = e.matches("input, textarea, select, button") ? e : e.querySelector("input, textarea, select, button");
+    (field || e).focus();
+  }
+
   function button(node, p, ctx) {
     var e = el("button", "oc-button " + (node.type === "iconButton" ? "oc-icon-button" : "oc-variant-" + (p.variant || "primary")));
     e.type = "button";
@@ -353,6 +423,12 @@
       default: e = el("div");
     }
     decorate(e, p, axis, ["column", "row", "stack", "grid", "card", "list"].indexOf(node.type) >= 0);
+    events(e, node, p, ctx);
+    if (p.invalid) e.classList.add("oc-invalid");
+    if (p.required) {
+      var required = e.matches("input, textarea, select") ? e : e.querySelector("input, textarea, select");
+      if (required) required.setAttribute("aria-required", "true");
+    }
     if (p.enabled === false) {
       e.classList.add("oc-disabled");
       e.querySelectorAll("input, select, textarea, button").forEach(function (c) { c.disabled = true; });
@@ -503,9 +579,18 @@
     },
 
     set: function (id, prop, value) {
-      (state[id] = state[id] || {})[prop] = value;
       var m = mounted[id];
+      if (prop === "focus") {
+        if (m) focusIn(m.el);
+        return;
+      }
+      (state[id] = state[id] || {})[prop] = value;
       if (!m) return;
+      // Sans reconstruire : le champ en cours de saisie garde le focus.
+      if (prop === "invalid") {
+        m.el.classList.toggle("oc-invalid", !!value);
+        return;
+      }
       var input = m.el.matches("input, textarea, select") ? m.el : null;
       if (input && prop === "value" && document.activeElement === input) {
         input.value = value == null ? "" : value;
