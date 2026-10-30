@@ -280,6 +280,26 @@ fn editor_schema_is_up_to_date() {
         "schéma périmé : ocara --ui-schema > tools/highlight/vsode/schemas/oc-ui.schema.json");
 }
 
+/// Dans le `layout` d'un composant, une propriété accepte aussi `$nom`
+/// (`background: $tone`) ; un écran garde la forme stricte (`node`).
+#[test]
+fn editor_schema_accepts_component_params_only_in_components() {
+    let schema = crate::core::ui_schema::json_schema::schema();
+    let layout = &schema["properties"]["components"]["additionalProperties"]["properties"]["layout"];
+    assert_eq!(layout["$ref"], "#/definitions/componentNode");
+    assert_eq!(schema["properties"]["layout"]["$ref"], "#/definitions/node");
+    let values = &schema["definitions"]["values"];
+    assert_eq!(values["param"]["pattern"], "^\\$[A-Za-z_][A-Za-z0-9_]*$");
+    let text = schema["definitions"]["componentNode"]["allOf"].as_array().unwrap().iter()
+        .find(|case| case["if"]["properties"]["type"]["const"] == "text").unwrap();
+    let background = text["then"]["properties"]["background"]["$ref"].as_str().unwrap();
+    let shared = &values[background.rsplit('/').next().unwrap()];
+    assert_eq!(shared["anyOf"][1]["$ref"], "#/definitions/values/param");
+    let strict = schema["definitions"]["node"]["allOf"].as_array().unwrap().iter()
+        .find(|case| case["if"]["properties"]["type"]["const"] == "text").unwrap();
+    assert!(strict["then"]["properties"]["background"]["pattern"].is_string());
+}
+
 /// Dossier temporaire avec les fichiers `(nom, contenu)` ; rend son chemin.
 fn files(name: &str, entries: &[(&str, &str)]) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("ocara_ui_{}_{}", name, std::process::id()));
