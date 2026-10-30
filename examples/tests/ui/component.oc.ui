@@ -1,0 +1,17 @@
+# Banc de UIComponent (examples/tests/123_ui_componentTest.oc) : composant
+# avec une action propre (`self.remove`), posé deux fois avec un `id`.
+components:
+  chip:
+    params:
+      label: text
+    layout:
+      type: row
+      children:
+        - { type: text, id: label, value: $label }
+        - { type: iconButton, icon: close, label: "Retirer", onClick: self.remove }
+
+layout:
+  type: column
+  children:
+    - { type: chip, id: new_tag, label: "Neuf" }
+    - { type: chip, id: sold_tag, label: "Vendu" }

@@ -3847,6 +3847,19 @@
         "docFile": "UI.md"
       },
       {
+        "name": "component",
+        "params": [
+          {
+            "name": "name",
+            "type": "string"
+          }
+        ],
+        "returns": "UIComponent",
+        "static": false,
+        "doc": "Exemple :\n\n```ocara\nconst cards:UIComponent = ui.component(\"carCard\")\n```",
+        "docFile": "UIComponent.md"
+      },
+      {
         "name": "confirm",
         "params": [
           {
@@ -4151,12 +4164,80 @@
         "static": false
       },
       {
+        "name": "instance",
+        "params": [],
+        "returns": "string",
+        "static": false,
+        "doc": "Exemple :\n\n```ocara\nui.set(event.instance(), \"visible\", false)\n```",
+        "docFile": "UIComponent.md"
+      },
+      {
         "name": "value",
         "params": [],
         "returns": "mixed",
         "static": false,
         "doc": "Exemple :\n\n```ocara\nvar car:map<string, mixed> = event.value()\n```",
         "docFile": "UI.md"
+      }
+    ],
+    "consts": []
+  },
+  {
+    "name": "UIComponent",
+    "methods": [
+      {
+        "name": "id",
+        "params": [
+          {
+            "name": "instance",
+            "type": "string"
+          },
+          {
+            "name": "inner",
+            "type": "string"
+          }
+        ],
+        "returns": "string",
+        "static": false,
+        "doc": "`c.id(instance: string, inner: string)` → `string`\n\n`id` d'un nœud interne d'une instance : `instance.inner` (`inner` vide :\nl'instance elle-même), à passer à `ui.get`/`ui.set`.\n\n```ocara\nfor card in cards.instances() {\n    ui.set(cards.id(card, \"title\"), \"bold\", true)\n}\n```",
+        "docFile": "UIComponent.md",
+        "docHeading": "`c.id(instance: string, inner: string)` → `string`"
+      },
+      {
+        "name": "instances",
+        "params": [],
+        "returns": "array<string>",
+        "static": false,
+        "doc": "`c.instances()` → `array<string>`\n\n`id` des instances posées avec un `id`, toutes variantes de taille\nréunies.",
+        "docFile": "UIComponent.md",
+        "docHeading": "`c.instances()` → `array<string>`"
+      },
+      {
+        "name": "name",
+        "params": [],
+        "returns": "string",
+        "static": false,
+        "doc": "`c.name()` → `string`\n\nNom du composant.",
+        "docFile": "UIComponent.md",
+        "docHeading": "`c.name()` → `string`"
+      },
+      {
+        "name": "on",
+        "params": [
+          {
+            "name": "action",
+            "type": "string"
+          },
+          {
+            "name": "handler",
+            "type": "Function<void(UI, UIEvent)>"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`c.on(action: string, handler)` → `void`\n\nLie l'action propre `self.action` du composant ; même gestionnaire que\n[`ui.on`](UI.md) : `(ui:UI, event:UIEvent): void`, exécuté sur le thread\ndes actions. `UIException` 101 si le composant n'a pas cette action.",
+        "docFile": "UIComponent.md",
+        "docHeading": "`c.on(action: string, handler)` → `void`"
       }
     ],
     "consts": []

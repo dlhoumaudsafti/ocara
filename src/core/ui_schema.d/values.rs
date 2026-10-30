@@ -107,8 +107,9 @@ impl Checker {
                     None => self.fail(node, format!("{what} : nom d'icône attendu ({})", names.join(", "))),
                 }
             }
+            // `composant.action` : action propre d'un composant (`@action`).
             Ty::Action => match string {
-                Some(s) if is_ident(&s) => {
+                Some(s) if s.split('.').all(is_ident) && s.matches('.').count() <= 1 => {
                     self.actions.insert(s.clone());
                     Some(Json::String(s))
                 }

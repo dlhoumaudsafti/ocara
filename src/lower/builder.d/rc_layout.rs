@@ -47,7 +47,7 @@ pub fn compute_rc_objects(module: &mut IrModule, program: &Program) {
 /// Classes builtin dont les valeurs sont des valeurs natives comptées
 /// (`TAG_NATIVE`, `runtime/src/native.rs`), libérées avec leur dernière
 /// référence.
-const NATIVE_COUNTED: &[&str] = &["Image", "UIEvent"];
+const NATIVE_COUNTED: &[&str] = &["Image", "UIEvent", "UIComponent"];
 
 fn is_opaque(layout: &[(String, crate::ir::types::IrType)]) -> bool {
     matches!(layout, [(field, _), ..] if field == "__opaque_ptr")

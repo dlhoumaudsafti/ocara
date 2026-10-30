@@ -424,6 +424,14 @@ screens:
   utilisé dans lui-même.
 - Une erreur dans le `layout` d'un composant est située dans son fichier, à
   la ligne de la déclaration.
+- **Actions propres** : une action écrite `self.nom` dans le `layout`
+  appartient au composant ; le compilateur la nomme `<composant>.nom` et le
+  code Ocara la lie pour toutes les instances par
+  `ui.component("carCard").on("nom", …)`, `event.instance()` donnant l'`id`
+  de l'instance ([UIComponent](builtins/UIComponent.md)). Un nœud qui la
+  porte sans `id` en reçoit un (`clio.nom`) quand l'instance a un `id`.
+  L'arbre normalisé liste les composants et leurs actions (`components`)
+  et les instances qui ont un `id` (`instances`).
 
 ## Variables
 

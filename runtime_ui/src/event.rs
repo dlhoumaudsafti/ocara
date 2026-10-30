@@ -8,6 +8,8 @@ use crate::ffi::{__native_data, __native_new, from_json, string};
 pub struct Event {
     pub action: String,
     pub id: Option<String>,
+    /// Instance de composant d'où vient une action propre, `""` sinon.
+    pub instance: String,
     pub value: Value,
     pub index: Option<i64>,
 }
@@ -43,6 +45,13 @@ pub extern "C" fn UIEvent_id(event: i64) -> i64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn UIEvent_value(event: i64) -> i64 {
     with(event, |e| from_json(&e.value), 0)
+}
+
+/// `event.instance()` → `string` : `id` de l'instance du composant dont vient
+/// l'action propre (`ui.component(…).on`), `""` sinon.
+#[unsafe(no_mangle)]
+pub extern "C" fn UIEvent_instance(event: i64) -> i64 {
+    with(event, |e| string(&e.instance), 0)
 }
 
 /// `event.index()` → `int` : rang de l'élément choisi (`onSelect`), -1 sinon.

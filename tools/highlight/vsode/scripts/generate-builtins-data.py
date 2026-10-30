@@ -35,6 +35,7 @@ CLASSES = [
     ("Tauri", "tauri", "tauri_class"),
     ("UI", "ui", "class"),
     ("UIEvent", "ui", "event_class"),
+    ("UIComponent", "ui", "component_class"),
     ("SDL", "sdl", "sdl_class"),
     ("Image", "image", "class"),
     ("AndroidPermissions", "android", "permissions_class"),

@@ -13,9 +13,14 @@
 //   ui.tauri() → Tauri (desktop ; UIException 104 sur Android)
 //   ui.postMessage(id, data) / ui.eval(id, script) → string / ui.webBack(id) / webForward(id) / reload(id)
 //
-//   event.action() / event.id() → string, event.value() → mixed, event.index() → int
+//   ui.component(name) → UIComponent  // composant déclaré sous `components:`
 //
-// Convention runtime : UI_<méthode>, UIEvent_<méthode>
+//   event.action() / event.id() / event.instance() → string, event.value() → mixed, event.index() → int
+//
+//   card.on(action, Classe::methode) / card.name() → string
+//   card.instances() → array<string> / card.id(instance, interne) → string
+//
+// Convention runtime : UI_<méthode>, UIEvent_<méthode>, UIComponent_<méthode>
 // ─────────────────────────────────────────────────────────────────────────────
 
 use std::collections::HashMap;
@@ -71,6 +76,8 @@ pub fn class() -> ClassInfo {
     // Nœud `id` présent dans la variante affichée (gabarits de liste compris) :
     // ne calculer une donnée que si l'interface l'affiche.
     methods.insert("has".to_string(), inst_m(vec![("id", Type::String)], Type::Bool));
+    // Composant déclaré (`components:`) : ses actions propres (`self.nom`), ses instances.
+    methods.insert("component".to_string(), inst_m(vec![("name", Type::String)], Type::Named("UIComponent".into())));
     methods.insert("on".to_string(), inst_m(vec![("action", Type::String), ("handler", handler_ty())], Type::Void));
     methods.insert("get".to_string(), inst_m(vec![("id", Type::String), ("prop", Type::String)], Type::Mixed));
     methods.insert("set".to_string(), inst_m(vec![("id", Type::String), ("prop", Type::String), ("value", Type::Mixed)], Type::Void));
@@ -102,5 +109,20 @@ pub fn event_class() -> ClassInfo {
     methods.insert("id".to_string(), inst_m(vec![], Type::String));
     methods.insert("value".to_string(), inst_m(vec![], Type::Mixed));
     methods.insert("index".to_string(), inst_m(vec![], Type::Int));
+    // `id` de l'instance du composant dont vient l'action propre, "" sinon.
+    methods.insert("instance".to_string(), inst_m(vec![], Type::String));
+    class_of(methods)
+}
+
+/// `UIComponent` (`ui.component(nom)`) : valeur native comptée, liée à son `UI`.
+pub fn component_class() -> ClassInfo {
+    let mut methods = HashMap::new();
+    // Action propre `self.action` du composant → gestionnaire (ui:UI, event:UIEvent): void.
+    methods.insert("on".to_string(), inst_m(vec![("action", Type::String), ("handler", handler_ty())], Type::Void));
+    methods.insert("name".to_string(), inst_m(vec![], Type::String));
+    // `id` des instances posées avec un `id` (toutes variantes de taille).
+    methods.insert("instances".to_string(), inst_m(vec![], Type::Array(Box::new(Type::String))));
+    // `id` d'un nœud interne d'une instance : `instance.interne` (`interne` "" : l'instance).
+    methods.insert("id".to_string(), inst_m(vec![("instance", Type::String), ("inner", Type::String)], Type::String));
     class_of(methods)
 }

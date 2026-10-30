@@ -53,7 +53,7 @@ fn missing_file_and_unknown_path() {
 #[test]
 fn calls_are_checked_against_the_tree() {
     use crate::core::ui_file::check_call;
-    let tree = r#"{"actions":["search"],"ids":{"q":"input","cars":"list","web":"webview"},"screens":{"home":{},"details":{}}}"#;
+    let tree = r#"{"actions":["search"],"ids":{"q":"input","cars":"list","web":"webview"},"screens":{"home":{},"details":{}},"components":{"carCard":["open"]}}"#;
     let span = Span::new(7, 5);
     let lit = |s: &str| vec![Expr::Literal(Literal::String(s.into()), span.clone())];
     assert!(check_call(tree, "on", &lit("search"), &span).is_ok());
@@ -64,6 +64,8 @@ fn calls_are_checked_against_the_tree() {
     assert!(check_call(tree, "get", &lit("q"), &span).is_ok());
     assert!(check_call(tree, "set", &lit("nope"), &span).unwrap_err().1.contains("id 'nope'"));
     assert!(check_call(tree, "has", &lit("q"), &span).is_ok());
+    assert!(check_call(tree, "component", &lit("carCard"), &span).is_ok());
+    assert!(check_call(tree, "component", &lit("carCrd"), &span).unwrap_err().1.contains("vouliez-vous dire 'carCard'"));
     assert!(check_call(tree, "has", &lit("nope"), &span).unwrap_err().1.contains("ui.has : id 'nope'"));
     assert!(check_call(tree, "setItems", &lit("q"), &span).unwrap_err().1.contains("'list' attendu"));
     assert!(check_call(tree, "eval", &lit("web"), &span).is_ok());

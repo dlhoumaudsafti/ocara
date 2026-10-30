@@ -140,6 +140,7 @@ est signalée sur la sortie d'erreur ; les actions suivantes sont traitées.
 | `event.id()` → `string` | `id` du nœud, `""` s'il n'en a pas |
 | `event.value()` → `mixed` | texte saisi, `bool` d'une case, nombre d'un curseur, élément choisi d'une liste (`map`), `null` pour un clic |
 | `event.index()` → `int` | rang de l'élément choisi (`onSelect`), -1 sinon |
+| `event.instance()` → `string` | `id` de l'instance du composant d'où vient une action propre (`ui.component(…).on`), `""` sinon |
 
 ## État des nœuds
 
@@ -241,9 +242,11 @@ Les spécificités de chaque plateforme restent dans [Tauri](Tauri.md) et
 | 103 | `navigate` : écran absent du `.oc.ui` |
 | 104 | service indisponible sur cette plateforme (`ui.tauri()` et `saveFile` sur Android) |
 | 105 | arbre d'interface invalide (binaire altéré) |
+| 106 | composant absent du `.oc.ui` (`ui.component`) |
 
 ## Voir aussi
 
 - [docs/oc-ui.md](../oc-ui.md) — format `.oc.ui`, aperçus, moteurs de rendu
+- [UIComponent](UIComponent.md) — actions propres et instances d'un composant (`ui.component`)
 - [Tauri](Tauri.md), [AndroidUI](AndroidUI.md)
 - [Garage Ocara natif](../../examples/advanced/mini_project_ui_hexa/README.md) — application complète en architecture hexagonale (desktop et Android)

@@ -86,6 +86,7 @@ pub fn check_source(file: &Path, source: &str) -> Result<UiSpec, Vec<Diagnostic>
         theme_styles: Map::new(),
         components: HashMap::new(),
         expanding: Vec::new(),
+        instances: BTreeMap::new(),
         in_item: 0,
     };
     checker.declare_styles(&root);
@@ -95,8 +96,13 @@ pub fn check_source(file: &Path, source: &str) -> Result<UiSpec, Vec<Diagnostic>
         checker.errors.sort_by(|a, b| (&a.file, a.line, a.col).cmp(&(&b.file, b.line, b.col)));
         return Err(checker.errors);
     }
-    let ids: BTreeMap<String, String> = checker.ids.into_iter().map(|(id, (ty, _))| (id, ty)).collect();
     let mut tree = tree.unwrap_or_default();
+    if !checker.components.is_empty() {
+        let (components, instances) = checker.component_tree();
+        tree.insert("components".into(), components);
+        tree.insert("instances".into(), instances);
+    }
+    let ids: BTreeMap<String, String> = checker.ids.into_iter().map(|(id, (ty, _))| (id, ty)).collect();
     tree.insert("ids".into(), json!(ids));
     tree.insert("actions".into(), json!(checker.actions));
     let icons: Map<String, Json> = checker.icons.iter().filter_map(|name| Some((name.clone(), json!(icons::path(name)?)))).collect();
@@ -142,6 +148,8 @@ pub(super) struct Checker {
     components: HashMap<String, components::Component>,
     /// Composants en cours de développement (composant utilisé dans lui-même).
     expanding: Vec<String>,
+    /// Instances de composants qui ont un `id` : `id` → composant.
+    instances: BTreeMap<String, String>,
     /// Profondeur dans un gabarit `item:` de liste (`bind` permis).
     in_item: usize,
 }

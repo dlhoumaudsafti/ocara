@@ -21,7 +21,14 @@
 //   - { type: carCard, id: best, title: "Clio", onOpen: open_car }
 //
 // L'`id` de l'instance va sur la racine du composant et préfixe les `id`
-// internes (`best.photo`) : un composant se pose plusieurs fois. Dans le
+// internes (`best.photo`) : un composant se pose plusieurs fois.
+//
+// Une action écrite `self.nom` dans le `layout` appartient au composant : elle
+// devient `<composant>.nom` (`carCard.open`), liée côté Ocara par
+// `ui.component("carCard").on("open", …)` ; `event.instance()` donne l'`id`
+// de l'instance. Un nœud qui la porte sans `id` en reçoit un (`best.open`)
+// quand l'instance a un `id`. L'arbre liste les composants et leurs actions
+// (`components`) et les instances qui ont un `id` (`instances`). Dans le
 // gabarit `item` d'une liste, un paramètre peut lire un champ de l'élément
 // (`title: { bind: model }`), qui devient un `binds` du nœud. Les
 // propriétés de l'instance qui ne sont pas des paramètres (`width`,
@@ -62,6 +69,8 @@ pub(super) struct Param {
 pub(super) struct Component {
     params: Vec<Param>,
     layout: Node,
+    /// Actions propres (`self.nom` dans le `layout`), sans le préfixe.
+    pub(super) actions: BTreeSet<String>,
 }
 
 impl Checker {
@@ -149,7 +158,18 @@ impl Checker {
                 self.fail::<()>(&node, format!("composant '{name}' : '${used}' n'est pas un paramètre{}", suggest(&used, &known)));
             }
         }
-        self.components.insert(name, Component { params, layout });
+        let mut actions = BTreeSet::new();
+        for node in own_actions(&layout) {
+            match text(&node).and_then(|t| t.strip_prefix("self.")).filter(|a| is_ident(a)) {
+                Some(action) => {
+                    actions.insert(action.to_string());
+                }
+                None => {
+                    self.fail::<()>(&node, format!("composant '{name}' : action propre 'self.nom' attendue (lettres, chiffres, '_')"));
+                }
+            }
+        }
+        self.components.insert(name, Component { params, layout, actions });
     }
 
     /// `params:` : `nom: type` ou `nom: { type, required, default }`.
@@ -233,9 +253,17 @@ impl Checker {
             }
         }
         let names: Vec<&str> = component.params.iter().map(|p| p.name.as_str()).collect();
-        let mut expanded = substitute(&component.layout, &names, &values, &binds);
+        // Actions propres traduites sur le layout du composant seulement (un
+        // texte de l'instance qui commence par `self.` reste un texte).
+        let mut layout = component.layout.clone();
+        if id.is_some() {
+            name_action_nodes(&mut layout, &mut BTreeSet::new());
+        }
+        scope_actions(&mut layout, ty);
+        let mut expanded = substitute(&layout, &names, &values, &binds);
         if let Some(id) = &id {
             prefix_ids(&mut expanded, id, true);
+            self.instances.insert(id.clone(), ty.to_string());
         }
         // Propriétés de l'instance hors paramètres : sur la racine (validées pour son type).
         if let Kind::Map(pairs) = &mut expanded.kind {
@@ -253,6 +281,77 @@ impl Checker {
     /// Noms des composants connus (messages d'erreur).
     pub(super) fn component_names(&self) -> Vec<&str> {
         self.components.keys().map(String::as_str).collect()
+    }
+
+    /// `components` et `instances` de l'arbre : composants déclarés et leurs
+    /// actions propres, instances qui ont un `id` (`id` → composant).
+    pub(super) fn component_tree(&self) -> (Json, Json) {
+        let components: serde_json::Map<String, Json> = self.components.iter()
+            .map(|(name, c)| (name.clone(), Json::Array(c.actions.iter().map(|a| Json::String(a.clone())).collect())))
+            .collect();
+        let instances: serde_json::Map<String, Json> = self.instances.iter()
+            .map(|(id, c)| (id.clone(), Json::String(c.clone())))
+            .collect();
+        (Json::Object(components), Json::Object(instances))
+    }
+}
+
+/// Valeurs `self.nom` du `layout` (actions propres du composant).
+fn own_actions(node: &Node) -> Vec<Node> {
+    match &node.kind {
+        Kind::Scalar { text, .. } if text.starts_with("self.") => vec![node.clone()],
+        Kind::Scalar { .. } => Vec::new(),
+        Kind::Seq(items) => items.iter().flat_map(own_actions).collect(),
+        Kind::Map(pairs) => pairs.iter().flat_map(|(_, v)| own_actions(v)).collect(),
+    }
+}
+
+/// `self.nom` → `<composant>.nom`.
+fn scope_actions(node: &mut Node, component: &str) {
+    match &mut node.kind {
+        Kind::Scalar { text, .. } => {
+            if let Some(action) = text.strip_prefix("self.").filter(|a| is_ident(a)) {
+                *text = format!("{component}.{action}");
+            }
+        }
+        Kind::Seq(items) => items.iter_mut().for_each(|n| scope_actions(n, component)),
+        Kind::Map(pairs) => pairs.iter_mut().for_each(|(_, v)| scope_actions(v, component)),
+    }
+}
+
+/// Nœud qui porte une action propre sans `id` : `id` = nom de l'action
+/// (`open`, `open_2`…), préfixé ensuite par l'instance (`best.open`) —
+/// `event.instance()` le retrouve. Les nœuds d'instances imbriquées ont
+/// leurs propres actions : on ne descend pas dans un autre composant.
+fn name_action_nodes(node: &mut Node, used: &mut BTreeSet<String>) {
+    let Kind::Map(pairs) = &mut node.kind else { return };
+    let action = pairs.iter().find_map(|(_, v)| match &v.kind {
+        Kind::Scalar { text, .. } => text.strip_prefix("self.").filter(|a| is_ident(a)).map(str::to_string),
+        _ => None,
+    });
+    if let Some(action) = action {
+        if !pairs.iter().any(|(k, _)| text(k) == Some("id")) {
+            let mut id = action.clone();
+            let mut n = 2;
+            while used.contains(&id) {
+                id = format!("{action}_{n}");
+                n += 1;
+            }
+            used.insert(id.clone());
+            let at = pairs[0].0.clone();
+            pairs.push((scalar("id", &at), scalar(&id, &at)));
+        }
+    }
+    for (key, value) in pairs.iter_mut() {
+        match text(key) {
+            Some("children") => {
+                if let Kind::Seq(items) = &mut value.kind {
+                    items.iter_mut().for_each(|c| name_action_nodes(c, used));
+                }
+            }
+            Some("item") => name_action_nodes(value, used),
+            _ => {}
+        }
     }
 }
 

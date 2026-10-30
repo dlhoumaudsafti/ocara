@@ -5,6 +5,7 @@
 //! messages à [`post`] ; les actions sont traitées sur un thread Ocara dédié,
 //! l'une après l'autre.
 
+pub mod component;
 pub mod event;
 pub mod ffi;
 mod vars;
@@ -295,9 +296,16 @@ pub fn post(this: i64, message: &Value) {
         let class = message.get("value").and_then(Value::as_str).unwrap_or_default().to_string();
         with(this, |ui| ui.size_class = class);
     }
+    // Action propre d'un composant (`composant.nom`) : l'instance d'où elle vient.
+    let instance = if action.contains('.') {
+        tree(this).map(|t| component::instance_of(&t, action, id)).unwrap_or_default()
+    } else {
+        String::new()
+    };
     let event = Event {
         action: action.to_string(),
         id: id.map(str::to_string),
+        instance,
         value: message.get("value").cloned().unwrap_or(Value::Null),
         index: message.get("index").and_then(Value::as_i64),
     };
@@ -362,5 +370,18 @@ mod tests {
         assert!(shown("lg"));
         assert!(shown("xl"));
         assert!(super::declares(&tree["screens"]["home"]["layout"], "cars"));
+    }
+
+    /// Instance d'une action propre : le plus long `id` d'instance du bon composant.
+    #[test]
+    fn instance_of_finds_the_innermost_instance() {
+        let tree = json!({ "instances": { "best": "carCard", "best.badge": "chip", "other": "carCard" } });
+        let of = |action: &str, id: Option<&str>| super::component::instance_of(&tree, action, id);
+        assert_eq!(of("carCard.open", Some("best.open")), "best");
+        assert_eq!(of("carCard.open", Some("best")), "best");
+        assert_eq!(of("chip.remove", Some("best.badge.remove")), "best.badge");
+        assert_eq!(of("carCard.open", Some("bestseller.open")), "");
+        assert_eq!(of("open_car", Some("best")), "");
+        assert_eq!(of("carCard.open", None), "");
     }
 }

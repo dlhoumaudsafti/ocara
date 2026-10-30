@@ -378,6 +378,26 @@ fn theme_style_overrides() {
 const CARD: &str = "components:\n  carCard:\n    params:\n      title: text\n      photo: { type: text, required: false }\n      tone: { type: color, default: \"#123\" }\n      onOpen: action\n    layout:\n      type: card\n      onClick: $onOpen\n      children:\n        - { type: image, id: photo, src: \"https://x/p.png\", tooltip: $photo, label: x }\n        - { type: text, id: title, value: \"Voiture : $title\", color: $tone }\n";
 
 #[test]
+fn component_own_actions_are_scoped() {
+    let source = "components:\n  carCard:\n    params: { title: text, onOpen: action }\n    layout:\n      type: card\n      onClick: $onOpen\n      children:\n        - { type: text, value: $title }\n        - { type: button, text: \"Suppr\", onClick: self.remove }\n        - { type: button, text: \"Voir\", onClick: self.open }\n".to_string()
+        + "layout:\n  type: column\n  children:\n    - { type: carCard, id: best, title: x, onOpen: open_best }\n    - { type: carCard, title: \"self.accueil\", onOpen: open_y }\n";
+    let spec = ok(&source);
+    let best = &spec.tree["screens"]["main"]["layout"]["children"][0];
+    assert_eq!(best["children"][1]["onClick"], "carCard.remove");
+    // Nœud qui porte une action propre sans `id` : `id` de l'action, préfixé.
+    assert_eq!(best["children"][1]["id"], "best.remove");
+    assert_eq!(best["children"][2]["id"], "best.open");
+    assert!(spec.actions.contains("carCard.remove") && spec.actions.contains("open_best"));
+    // Texte d'instance qui commence par `self.` : un texte ; sans `id` d'instance, pas d'`id` ajouté.
+    let second = &spec.tree["screens"]["main"]["layout"]["children"][1];
+    assert_eq!(second["children"][0]["value"], "self.accueil");
+    assert!(second["children"][1].get("id").is_none(), "{}", second);
+    assert_eq!(spec.tree["components"]["carCard"], serde_json::json!(["open", "remove"]));
+    assert_eq!(spec.tree["instances"]["best"], "carCard");
+    assert!(spec.tree["instances"].get("second").is_none());
+}
+
+#[test]
 fn components_are_expanded() {
     let source = CARD.to_string() + "layout:\n  type: column\n  children:\n    - { type: carCard, id: a, title: Clio, photo: \"https://x/a.png\", onOpen: open_a, width: 200 }\n    - { type: carCard, id: b, title: Polo, onOpen: open_b, tone: \"rgb(255, 0, 0)\" }\n";
     let spec = ok(&source);

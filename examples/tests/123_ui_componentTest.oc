@@ -1,0 +1,53 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.UI
+import ocara.UIEvent
+import ocara.UIComponent
+import ocara.UIException
+
+// UIComponent : composant déclaré sous `components:` (ui/component.oc.ui),
+// action propre `self.remove` liée par `chip.on("remove", …)`, instances et
+// `id` internes (`new_tag.label`).
+class UIComponentTest extends UnitTest {
+
+    public method componentTest(): int {
+        const ui:UI = use UI("ui/component.oc.ui")
+        const chip:UIComponent = ui.component("chip")
+        self::assertEquals("chip", chip.name())
+        const instances:array<string> = chip.instances()
+        self::assertEquals(2, instances.len())
+        self::assertEquals("new_tag.label", chip.id("new_tag", "label"))
+        self::assertEquals("sold_tag", chip.id("sold_tag", ""))
+        self::assertEquals("Vendu", ui.get(chip.id("sold_tag", "label"), "value"))
+        chip.on("remove", nameless(u:UI, event:UIEvent): void {
+            u.set(event.instance(), "visible", false)
+        })
+        return 0
+    }
+
+    public method unknownActionTest(): int {
+        const ui:UI = use UI("ui/component.oc.ui")
+        var code:int = 0
+        try {
+            ui.component("chip").on("open", nameless(u:UI, event:UIEvent): void {})
+        } on e is UIException {
+            code = e.code
+        }
+        self::assertEquals(101, code)
+        return 0
+    }
+
+    public method unknownComponentTest(): int {
+        const ui:UI = use UI("ui/component.oc.ui")
+        const name:string = "card"
+        var code:int = 0
+        try {
+            ui.component(name)
+        } on e is UIException {
+            code = e.code
+        }
+        self::assertEquals(106, code)
+        return 0
+    }
+}

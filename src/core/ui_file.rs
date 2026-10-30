@@ -113,6 +113,12 @@ pub fn check_call(tree: &str, method: &str, args: &[Expr], span: &Span) -> Resul
         "get" | "set" | "has" => id_of(None),
         "setItems" => id_of(Some("list")),
         "postMessage" | "eval" | "webBack" | "webForward" | "reload" => id_of(Some("webview")),
+        "component" => {
+            let names: Vec<&str> = tree["components"].as_object().map(|c| c.keys().map(String::as_str).collect()).unwrap_or_default();
+            if names.contains(&name.as_str()) { Ok(()) } else {
+                Err((span.clone(), format!("ui.component : composant '{name}' absent du .oc.ui{}", suggestion(name, &names))))
+            }
+        }
         "navigate" => {
             let screens: Vec<&str> = tree["screens"].as_object().map(|s| s.keys().map(String::as_str).collect()).unwrap_or_default();
             if screens.contains(&name.as_str()) { Ok(()) } else {
