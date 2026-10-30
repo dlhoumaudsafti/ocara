@@ -54,11 +54,10 @@ redimensionne plus par ses bords (la vue posée par-dessus capte les
 
 ## 5. Questions de conception ouvertes
 
-1. **Liaisons déclaratives** : l'état est aujourd'hui impératif
-   (`ui.get`/`ui.set`, `bind:` dans les gabarits de liste seulement).
-   Faut-il des liaisons sur un objet Ocara (`bind: user.name`), mises à jour
-   dans les deux sens ?
-2. **`ocara.Tauri` compilé pour Android** : aujourd'hui un talon sans effet
+Les liaisons déclaratives ont maintenant leur fiche :
+[langage-builtin-ui-liaisons.md](langage-builtin-ui-liaisons.md).
+
+1. **`ocara.Tauri` compilé pour Android** : aujourd'hui un talon sans effet
    (`src/codegen/emit.d/emitter.rs`, `is_tauri_stub`), pour qu'un appel sur
    un chemin mort compile. Lever une exception à l'appel, comme
    `ocara.Android*` hors Android (`AndroidException` 100), pour que les trois
