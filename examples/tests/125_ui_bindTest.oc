@@ -1,0 +1,112 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.UI
+import ocara.UIException
+import ocara.Thread
+
+// Liaisons déclaratives (ui/bind.oc.ui) : `ui.bind("user", user)` affiche
+// les champs de l'objet dans les nœuds liés ; un nouveau `bind` remplace
+// l'objet. Les chemins sont vérifiés à la compilation quand l'interface est
+// connue, au `bind` sinon (UIException 107).
+class BindAddress {
+    public property city:string
+    init(city:string) { self.city = city }
+}
+
+class BindUser {
+    public property name:string
+    public property age:int = 30
+    public property newsletter:bool = true
+    public property address:BindAddress|null = null
+    public property volume:float = 2.5
+    private property secret:string = "x"
+    init(name:string) { self.name = name }
+}
+
+class BindPartial {
+    public property name:string = "seul"
+}
+
+class UIBindTest extends UnitTest {
+
+    public method readsTheObjectTest(): int {
+        const ui:UI = use UI("ui/bind.oc.ui")
+        var user:BindUser = use BindUser("Ana")
+        ui.bind("user", user)
+        self::assertEquals("Ana", ui.get("name", "value"))
+        self::assertEquals("Ana", ui.get("@user.name", "value"))
+        self::assertEquals(30, ui.get("age", "value"))
+        self::assertEquals(true, ui.get("news", "checked"))
+        self::assertEquals(2.5, ui.get("volume", "value"))
+        self::assertNull(ui.get("city", "value"))
+        return 0
+    }
+
+    public method rebindShowsTheNewValuesTest(): int {
+        const ui:UI = use UI("ui/bind.oc.ui")
+        var user:BindUser = use BindUser("Ana")
+        ui.bind("user", user)
+        user.address = use BindAddress("Paris")
+        user.age = 0
+        user.newsletter = false
+        ui.bind("user", user)
+        self::assertEquals("Paris", ui.get("city", "value"))
+        self::assertEquals(0, ui.get("age", "value"))
+        self::assertEquals(false, ui.get("news", "checked"))
+        ui.bind("user", use BindUser("Léa"))
+        self::assertEquals("Léa", ui.get("name", "value"))
+        ui.unbind("user")
+        return 0
+    }
+
+    public method refreshRunsOnTheActionThreadTest(): int {
+        const ui:UI = use UI("ui/bind.oc.ui")
+        var user:BindUser = use BindUser("Ana")
+        ui.bind("user", user)
+        user.age = 41
+        user.name = "Zoé"
+        self::assertEquals(30, ui.get("age", "value"))
+        ui.refresh()
+        var tries:int = 0
+        while tries smaller 200 and ui.get("age", "value") not equal 41 {
+            Thread::sleep(5)
+            tries = tries + 1
+        }
+        self::assertEquals(41, ui.get("age", "value"))
+        self::assertEquals("Zoé", ui.get("@user.name", "value"))
+        return 0
+    }
+
+    public method unknownRootTest(): int {
+        const ui:UI = use UI("ui/bind.oc.ui")
+        self::assertEquals(107, bindIn(ui, "nope", use BindUser("Ana")))
+        return 0
+    }
+
+    public method missingFieldTest(): int {
+        const ui:UI = use UI("ui/bind.oc.ui")
+        var code:int = 0
+        try {
+            bindPartial(ui)
+        } on e is UIException {
+            code = e.code
+        }
+        self::assertEquals(107, code)
+        return 0
+    }
+}
+
+/// `ui` reçu en paramètre : interface inconnue à la compilation.
+function bindIn(ui:UI, root:string, user:BindUser): int {
+    try {
+        ui.bind(root, user)
+    } on e is UIException {
+        return e.code
+    }
+    return 0
+}
+
+function bindPartial(ui:UI): void {
+    ui.bind("user", use BindPartial())
+}

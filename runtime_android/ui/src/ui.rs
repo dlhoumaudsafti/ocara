@@ -58,7 +58,7 @@ fn default_action(this: i64, action: &str) {
 pub extern "C" fn UI_init(this: i64, tree: i64, vars: i64) {
     unsafe { __rc_register_window_finalizer(finalize) };
     crate::events::start();
-    core::init(this, &str_arg(tree), ocara_runtime_ui::ffi::to_json(vars), default_action);
+    core::init(this, &str_arg(tree), ocara_runtime_ui::ffi::to_json(vars), default_action, send_set);
 }
 
 /// `ui.setVars(vars)` : textes remplis à nouveau (changement de langue).
@@ -103,6 +103,23 @@ pub extern "C" fn UI_set(this: i64, id: i64, prop: i64, value: i64) {
     let (id, prop) = (str_arg(id), str_arg(prop));
     let value = core::set(this, &id, &prop, value);
     send_set(this, &id, &prop, &value);
+}
+
+/// `ui.bind(root, objet)` : chemins et accesseur générés par le compilateur
+/// (runtime_ui/src/bind.rs).
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_bind(this: i64, root: i64, object: i64, paths: i64, accessor: i64) {
+    core::bind(this, &str_arg(root), object, &str_arg(paths), accessor);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_unbind(this: i64, root: i64) {
+    core::unbind(this, &str_arg(root));
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_refresh(this: i64) {
+    core::refresh(this);
 }
 
 #[unsafe(no_mangle)]

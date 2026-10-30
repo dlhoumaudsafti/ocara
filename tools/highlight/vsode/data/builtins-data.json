@@ -3839,6 +3839,23 @@
         "docFile": "UI.md"
       },
       {
+        "name": "bind",
+        "params": [
+          {
+            "name": "root",
+            "type": "string"
+          },
+          {
+            "name": "object",
+            "type": "mixed"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`ui.bind(root, object)` — relie la racine `root` à `object` (instance d'une classe) et affiche ses champs ; un nouveau `bind` sur la racine remplace l'objet",
+        "docFile": "UI.md"
+      },
+      {
         "name": "close",
         "params": [],
         "returns": "void",
@@ -4002,6 +4019,14 @@
         "docFile": "UI.md"
       },
       {
+        "name": "refresh",
+        "params": [],
+        "returns": "void",
+        "static": false,
+        "doc": "`ui.refresh()` — relit les objets liés, après une modification hors d'un gestionnaire (thread, timer)",
+        "docFile": "UI.md"
+      },
+      {
         "name": "reload",
         "params": [
           {
@@ -4109,6 +4134,19 @@
         "returns": "void",
         "static": false,
         "doc": "`ui.toast(text)` — message bref en bas de la fenêtre — `Toast`",
+        "docFile": "UI.md"
+      },
+      {
+        "name": "unbind",
+        "params": [
+          {
+            "name": "root",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`ui.unbind(root)` — délie la racine ; les nœuds gardent leurs dernières valeurs",
         "docFile": "UI.md"
       },
       {

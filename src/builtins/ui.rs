@@ -82,6 +82,11 @@ pub fn class() -> ClassInfo {
     methods.insert("get".to_string(), inst_m(vec![("id", Type::String), ("prop", Type::String)], Type::Mixed));
     methods.insert("set".to_string(), inst_m(vec![("id", Type::String), ("prop", Type::String), ("value", Type::Mixed)], Type::Void));
     methods.insert("setItems".to_string(), inst_m(vec![("id", Type::String), ("rows", Type::Mixed)], Type::Void));
+    // Liaisons (`bind: user.name` hors d'une liste) : l'objet d'une classe
+    // relié à la racine ; accesseur généré par la sema (src/sema/ui_bind.rs).
+    methods.insert("bind".to_string(), inst_m(vec![("root", Type::String), ("object", Type::Mixed)], Type::Void));
+    methods.insert("unbind".to_string(), inst_m(vec![("root", Type::String)], Type::Void));
+    methods.insert("refresh".to_string(), inst_m(vec![], Type::Void));
     methods.insert("navigate".to_string(), inst_m(vec![("screen", Type::String)], Type::Void));
     methods.insert("back".to_string(), inst_m(vec![], Type::Void));
     methods.insert("run".to_string(), inst_m(vec![], Type::Void));

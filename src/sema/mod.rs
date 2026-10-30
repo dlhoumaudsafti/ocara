@@ -28,6 +28,7 @@ pub mod scope;
 pub mod sql_injection;
 pub mod symbols;
 pub mod typecheck;
+pub mod ui_bind;
 pub mod unknown_field;
 
 #[cfg(test)]

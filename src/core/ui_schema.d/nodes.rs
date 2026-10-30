@@ -94,6 +94,9 @@ impl Checker {
                 }
             }
         }
+        if self.in_item == 0 {
+            self.collect_bindings(node, ty, &mut out);
+        }
         let written: Vec<&str> = entries.iter().map(|&(_, name, _)| name).collect();
         self.node_rules(node, ty, &written, &out);
         if ty == "image" {
@@ -161,11 +164,8 @@ impl Checker {
     }
 
     /// `binds` : chaque propriété (du type du nœud) lit un champ de l'élément
-    /// de liste ; gabarit `item` seulement.
+    /// de liste ; hors d'une liste, un chemin `racine.champ` (roots.rs).
     fn binds(&mut self, value: &Node, ty: &str) -> Option<Json> {
-        if self.in_item == 0 {
-            return self.fail(value, "'binds' n'est permis que dans le gabarit 'item' d'une liste".to_string());
-        }
         let mut out = Map::new();
         for (key, prop, field) in self.entries(value, "binds")? {
             let known = schema::prop_type(ty, prop).is_some() && !NOT_OVERRIDABLE.contains(&prop) && prop != "binds";
@@ -175,6 +175,9 @@ impl Checker {
                 continue;
             }
             match text(field) {
+                Some(name) if self.in_item == 0 && !super::roots::is_root_path(name) => {
+                    self.fail::<()>(field, format!("'binds.{prop}' : hors d'une liste, 'racine.champ' attendu (racine reliée par ui.bind)"));
+                }
                 Some(name) if name.split('.').all(is_ident) => {
                     out.insert(prop.to_string(), Json::String(name.to_string()));
                 }

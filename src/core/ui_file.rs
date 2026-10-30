@@ -85,6 +85,18 @@ pub fn tree_of(value: &Expr) -> Option<String> {
     }
 }
 
+/// `ui.bind("racine", objet)` sur une interface connue : la table de la
+/// racine (`roots.<racine>` de l'arbre) en argument caché, pour que la sema
+/// vérifie les chemins et leur type dès la compilation (src/sema/ui_bind.rs).
+pub fn add_bind_spec(tree: &str, args: &mut Vec<Expr>) {
+    let [Expr::Literal(Literal::String(root), span), _] = args.as_slice() else { return };
+    let Ok(tree) = serde_json::from_str::<serde_json::Value>(tree) else { return };
+    if let Some(spec) = tree["roots"].get(root) {
+        let spec = Expr::Literal(Literal::String(spec.to_string()), span.clone());
+        args.push(spec);
+    }
+}
+
 /// Vérifie `ui.<method>("littéral", …)` contre l'arbre `tree`.
 pub fn check_call(tree: &str, method: &str, args: &[Expr], span: &Span) -> Result<(), DesugarError> {
     let Some(Expr::Literal(Literal::String(name), _)) = args.first() else { return Ok(()) };
@@ -111,6 +123,12 @@ pub fn check_call(tree: &str, method: &str, args: &[Expr], span: &Span) -> Resul
             }
         }
         "get" | "set" | "has" => id_of(None),
+        "bind" | "unbind" => {
+            let roots: Vec<&str> = tree["roots"].as_object().map(|r| r.keys().map(String::as_str).collect()).unwrap_or_default();
+            if roots.contains(&name.as_str()) { Ok(()) } else {
+                Err((span.clone(), format!("ui.{method} : racine '{name}' absente des liaisons du .oc.ui{}", suggestion(name, &roots))))
+            }
+        }
         "setItems" => id_of(Some("list")),
         "postMessage" | "eval" | "webBack" | "webForward" | "reload" => id_of(Some("webview")),
         "component" => {

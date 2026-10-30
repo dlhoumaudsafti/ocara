@@ -1,0 +1,42 @@
+// Liaisons déclaratives d'ocara.UI (bind.oc.ui, docs/oc-ui.md) : l'interface
+// lit et écrit les champs d'un objet Ocara, sans ui.get ni ui.set.
+//   - saisir dans un champ écrit l'objet : « Afficher l'objet » le montre ;
+//   - « Un an de plus » modifie l'objet : l'interface suit.
+// Ouvre une fenêtre.
+architecture permissive
+
+import ocara.UI
+import ocara.UIEvent
+import ocara.IO
+
+class Profile {
+    public property name:string
+    public property age:int = 30
+    public property newsletter:bool = false
+    public property volume:float = 5.0
+    public property summary:string = ""
+
+    init(name:string) {
+        self.name = name
+        self.update()
+    }
+
+    public method update(): void {
+        self.summary = `${self.name}, ${self.age} ans${self.newsletter then ", abonné" empty}`
+    }
+}
+
+function main(): void {
+    const ui:UI = use UI("bind.oc.ui")
+    const profile:Profile = use Profile("Ana")
+    ui.bind("user", profile)
+    ui.on("older", nameless(u:UI, event:UIEvent): void {
+        profile.age = profile.age + 1
+        profile.update()
+    })
+    ui.on("show", nameless(u:UI, event:UIEvent): void {
+        profile.update()
+        IO::writeln(`name=${profile.name} age=${profile.age} newsletter=${profile.newsletter} volume=${profile.volume}`)
+    })
+    ui.run()
+}

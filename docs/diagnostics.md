@@ -1464,6 +1464,20 @@ Dans un `generic`, `ok then self.v zero` où `v:T` : le corps est partagé par t
 
 ---
 
+### E74 — Liaison UI invalide
+
+```
+main.oc:19:7: error: ui.bind: 'user.address.city': class 'Addr' has no field 'city'
+main.oc:19:7: error: ui.bind: 'user.volume': field type 'string' does not fit 'value' of node 'volume' (a number value)
+main.oc:20:7: error: ui.bind: 'user': an object of a class is expected, found 'int'
+```
+
+`ui.bind(racine, objet)` sur une interface créée par `use UI(…)` dans la même fonction : chaque chemin lié à la racine par le `.oc.ui` (`bind: user.address.city`) doit désigner un champ de la classe de l'objet, accessible depuis l'appel, de type `string`, `int`, `float`, `bool` ou `mixed` (éventuellement `|null`) compatible avec la propriété liée (`checked` attend un `bool`, la `value` d'un `slider` un nombre). L'objet doit être une instance de classe. Voir [UI.md](builtins/UI.md#liaisons).
+
+**Correction :** le champ manquant dans la classe, un champ `public`, ou un chemin du `.oc.ui` qui convient.
+
+---
+
 ## Avertissements sémantiques
 
 Les avertissements ne bloquent pas la compilation mais signalent du code suspect.

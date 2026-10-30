@@ -125,8 +125,8 @@ impl Checker {
             },
             Ty::Field => match string {
                 Some(s) if s.split('.').all(is_ident) => {
-                    if self.in_item == 0 {
-                        return self.fail(node, format!("{what} : 'bind' n'est permis que dans le gabarit 'item' d'une liste"));
+                    if self.in_item == 0 && !super::roots::is_root_path(&s) {
+                        return self.fail(node, format!("{what} : hors d'une liste, 'racine.champ' attendu (racine reliée par ui.bind)"));
                     }
                     Some(Json::String(s))
                 }

@@ -1,0 +1,23 @@
+# Liaisons déclaratives (bind.oc) : chaque nœud lit et écrit un champ de
+# l'objet relié à la racine `user` par `ui.bind("user", user)`.
+window:
+  title: "Profil"
+  width: 520
+  height: 520
+
+layout:
+  type: column
+  spacing: 12
+  padding: 16
+  children:
+    - { type: heading, bind: user.name }
+    - { type: input, placeholder: "Nom", bind: user.name }
+    - { type: input, kind: number, placeholder: "Âge", bind: user.age }
+    - { type: checkbox, label: "Recevoir la lettre", bind: user.newsletter }
+    - { type: slider, min: 0, max: 10, step: 1, binds: { value: user.volume } }
+    - { type: text, bind: user.summary }
+    - type: row
+      spacing: 8
+      children:
+        - { type: button, text: "Un an de plus", onClick: older }
+        - { type: button, text: "Afficher l'objet", onClick: show }

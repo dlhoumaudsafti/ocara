@@ -3440,6 +3440,67 @@ pub(crate) fn run_closure_catching_with_args2(func_ptr: i64, env_ptr: i64, arg1:
     })
 }
 
+/// Closure à TROIS paramètres appelée depuis un crate `runtime_ui`, dont la
+/// valeur de retour sert : accesseur généré par le compilateur pour
+/// `ui.bind` (`(objet, chemin, valeur)`). Rend 0 et écrit le résultat
+/// (possédé) dans `out`, ou rend la description de l'exception non
+/// rattrapée (chaîne à libérer) sans toucher à `out`.
+#[unsafe(no_mangle)]
+pub extern "C" fn __call_closure3_value(fat_ptr: i64, arg1: i64, arg2: i64, arg3: i64, out: *mut i64) -> i64 {
+    let func_ptr = unsafe { *(fat_ptr as *const i64) };
+    let env_ptr = unsafe { *((fat_ptr as *const i64).add(1)) };
+    match run_closure_catching_with_args3(func_ptr, env_ptr, arg1, arg2, arg3) {
+        Ok(value) => {
+            unsafe { *out = value };
+            0
+        }
+        Err((value, type_name)) => unsafe { alloc_str(&thread::describe_uncaught(value, type_name)) },
+    }
+}
+
+/// Comme `run_closure_catching_with_args2`, pour une closure à TROIS
+/// paramètres (`fn(env_ptr, arg1, arg2, arg3)`). Même mécanique dupliquée,
+/// pour la même raison.
+pub(crate) fn run_closure_catching_with_args3(func_ptr: i64, env_ptr: i64, arg1: i64, arg2: i64, arg3: i64) -> Result<i64, (i64, i64)> {
+    TRY_STACK.with(|stack| {
+        let depth = stack.depth.get();
+        if depth >= MAX_TRY_DEPTH {
+            std::process::abort();
+        }
+
+        let frame_ptr: *mut TryFrame = unsafe {
+            let arr = &mut *stack.frames.get();
+            &mut arr[depth]
+        };
+
+        unsafe {
+            (*frame_ptr).error_val  = 0;
+            (*frame_ptr).error_type = 0;
+            (*frame_ptr).unwind = rc::unwind_depth();
+            (*frame_ptr).resources = rc::resource_depth();
+        }
+
+        stack.depth.set(depth + 1);
+
+        let jmp_env: *mut JmpBuf = unsafe { &mut (*frame_ptr).env };
+        let ret = unsafe { setjmp(jmp_env, std::ptr::null_mut()) };
+
+        if ret == 0 {
+            let closure: unsafe extern "C" fn(i64, i64, i64, i64) -> i64 =
+                unsafe { std::mem::transmute(func_ptr as usize) };
+            let value = unsafe { closure(env_ptr, arg1, arg2, arg3) };
+            stack.depth.set(depth);
+            Ok(value)
+        } else {
+            let (ev, et) = unsafe {
+                ((*frame_ptr).error_val, (*frame_ptr).error_type)
+            };
+            stack.depth.set(depth);
+            Err((ev, et))
+        }
+    })
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn __ocara_fail(val: i64, type_name: i64) {
     let jumped = TRY_STACK.with(|stack| {

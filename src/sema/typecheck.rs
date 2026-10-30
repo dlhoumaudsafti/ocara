@@ -1656,6 +1656,10 @@ impl<'a> TypeChecker<'a> {
                     if let Some(ret) = self.resolve_convert_sugar(object, &obj_ty, field, args, span) {
                         return ret;
                     }
+                    // `ui.bind(racine, objet)` : accesseur généré (`crate::sema::ui_bind`).
+                    if let Some(ret) = self.resolve_ui_bind(callee, &obj_ty, field, args, span) {
+                        return ret;
+                    }
                     if obj_ty == Type::Mixed && crate::sema::convert_sugar::is_conversion_name(field) {
                         self.errors.push(SemaError::ConversionOnMixed {
                             method: field.clone(),

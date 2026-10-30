@@ -22,6 +22,8 @@ unsafe extern "C" {
     pub(crate) fn __native_new(data: i64, drop_fn: i64) -> i64;
     pub(crate) fn __native_data(val: i64, drop_fn: i64) -> i64;
     pub(crate) fn __call_closure2_catching(fat_ptr: i64, arg1: i64, arg2: i64) -> i64;
+    pub(crate) fn __call_closure3_value(fat_ptr: i64, arg1: i64, arg2: i64, arg3: i64, out: *mut i64) -> i64;
+    pub(crate) fn __rc_unkeep(owner: i64, field: i64, value: i64);
 }
 
 const MESSAGE_MAX: usize = 1024;

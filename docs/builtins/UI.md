@@ -101,7 +101,8 @@ chemin relatif part du dossier du fichier `.oc`.
 Sur la variable initialisée par `use UI(…)`, les appels avec un littéral sont
 vérifiés dès la compilation : action de `ui.on`, `id` de `get`/`set` (d'une
 `list` pour `setItems`, d'une `webview` pour `postMessage`/`eval`…), écran
-de `navigate`. Ailleurs (gestionnaire qui reçoit `ui:UI`, nom calculé), la
+de `navigate`, racine de `bind`/`unbind` (et ses chemins liés, voir
+[Liaisons](#liaisons)). Ailleurs (gestionnaire qui reçoit `ui:UI`, nom calculé), la
 vérification se fait à l'exécution (`UIException` 101 à 103).
 
 **Rechargement à chaud** : un programme compilé sans `--release` surveille
@@ -155,6 +156,50 @@ est signalée sur la sortie d'erreur ; les actions suivantes sont traitées.
 gardé par le runtime : `get` ne questionne pas l'interface, et l'état posé
 avant `run()` est affiché dès l'ouverture.
 Les valeurs texte de `set` sont remplies par les variables `${nom}`.
+
+## Liaisons
+
+Un nœud lié par `bind: user.name` hors d'une liste ([oc-ui.md](../oc-ui.md#liaisons-à-un-objet))
+affiche et écrit un champ de l'objet relié à la racine `user` :
+
+```ocara
+class Profile {
+    public property name:string = "Ana"
+    public property age:int = 30
+}
+
+const profile:Profile = use Profile()
+ui.bind("user", profile)
+ui.on("older", nameless(u:UI, event:UIEvent): void {
+    profile.age = profile.age + 1   // l'interface affiche 31 après le gestionnaire
+})
+```
+
+| Méthode | Rôle |
+|---------|------|
+| `ui.bind(root, object)` | relie la racine `root` à `object` (instance d'une classe) et affiche ses champs ; un nouveau `bind` sur la racine remplace l'objet |
+| `ui.unbind(root)` | délie la racine ; les nœuds gardent leurs dernières valeurs |
+| `ui.refresh()` | relit les objets liés, après une modification hors d'un gestionnaire (thread, timer) |
+
+- **Quand l'interface suit le code** : au `bind`, après chaque gestionnaire
+  d'action (tous ceux de l'action) et sur `ui.refresh()`. Seuls les nœuds
+  dont la valeur a changé sont réaffichés.
+- **Quand le code suit l'interface** : une saisie est écrite dans l'objet sur
+  le thread des gestionnaires, avant l'action suivante, convertie au type du
+  champ. Une saisie invalide n'écrit rien. La valeur écrite ne revient pas au
+  moteur (le curseur reste en place).
+- **Thread** : l'objet n'est lu et écrit que sur le thread des
+  gestionnaires, et lors du `bind` sur le thread qui l'appelle. Un objet
+  modifié depuis un autre thread s'affiche au `ui.refresh()` suivant.
+- **Vérifications** : le compilateur génère l'accès aux champs de la classe
+  (pas de réflexion à l'exécution). Sur une interface créée par `use UI(…)`
+  dans la même fonction, chaque chemin lié du `.oc.ui` est vérifié dès la
+  compilation : champ existant, accessible depuis l'appel, de type
+  compatible avec la propriété ([E74](../diagnostics.md#e74--liaison-ui-invalide)).
+  Ailleurs (gestionnaire qui reçoit `ui:UI`), au `bind` : `UIException` 107.
+- **Mémoire** : l'interface retient l'objet lié jusqu'à `unbind`, un nouveau
+  `bind` ou sa propre libération ; un objet qui garde `ui` dans un champ
+  forme un cycle repris par le collecteur.
 
 ## Navigation et cycle de vie
 
@@ -243,6 +288,7 @@ Les spécificités de chaque plateforme restent dans [Tauri](Tauri.md) et
 | 104 | service indisponible sur cette plateforme (`ui.tauri()` et `saveFile` sur Android) |
 | 105 | arbre d'interface invalide (binaire altéré) |
 | 106 | composant absent du `.oc.ui` (`ui.component`) |
+| 107 | `ui.bind` : racine absente des liaisons du `.oc.ui`, chemin lié absent de l'objet (ou inaccessible), ou de type incompatible |
 
 ## Voir aussi
 

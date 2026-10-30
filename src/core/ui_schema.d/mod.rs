@@ -11,7 +11,9 @@
 //   { "window": {…}, "styles": {…}, "start": "home",
 //     "screens": { "home": { "title": …, "layout": <nœud> } },
 //     "menu": […], "ids": { "search": "input" }, "actions": ["search"],
-//     "icons": { "search": "<tracé SVG 24×24>" } }
+//     "icons": { "search": "<tracé SVG 24×24>" }, "roots": {…} }
+//
+// `roots` : nœuds liés à un objet Ocara par `ui.bind` (roots.rs).
 //
 // Un `layout:` à la racine (sans `screens:`) est un écran unique `main`.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -23,6 +25,7 @@ mod images;
 pub mod json_schema;
 mod nodes;
 pub mod preview;
+mod roots;
 pub mod schema;
 mod styles;
 mod variants;
@@ -88,6 +91,7 @@ pub fn check_source(file: &Path, source: &str) -> Result<UiSpec, Vec<Diagnostic>
         expanding: Vec::new(),
         instances: BTreeMap::new(),
         in_item: 0,
+        bindings: BTreeMap::new(),
     };
     checker.declare_styles(&root);
     checker.declare_components(&root);
@@ -101,6 +105,9 @@ pub fn check_source(file: &Path, source: &str) -> Result<UiSpec, Vec<Diagnostic>
         let (components, instances) = checker.component_tree();
         tree.insert("components".into(), components);
         tree.insert("instances".into(), instances);
+    }
+    if !checker.bindings.is_empty() {
+        tree.insert("roots".into(), roots::roots_json(&checker.bindings));
     }
     let ids: BTreeMap<String, String> = checker.ids.into_iter().map(|(id, (ty, _))| (id, ty)).collect();
     tree.insert("ids".into(), json!(ids));
@@ -150,8 +157,10 @@ pub(super) struct Checker {
     expanding: Vec<String>,
     /// Instances de composants qui ont un `id` : `id` → composant.
     instances: BTreeMap<String, String>,
-    /// Profondeur dans un gabarit `item:` de liste (`bind` permis).
+    /// Profondeur dans un gabarit `item:` de liste (`bind` d'un champ de l'élément).
     in_item: usize,
+    /// Nœuds liés hors d'une liste, par racine (roots.rs).
+    bindings: BTreeMap<String, Vec<roots::Bound>>,
 }
 
 type Entry<'n> = (&'n Node, &'n str, &'n Node);

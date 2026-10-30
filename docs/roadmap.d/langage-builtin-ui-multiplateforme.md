@@ -54,9 +54,6 @@ redimensionne plus par ses bords (la vue posée par-dessus capte les
 
 ## 5. Questions de conception ouvertes
 
-Les liaisons déclaratives ont maintenant leur fiche :
-[langage-builtin-ui-liaisons.md](langage-builtin-ui-liaisons.md).
-
 1. **`ocara.Tauri` compilé pour Android** : aujourd'hui un talon sans effet
    (`src/codegen/emit.d/emitter.rs`, `is_tauri_stub`), pour qu'un appel sur
    un chemin mort compile. Lever une exception à l'appel, comme

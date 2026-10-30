@@ -262,6 +262,9 @@ fn desugar_expr(expr: &mut Expr, map: &mut ConstMap) -> Result<(), DesugarError>
                 if let Expr::Ident(var, _) = object.as_ref() {
                     if let Some(tree) = map.get(&crate::core::ui_file::ui_key(var)) {
                         crate::core::ui_file::check_call(tree, field, args, span)?;
+                        if field == "bind" {
+                            crate::core::ui_file::add_bind_spec(tree, args);
+                        }
                     }
                 }
             }

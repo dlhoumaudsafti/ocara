@@ -5,6 +5,7 @@
 //! messages à [`post`] ; les actions sont traitées sur un thread Ocara dédié,
 //! l'une après l'autre.
 
+mod bind;
 pub mod component;
 pub mod event;
 pub mod ffi;
@@ -15,6 +16,7 @@ use std::sync::{mpsc, Mutex, OnceLock};
 
 use serde_json::{Map, Value};
 
+pub use bind::{bind, unbind, SendSet};
 use event::Event;
 use ffi::{raise, string, to_json};
 
@@ -24,6 +26,7 @@ pub const ERR_ID: i64 = 102;
 pub const ERR_SCREEN: i64 = 103;
 pub const ERR_UNAVAILABLE: i64 = 104;
 pub const ERR_TREE: i64 = 105;
+pub const ERR_ROOT: i64 = 107;
 
 struct Ui {
     /// Arbre du compilateur (textes avec `${nom}`) et variables.
@@ -38,6 +41,10 @@ struct Ui {
     handlers: HashMap<String, Vec<i64>>,
     /// Classe de taille rapportée par le moteur (action `resize`).
     size_class: String,
+    /// Racines liées par `ui.bind` (voir bind.rs).
+    bindings: HashMap<String, bind::Binding>,
+    /// Dernière valeur de l'objet lue pour chaque nœud lié (`id`, propriété).
+    seen: HashMap<(String, String), Value>,
 }
 
 static UIS: Mutex<Option<HashMap<i64, Ui>>> = Mutex::new(None);
@@ -51,6 +58,7 @@ fn with<R>(this: i64, f: impl FnOnce(&mut Ui) -> R) -> Option<R> {
 pub type DefaultAction = fn(this: i64, action: &str);
 
 static DEFAULT_ACTION: OnceLock<DefaultAction> = OnceLock::new();
+static SEND_SET: OnceLock<SendSet> = OnceLock::new();
 
 fn collect_nodes(node: &Value, out: &mut HashMap<String, Map<String, Value>>) {
     let Some(object) = node.as_object() else { return };
@@ -90,9 +98,11 @@ fn warn_missing(raw: &Value, vars: &Map<String, Value>) {
 }
 
 /// `use UI(…)` : enregistre l'arbre (JSON produit par le compilateur) et
-/// ses variables ; rend l'arbre aux textes remplis.
-pub fn init(this: i64, tree_json: &str, vars: Value, default_action: DefaultAction) -> Value {
+/// ses variables ; rend l'arbre aux textes remplis. `send_set` remet au
+/// moteur une valeur venue d'un objet lié.
+pub fn init(this: i64, tree_json: &str, vars: Value, default_action: DefaultAction, send_set: SendSet) -> Value {
     let _ = DEFAULT_ACTION.set(default_action);
+    let _ = SEND_SET.set(send_set);
     let raw: Value = match serde_json::from_str(tree_json) {
         Ok(tree) => tree,
         Err(e) => raise(ERR_TREE, format!("arbre d'interface invalide : {e}")),
@@ -108,6 +118,8 @@ pub fn init(this: i64, tree_json: &str, vars: Value, default_action: DefaultActi
         state: HashMap::new(),
         handlers: HashMap::new(),
         size_class: String::new(),
+        bindings: HashMap::new(),
+        seen: HashMap::new(),
     };
     UIS.lock().unwrap().get_or_insert_with(HashMap::new).insert(this, ui);
     tree
@@ -288,7 +300,12 @@ pub fn post(this: i64, message: &Value) {
     }
     let id = message.get("id").and_then(Value::as_str);
     if let (Some(id), Some(prop)) = (id, message.get("prop").and_then(Value::as_str)) {
-        set_json(this, id, prop, message.get("value").cloned().unwrap_or(Value::Null));
+        let value = message.get("value").cloned().unwrap_or(Value::Null);
+        set_json(this, id, prop, value.clone());
+        // Nœud lié : la saisie est écrite dans l'objet, avant l'action suivante.
+        if bind::target(this, id, prop).is_some() {
+            enqueue(this, Job::Write { id: id.to_string(), prop: prop.to_string(), value });
+        }
         return;
     }
     let Some(action) = message.get("action").and_then(Value::as_str) else { return };
@@ -309,19 +326,57 @@ pub fn post(this: i64, message: &Value) {
         value: message.get("value").cloned().unwrap_or(Value::Null),
         index: message.get("index").and_then(Value::as_i64),
     };
+    enqueue(this, Job::Action(event));
+}
+
+/// `ui.refresh()` : relecture des objets liés, sur le thread des actions
+/// (jamais pendant qu'un gestionnaire les modifie).
+pub fn refresh(this: i64) {
+    enqueue(this, Job::Refresh);
+}
+
+/// Travail du thread des actions, traité l'un après l'autre.
+enum Job {
+    Action(Event),
+    /// Saisie sur un nœud lié, à écrire dans l'objet.
+    Write { id: String, prop: String, value: Value },
+    Refresh,
+}
+
+static QUEUE: OnceLock<Mutex<mpsc::Sender<(i64, Job)>>> = OnceLock::new();
+
+fn enqueue(this: i64, job: Job) {
     let queue = QUEUE.get_or_init(|| {
-        let (tx, rx) = mpsc::channel::<(i64, Event)>();
+        let (tx, rx) = mpsc::channel::<(i64, Job)>();
         std::thread::spawn(move || {
-            for (this, event) in rx {
-                dispatch(this, event);
+            for (this, job) in rx {
+                run(this, job);
             }
         });
         Mutex::new(tx)
     });
-    let _ = queue.lock().unwrap().send((this, event));
+    let _ = queue.lock().unwrap().send((this, job));
 }
 
-static QUEUE: OnceLock<Mutex<mpsc::Sender<(i64, Event)>>> = OnceLock::new();
+fn run(this: i64, job: Job) {
+    match job {
+        Job::Action(event) => {
+            dispatch(this, event);
+            if with(this, |ui| !ui.bindings.is_empty()).unwrap_or(false) {
+                in_ocara(|| bind::sync(this));
+            }
+        }
+        Job::Write { id, prop, value } => in_ocara(|| bind::write(this, &id, &prop, value)),
+        Job::Refresh => in_ocara(|| bind::sync(this)),
+    }
+}
+
+/// Code Ocara exécuté par le thread des actions.
+fn in_ocara(f: impl FnOnce()) {
+    unsafe { ffi::__rc_thread_enter() };
+    f();
+    unsafe { ffi::__rc_thread_leave() };
+}
 
 /// Appelle les gestionnaires de l'action (thread des actions).
 fn dispatch(this: i64, event: Event) {

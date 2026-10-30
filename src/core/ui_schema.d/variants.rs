@@ -80,6 +80,13 @@ pub fn check_interface(path: &Path) -> Result<UiSpec, Vec<Diagnostic>> {
         spec.actions.extend(variant.actions.iter().cloned());
         spec.vars.extend(variant.vars.iter().cloned());
         spec.files.extend(variant.files.iter().cloned());
+        // Liaisons : réunies dans les racines de l'arbre de base (`ui.bind`).
+        if let Some(more) = variant.tree.get("roots") {
+            let tree = spec.tree.as_object_mut().expect("arbre : objet");
+            if let Json::Object(roots) = tree.entry("roots").or_insert_with(|| Json::Object(Map::new())) {
+                super::roots::merge_roots(roots, more);
+            }
+        }
         // Composants et instances : réunis dans l'arbre racine (`ui.component`, `event.instance()`).
         for key in ["components", "instances"] {
             if let Some(Json::Object(more)) = variant.tree.get(key) {

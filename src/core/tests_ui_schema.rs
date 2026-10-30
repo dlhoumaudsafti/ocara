@@ -149,7 +149,7 @@ fn undeclared_style() {
 
 #[test]
 fn bind_outside_list_item() {
-    single_error(&screen("    - { type: text, bind: brand }\n"), 4, "gabarit 'item'");
+    single_error(&screen("    - { type: text, bind: brand }\n"), 4, "hors d'une liste, 'racine.champ' attendu");
 }
 
 #[test]

@@ -225,6 +225,10 @@ pub enum SemaError {
     /// `c then v empty|zero` dans un `generic` où le type de `v` dépend d'un
     /// paramètre de type : le littéral changerait selon l'instanciation (E73).
     CondDefaultOnTypeParam { keyword: String, span: Span },
+    /// `ui.bind(racine, objet)` : chemin du `.oc.ui` absent de la classe ou de
+    /// type incompatible, racine non littérale, objet qui n'est pas une
+    /// instance de classe — voir `crate::sema::ui_bind` (E74).
+    UiBind { path: String, message: String, span: Span },
 }
 
 impl SemaError {
@@ -277,6 +281,7 @@ impl SemaError {
             SemaError::MapDotOnTypeParam  { span, .. } => span,
             SemaError::CondDefaultType    { span, .. } => span,
             SemaError::CondDefaultOnTypeParam { span, .. } => span,
+            SemaError::UiBind             { span, .. } => span,
             SemaError::InterfaceNoWiring   { span, .. } => span,
             SemaError::ResolveOnNonResolvable { span, .. } => span,
             SemaError::AsyncReturnsResolvable { span, .. } => span,
@@ -405,6 +410,10 @@ impl SemaError {
             }
             SemaError::CondDefaultOnTypeParam { keyword, .. } =>
                 format!("'{}' depends on a type parameter here: the shared 'generic' body cannot hold a different value per instantiation — write 'else <value>'", keyword),
+            SemaError::UiBind { path, message, .. } => match path.is_empty() {
+                true => format!("ui.bind: {}", message),
+                false => format!("ui.bind: '{}': {}", path, message),
+            },
             SemaError::AccessOnNonContainer { type_name, field, .. } => match field {
                 Some(field) => format!("cannot read field '{}' — the value's type is '{}', which has no fields", field, type_name),
                 None => format!("cannot index a value of type '{}' — only arrays and maps can be indexed (use the String::* functions on a string)", type_name),

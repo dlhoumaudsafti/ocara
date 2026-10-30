@@ -322,6 +322,20 @@ pub extern "C" fn __rc_keep(owner: i64, field: i64, value: i64) {
     crate::__array_push(kept, value);
 }
 
+/// Retire de `__kept` (champ `field` de `owner`) une référence gardée par
+/// `__rc_keep` : objet lié par `ui.bind`, remplacé ou délié.
+#[unsafe(no_mangle)]
+pub extern "C" fn __rc_unkeep(owner: i64, field: i64, value: i64) {
+    let kept = unsafe { &*((owner + 8 * field) as *const AtomicI64) }.load(Ordering::Acquire);
+    if kept == 0 {
+        return;
+    }
+    let removed = unsafe { crate::containers::with_array(kept, |data| data.iter().position(|&v| v == value).map(|i| data.remove(i))) };
+    if let Some(value) = removed {
+        __rc_release(value);
+    }
+}
+
 /// Finalisations d'un objet, une seule fois avant sa libération : un champ
 /// marqué d'une lettre est un handle de ressource fermé avec l'objet (puis
 /// remis à zéro) ; `X`/`T`/`W` ferment l'objet builtin opaque lui-même

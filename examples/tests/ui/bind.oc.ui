@@ -1,0 +1,10 @@
+# Interface de 125_ui_bindTest.oc : nœuds liés à l'objet de la racine `user`.
+layout:
+  type: column
+  children:
+    - { type: input, id: name, bind: user.name }
+    - { type: text, bind: user.name }
+    - { type: text, id: age, binds: { value: user.age } }
+    - { type: checkbox, id: news, bind: user.newsletter }
+    - { type: text, id: city, bind: user.address.city }
+    - { type: slider, id: volume, min: 0, max: 10, binds: { value: user.volume } }

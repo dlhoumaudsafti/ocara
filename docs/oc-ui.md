@@ -234,7 +234,7 @@ sur Android.
 `item` est le gabarit d'un élément de la liste. Dans ce gabarit, `bind:
 champ` affiche le champ de chaque élément fourni par `ui.setItems`
 (`bind: user.name` pour un champ imbriqué). Hors d'un gabarit `item`, `bind`
-est une erreur.
+lie le nœud à un objet Ocara (voir [Liaisons à un objet](#liaisons-à-un-objet)).
 
 `binds` fait de même pour n'importe quelle propriété du nœud :
 
@@ -250,6 +250,42 @@ item:
 Un `onClick` d'un nœud placé dans un élément de liste porte l'élément
 (`value`) et son rang (`index`), comme `onSelect`, sans déclencher
 l'`onSelect` de la liste.
+
+### Liaisons à un objet
+
+Hors d'une liste, `bind: racine.champ` lie un nœud au champ d'un objet
+Ocara, dans les deux sens. La racine (`user`) est reliée à un objet par
+`ui.bind("user", user)` (voir [UI.md](builtins/UI.md#liaisons)) :
+
+```yaml
+- { type: heading, bind: user.name }
+- { type: input, bind: user.name }
+- { type: input, kind: number, bind: user.age }
+- { type: checkbox, label: "Lettre", bind: user.newsletter }
+- { type: slider, min: 0, max: 10, binds: { value: user.volume } }
+- { type: text, bind: user.address.city }
+```
+
+- **Code → interface** : un champ modifié par le code s'affiche après le
+  gestionnaire en cours, sans `ui.set`.
+- **Interface → code** : une saisie (`input`, `checkbox`/`switch`, `slider`,
+  `select`/`radio`, `date`) écrit le champ, avant l'action suivante : un
+  `onClick` qui suit une saisie voit l'objet à jour.
+- **Propriété liée** : `bind` (sur `text`, `heading`, `input`, `image`,
+  `checkbox`, `switch`) lie `value` (`checked` pour une case, `src` pour une
+  image) ; `binds: { prop: racine.champ }` lie n'importe quelle autre
+  propriété (`value` d'un `slider`/`select`/`date`, `visible`, `enabled`,
+  `color`…). Une action ne se lie pas.
+- **Chemins** : jusqu'à trois champs (`user.address.city`) ; un objet
+  intermédiaire `null` affiche `null` et ignore la saisie.
+- **Types** : un champ `string`, `int`, `float`, `bool` ou `mixed`
+  (éventuellement `|null`) ; un nombre ou un booléen s'affiche aussi dans un
+  texte. Une saisie est convertie au type du champ ; invalide (`12a` pour un
+  `int`), elle n'écrit rien et le texte saisi reste affiché.
+- **`id`** : un nœud lié sans `id` en reçoit un, `@` suivi du chemin
+  (`@user.name`, puis `@user.name#2`…), lisible par `ui.get`.
+
+Un `bind` hors d'une liste sans racine (`bind: name`) est une erreur.
 
 ### Surcharges de plateforme
 
@@ -541,7 +577,10 @@ une clé en double dans une table est une erreur.
 `sizes` (seuils des classes), `variants` (arbres des variantes de taille),
 `source` (build de debug : chemins pour le rechargement à chaud), plus `ids`
 (chaque `id` et le type de son nœud) et `actions` (liste triée), qui
-servent à vérifier les `ui.on` et les `get`/`set`.
+servent à vérifier les `ui.on` et les `get`/`set`, et `roots` : pour chaque
+racine liée, ses chemins (`paths`) et ses nœuds (`id`, propriété, rang du
+chemin, nature `text`/`number`/`bool` de la valeur), retirés des nœuds
+eux-mêmes.
 
 ## Moteurs de rendu
 
