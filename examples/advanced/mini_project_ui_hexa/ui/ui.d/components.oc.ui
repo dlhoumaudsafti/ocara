@@ -1,0 +1,43 @@
+# Composants du garage (docs/oc-ui.md, « Composants »), inclus par
+# garage.oc.ui et ses variantes (components.includes) : les blocs répétés
+# des écrans, déclarés une fois. L'`id` d'une instance préfixe les `id`
+# internes : `{ type: statCard, id: stat_count, … }` → valeur `stat_count.value`.
+
+styles:
+  stat_label: { fontSize: 12, color: "#757575" }
+  stat_value: { fontSize: 20, bold: true, color: "#1565c0" }
+
+components:
+  # Chiffre clé dans une carte (tableau de bord).
+  statCard:
+    params:
+      label: text
+      value: { type: text, default: "" }
+    layout:
+      type: card
+      children:
+        - { type: text, value: $label, style: stat_label }
+        - { type: text, id: value, value: $value, style: stat_value }
+
+  # Même chiffre sans carte (fiche d'une voiture).
+  stat:
+    params:
+      label: text
+    layout:
+      type: column
+      children:
+        - { type: text, value: $label, style: stat_label }
+        - { type: text, id: value, style: stat_value }
+
+  # Libellé et valeur d'un élément de liste (cartes des voitures) : `value`
+  # lit un champ de l'élément (`{ bind: purchase }`).
+  cardFact:
+    params:
+      label: text
+      value: text
+      tone: { type: style, required: false }
+    layout:
+      type: column
+      children:
+        - { type: text, value: $label, style: stat_label }
+        - { type: text, value: $value, style: $tone }

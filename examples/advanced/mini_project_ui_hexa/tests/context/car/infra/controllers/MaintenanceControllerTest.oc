@@ -25,7 +25,7 @@ class MaintenanceControllerTest extends UnitTest {
         self::assertEquals(180, saved["lifespan_days"])
         self::assertEquals(10500.0, FakeDatabase::estimatedPrice(id))
         self::assertEquals("", ui.get("m_description", "value"))
-        self::assertEquals("10500,00 €", ui.get("car_estimated", "value"))
+        self::assertEquals("10500,00 €", ui.get("car_estimated.value", "value"))
         FakeDatabase::cleanup()
         return 0
     }

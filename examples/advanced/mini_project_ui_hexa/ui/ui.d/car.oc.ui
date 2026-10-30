@@ -22,22 +22,10 @@ screens:
               columns: 2
               spacing: 10
               children:
-                - type: column
-                  children:
-                    - { type: text, value: "${stat_car_purchase}", style: stat_label }
-                    - { type: text, id: car_purchase, style: stat_value }
-                - type: column
-                  children:
-                    - { type: text, value: "${stat_car_estimated}", style: stat_label }
-                    - { type: text, id: car_estimated, style: stat_value }
-                - type: column
-                  children:
-                    - { type: text, value: "${stat_car_maintenance}", style: stat_label }
-                    - { type: text, id: car_maintenance_total, style: stat_value }
-                - type: column
-                  children:
-                    - { type: text, value: "${stat_car_improvement}", style: stat_label }
-                    - { type: text, id: car_improvement_total, style: stat_value }
+                - { type: stat, id: car_purchase, label: "${stat_car_purchase}" }
+                - { type: stat, id: car_estimated, label: "${stat_car_estimated}" }
+                - { type: stat, id: car_maintenance_total, label: "${stat_car_maintenance}" }
+                - { type: stat, id: car_improvement_total, label: "${stat_car_improvement}" }
             - { type: button, text: "${delete_car_button}", icon: delete, variant: secondary, onClick: delete_current_car, color: "#c62828" }
         - type: card
           spacing: 8

@@ -22,10 +22,10 @@ class CarViewTest extends UnitTest {
         self::assertEquals("7", state["car_id"]["value"])
         self::assertEquals("REF-VIEW", state["car_reference"]["value"])
         self::assertEquals("Peugeot 308", state["car_model_line"]["value"])
-        self::assertEquals("12000,50 €", state["car_purchase"]["value"])
-        self::assertEquals("12500,50 €", state["car_estimated"]["value"])
-        self::assertEquals("80,00 €", state["car_maintenance_total"]["value"])
-        self::assertEquals("500,00 €", state["car_improvement_total"]["value"])
+        self::assertEquals("12000,50 €", state["car_purchase.value"]["value"])
+        self::assertEquals("12500,50 €", state["car_estimated.value"]["value"])
+        self::assertEquals("80,00 €", state["car_maintenance_total.value"]["value"])
+        self::assertEquals("500,00 €", state["car_improvement_total.value"]["value"])
         self::assertEquals(
             "${label_acquisition} : 2024-01-01 · ${label_sale} : ${not_set}",
             state["car_dates"]["value"]

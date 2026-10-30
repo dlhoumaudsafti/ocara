@@ -9,10 +9,10 @@ class ScreenTest extends UnitTest {
     public method applyTest(): int {
         const ui:UI = use UI("../../../../../ui/garage.oc.ui", Language::vars("fr"))
         Screen::apply(ui, {
-            "stat_count": {"value": "4"},
+            "stat_count.value": {"value": "4"},
             "cars_empty": {"visible": true, "value": "${cars_empty}"},
         })
-        self::assertEquals("4", ui.get("stat_count", "value"))
+        self::assertEquals("4", ui.get("stat_count.value", "value"))
         self::assertEquals(true, ui.get("cars_empty", "visible"))
         self::assertEquals(
             "Aucune voiture pour le moment — ajoutez la première ci-dessus.",

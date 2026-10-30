@@ -23,6 +23,7 @@ qui est commun.
 | Dossier | Rôle |
 |---------|------|
 | `ui/garage.oc.ui` | interface par défaut (téléphone, fenêtre étroite) ; écrans inclus depuis `ui/ui.d/` |
+| `ui/ui.d/components.oc.ui` | composants partagés (`statCard`, `stat`, `cardFact`) et leurs styles, inclus par chaque variante (`components.includes`) ; l'`id` d'une instance préfixe ses `id` internes (`stat_count.value`) |
 | `ui/garage.md.oc.ui` | variante à deux colonnes à partir de 840 px (`ui/ui.d/md/`) |
 | `languages/{fr,en}/ui.yaml` | textes, passés en variables `${nom}` à `use UI` |
 | `configs/App.oc` | crée l'interface et lie les actions (`configs/actions/`) |

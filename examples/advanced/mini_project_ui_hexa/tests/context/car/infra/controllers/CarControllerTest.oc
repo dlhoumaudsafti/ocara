@@ -53,8 +53,8 @@ class CarControllerTest extends UnitTest {
         self::assertTrue(CarController::display(ui, id))
         self::assertEquals(id.toStr(), ui.get("car_id", "value"))
         self::assertEquals("Renault Clio", ui.get("car_model_line", "value"))
-        self::assertEquals("10000,00 €", ui.get("car_purchase", "value"))
-        self::assertEquals("500,00 €", ui.get("car_improvement_total", "value"))
+        self::assertEquals("10000,00 €", ui.get("car_purchase.value", "value"))
+        self::assertEquals("500,00 €", ui.get("car_improvement_total.value", "value"))
         // Variables de texte remplies dans la langue de l'interface (aucune ici).
         var rows:array<map<string, mixed>> = ui.get("maintenances", "items")
         self::assertEquals("Peinture", rows[0]["description"])

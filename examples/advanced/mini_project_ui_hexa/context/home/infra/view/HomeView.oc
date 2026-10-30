@@ -24,10 +24,10 @@ class HomeView implements HomeViewPort {
         }
         const profit:float = dashboard.total_estimated_value - dashboard.total_purchase_value
         return {
-            "stat_count": {"value": cars.len().toStr()},
-            "stat_purchase": {"value": Format::price(dashboard.total_purchase_value)},
-            "stat_estimated": {"value": Format::price(dashboard.total_estimated_value)},
-            "stat_profit": {"value": Format::price(profit)},
+            "stat_count.value": {"value": cars.len().toStr()},
+            "stat_purchase.value": {"value": Format::price(dashboard.total_purchase_value)},
+            "stat_estimated.value": {"value": Format::price(dashboard.total_estimated_value)},
+            "stat_profit.value": {"value": Format::price(profit)},
             "cars": {"items": cars},
             "cars_empty": {"visible": cars.len() equal 0},
         }

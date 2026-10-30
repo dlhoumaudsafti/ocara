@@ -26,6 +26,11 @@ styles:
   highlight: { bold: true, color: "#2e7d32" }
   error: { bold: true, color: "#c62828" }
 
+# Composants partagés par les écrans (statCard, stat, cardFact).
+components:
+  includes:
+    - ui.d/components.oc.ui
+
 start: home
 screens:
   includes:
