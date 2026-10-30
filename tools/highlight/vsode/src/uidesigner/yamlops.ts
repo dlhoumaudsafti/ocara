@@ -80,7 +80,8 @@ function apply(doc: Document, op: Op): void {
             if (isNode(current) && current instanceof Scalar && (op.value === null || typeof op.value !== 'object')) {
                 current.value = op.value; // garde le style de guillemets et le commentaire
             } else {
-                doc.setIn(op.path, createNode(doc, op.value, isMap(holder) && !!holder.flow, op.path[op.path.length - 1]));
+                // Types des paramètres d'un composant (`label: text`) : des noms, pas des textes.
+                doc.setIn(op.path, createNode(doc, op.value, isMap(holder) && !!holder.flow, op.path.includes('params') ? undefined : op.path[op.path.length - 1]));
             }
             return;
         }

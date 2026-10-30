@@ -4,6 +4,7 @@
 
 import { S, getIn, edit, isContainer, cloneFresh, insertNode, moveNode, removeNode, placeNode, layoutPath, refresh, vscode } from './model.js';
 import { LABEL } from './palette.js';
+import { convertToComponent } from './components.js';
 
 const inList = path => !!path && typeof path[path.length - 1] === 'number';
 
@@ -74,6 +75,7 @@ export function contextMenu(ev, path) {
         ['Sélectionner le parent', 'Échap', selectParent, path.length > 1],
         null,
         ...['column', 'row', 'card'].map(t => [`Envelopper dans : ${LABEL[t]}`, '', () => wrapIn(path, t), true]),
+        ['Convertir en composant…', '', () => convertToComponent(path), true],
         null,
         ['Voir dans le source', '', () => vscode.postMessage({ type: 'reveal', path }), true],
         ['Supprimer', 'Suppr', () => removeNode(path), true],

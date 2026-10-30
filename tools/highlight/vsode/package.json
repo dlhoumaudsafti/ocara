@@ -21,7 +21,8 @@
     "onView:ocara.coverage",
     "onView:ocara.linter",
     "onView:ocara.architecture",
-    "onCustomEditor:ocara.uiDesigner"
+    "onCustomEditor:ocara.uiDesigner",
+    "workspaceContains:**/*.oc.ui"
   ],
   "main": "./out/extension.js",
   "contributes": {

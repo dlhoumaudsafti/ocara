@@ -101,6 +101,7 @@ screens:
 | Clé | Contenu |
 |-----|---------|
 | `window` | fenêtre principale (ci-dessous) |
+| `components` | composants déclarés : `nom: { params, layout }`, `includes` (voir « Composants ») |
 | `styles` | styles nommés : `nom: { propriétés de présentation }` (aussi dans les fichiers inclus, voir « Écrans inclus ») ; `dark:` et `light:` y surchargent des styles pour un thème (voir « Styles par thème ») |
 | `screens` | écrans nommés : `nom: { title, layout, onShow }` (`onShow` : action lancée à chaque affichage de l'écran, valeur : son nom) |
 | `start` | écran affiché au lancement ; facultatif s'il n'y a qu'un écran |
@@ -218,8 +219,11 @@ sur Android.
 - **Longueurs** : nombres en pixels logiques (px CSS sur desktop, dp sur
   Android). `padding`/`margin` : un nombre, ou 2 (vertical, horizontal) ou 4
   (haut, droite, bas, gauche).
-- **Couleurs** : `"#rrggbb"` ou `"#rrggbbaa"`, **entre guillemets** : en
-  YAML, `#` précédé d'une espace commence un commentaire.
+- **Couleurs** : `"#rrggbb"`, `"#rrggbbaa"`, `"#rgb"`, `"#rgba"`,
+  `"rgb(21, 101, 192)"` ou `"rgba(21, 101, 192, 0.5)"` (composantes 0 à
+  255, alpha 0 à 1), **entre guillemets** : en YAML, `#` précédé d'une
+  espace commence un commentaire. Le compilateur les ramène à `#rrggbb` ou
+  `#rrggbbaa`.
 - **Textes** : un nombre ou un booléen donné à une propriété texte est
   converti en texte (`value: 42` → `"42"`).
 - **Choix** (`options`) : `[a, b]` ou `[{ value: a, text: "Libellé" }]`,
@@ -321,7 +325,7 @@ normalisé, elles sont sous `themeStyles` (`{ "dark": {…}, "light": {…} }`).
 
 `screens:` peut lister d'autres fichiers sous la clé `includes` (chemins
 relatifs au fichier qui les inclut) ; chacun contient `screens:` et, s'il
-le faut, les `styles:` de ses écrans, et peut lui-même en inclure d'autres :
+le faut, les `styles:` et les `components:` de ses écrans, et peut lui-même en inclure d'autres :
 
 ```yaml
 # garage.oc.ui
@@ -356,6 +360,70 @@ tous les écrans, quel que soit l'ordre des inclusions, et un style déclaré
 deux fois, même dans deux fichiers, est une erreur. Une erreur est située
 dans le fichier inclus ; un écran déclaré deux fois, ou un fichier inclus
 deux fois (inclusion circulaire comprise), est une erreur.
+
+## Composants
+
+`components:` déclare des composants réutilisables : un `layout` (un nœud,
+avec ses enfants) et des **paramètres**. Un nœud dont le `type` nomme un
+composant est remplacé, à la compilation, par ce `layout` ; les moteurs de
+rendu (desktop, Android) n'ont rien de plus à connaître, et tout est vérifié
+comme le reste du fichier.
+
+```yaml
+components:
+  carCard:
+    params:
+      title: text                                  # obligatoire
+      price: { type: text, default: "—" }          # valeur par défaut
+      photo: { type: text, required: false }       # facultatif
+      onOpen: action
+    layout:
+      type: card
+      onClick: $onOpen
+      children:
+        - { type: image, src: $photo, label: "Photo", height: 120 }
+        - { type: text, id: title, value: $title, style: card_ref }
+        - { type: text, value: "Prix : $price" }
+  includes:
+    - ui.d/components.oc.ui
+
+screens:
+  home:
+    layout:
+      type: column
+      children:
+        - { type: carCard, id: best, title: "Clio", price: "9 000 €", onOpen: open_best, width: fill }
+        - type: list
+          id: cars
+          item: { type: carCard, title: { bind: model }, price: { bind: price }, onOpen: open_car }
+```
+
+- **Paramètres** : `nom: type`, ou `nom: { type, required, default }`.
+  Types : `text`, `number`, `bool`, `color`, `icon`, `action`, `style`,
+  `length`. La valeur de l'instance est contrôlée selon ce type ; un
+  paramètre obligatoire absent est une erreur.
+- **`$nom`** dans le `layout` : seul, il prend toute la valeur de l'instance
+  (nombre, booléen, action…) ; dans un texte (`"Prix : $price"`), son texte.
+  Un paramètre facultatif absent **retire la propriété** qui le cite
+  (l'image ci-dessus n'a pas de `src` sans photo). `$nom` qui n'est pas un
+  paramètre est une erreur de la déclaration.
+- **`id`** : celui de l'instance va sur la racine du composant et préfixe
+  ses `id` internes (`best.title`, accessible par `ui.get`/`ui.set`) ; un
+  composant qui a des `id` internes se pose donc plusieurs fois avec des
+  `id` différents.
+- **Autres propriétés de l'instance** (`width`, `margin`, `visible`,
+  `style`…) : appliquées à la racine du composant.
+- **Listes** : dans un gabarit `item`, un paramètre peut lire un champ de
+  l'élément (`title: { bind: model }`) ; il devient un `binds` du nœud qui
+  le cite.
+- **Fichiers** : `components.includes` liste des fichiers de composants ;
+  un fichier inclus (par `screens.includes` ou `components.includes`) peut
+  déclarer `screens:`, `styles:` et `components:`. Les composants forment un
+  seul espace de noms, utilisable dans tous les écrans ; un nom déjà pris
+  (type prédéfini, autre composant) est une erreur, comme un composant
+  utilisé dans lui-même.
+- Une erreur dans le `layout` d'un composant est située dans son fichier, à
+  la ligne de la déclaration.
 
 ## Variables
 
@@ -445,8 +513,13 @@ l'extension (comme l'aperçu Markdown) : aperçu de l'écran avec l'apparence
 du moteur desktop, composants glissés depuis une palette, structure des
 nœuds, panneau de toutes les propriétés, styles, menu et fenêtre. Il
 modifie le même document que l'éditeur texte (annulable, seules les lignes
-touchées changent) et affiche les erreurs du compilateur sur les nœuds
-(`tools/highlight/vsode/README.md`).
+touchées changent) et affiche les erreurs du compilateur sur les nœuds.
+On y déclare et modifie aussi les composants, on pose leurs instances et on
+gère les fichiers inclus (`tools/highlight/vsode/README.md`).
+
+Dans l'éditeur texte, les couleurs ont leur pastille et leur sélecteur ;
+Ctrl+clic sur un chemin d'`includes` ouvre le fichier, sur la valeur de
+`start`, d'un `style` ou d'un `type` de composant mène à sa déclaration.
 
 ## Limites du YAML accepté
 

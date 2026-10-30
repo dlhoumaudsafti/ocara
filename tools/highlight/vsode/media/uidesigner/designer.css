@@ -188,3 +188,14 @@ textarea.d-input { width: 100%; min-height: 54px; resize: vertical; font-family:
 .d-modal-box { min-width: 320px; padding: 12px 14px; border-radius: 6px; background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-editorWidget-border, #8884); box-shadow: 0 6px 24px rgba(0,0,0,.4); display: flex; flex-direction: column; gap: 10px; }
 .d-modal-box p { margin: 0; }
 .d-right-align { justify-content: flex-end; }
+
+/* composants */
+.d-instance { outline: 1px dashed color-mix(in srgb, #8e44ad 60%, transparent); outline-offset: 1px; }
+.d-palette-new { opacity: .8; font-style: italic; }
+.d-param { padding: 6px 12px; border-bottom: 1px dashed var(--vscode-panel-border, #8884); display: flex; flex-direction: column; gap: 4px; }
+.d-param strong { font-family: var(--vscode-editor-font-family); min-width: 70px; }
+.d-param .d-field { padding: 0; }
+.d-tree-head { margin-top: 10px; opacity: .85; }
+.d-tree-del { margin-left: auto; padding: 0 5px; visibility: hidden; }
+.d-tree-row:hover .d-tree-del { visibility: visible; }
+.d-tree-tools { padding: 4px 6px 8px 20px; }

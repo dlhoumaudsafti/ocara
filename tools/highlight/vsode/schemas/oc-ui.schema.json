@@ -77,7 +77,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -90,11 +90,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -223,7 +223,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -236,7 +236,7 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "children": {
@@ -246,7 +246,7 @@
                 "type": "array"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -358,7 +358,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -371,11 +371,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -573,7 +573,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -586,11 +586,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -719,7 +719,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -732,7 +732,7 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "children": {
@@ -742,7 +742,7 @@
                 "type": "array"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -854,7 +854,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -867,11 +867,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -1069,7 +1069,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -1082,11 +1082,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -1215,7 +1215,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -1228,7 +1228,7 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "children": {
@@ -1238,7 +1238,7 @@
                 "type": "array"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -1350,7 +1350,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -1363,11 +1363,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -1565,7 +1565,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -1578,11 +1578,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "columns": {
@@ -1716,7 +1716,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -1729,7 +1729,7 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "children": {
@@ -1739,7 +1739,7 @@
                 "type": "array"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "columns": {
@@ -1856,7 +1856,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -1869,11 +1869,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "columns": {
@@ -2076,7 +2076,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -2089,11 +2089,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -2223,7 +2223,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -2236,7 +2236,7 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "children": {
@@ -2246,7 +2246,7 @@
                 "type": "array"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -2359,7 +2359,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -2372,11 +2372,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -2575,7 +2575,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -2588,11 +2588,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -2713,7 +2713,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -2726,11 +2726,11 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -2834,7 +2834,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -2847,11 +2847,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -3041,7 +3041,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -3054,11 +3054,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -3179,7 +3179,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -3192,11 +3192,11 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -3300,7 +3300,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -3313,11 +3313,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -3507,7 +3507,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "bind": {
@@ -3523,11 +3523,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -3655,7 +3655,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "bind": {
@@ -3671,11 +3671,11 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -3779,7 +3779,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "bind": {
@@ -3795,11 +3795,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -4003,7 +4003,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "bind": {
@@ -4019,11 +4019,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -4156,7 +4156,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "bind": {
@@ -4172,11 +4172,11 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -4285,7 +4285,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "bind": {
@@ -4301,11 +4301,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -4514,7 +4514,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "bind": {
@@ -4530,11 +4530,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -4670,7 +4670,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "bind": {
@@ -4686,11 +4686,11 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -4809,7 +4809,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "bind": {
@@ -4825,11 +4825,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -5036,7 +5036,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -5049,11 +5049,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -5195,7 +5195,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -5208,11 +5208,11 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -5337,7 +5337,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -5350,11 +5350,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -5567,7 +5567,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -5580,11 +5580,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -5710,7 +5710,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -5723,11 +5723,11 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -5831,7 +5831,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -5844,11 +5844,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -6048,7 +6048,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -6061,11 +6061,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -6224,7 +6224,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -6237,11 +6237,11 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -6386,7 +6386,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -6399,11 +6399,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -6645,7 +6645,7 @@
                     "type": "array"
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -6658,11 +6658,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -6841,7 +6841,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -6854,11 +6854,11 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -7000,7 +7000,7 @@
                     "type": "array"
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -7013,11 +7013,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -7293,7 +7293,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "bind": {
@@ -7309,11 +7309,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -7476,7 +7476,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "bind": {
@@ -7492,11 +7492,11 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -7635,7 +7635,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "bind": {
@@ -7651,11 +7651,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -7894,7 +7894,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "bind": {
@@ -7910,14 +7910,14 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "checked": {
                     "type": "boolean"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -8042,7 +8042,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "bind": {
@@ -8058,14 +8058,14 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "checked": {
                 "type": "boolean"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -8173,7 +8173,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "bind": {
@@ -8189,14 +8189,14 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "checked": {
                     "type": "boolean"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -8390,7 +8390,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "bind": {
@@ -8406,14 +8406,14 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "checked": {
                     "type": "boolean"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -8538,7 +8538,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "bind": {
@@ -8554,14 +8554,14 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "checked": {
                 "type": "boolean"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -8669,7 +8669,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "bind": {
@@ -8685,14 +8685,14 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "checked": {
                     "type": "boolean"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -8886,7 +8886,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -8899,11 +8899,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -9060,7 +9060,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -9073,11 +9073,11 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -9210,7 +9210,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -9223,11 +9223,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -9462,7 +9462,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -9475,11 +9475,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -9636,7 +9636,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -9649,11 +9649,11 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -9786,7 +9786,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -9799,11 +9799,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -10038,7 +10038,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -10051,11 +10051,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -10193,7 +10193,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -10206,11 +10206,11 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -10328,7 +10328,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -10341,11 +10341,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -10555,7 +10555,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -10568,11 +10568,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -10711,7 +10711,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -10724,11 +10724,11 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -10843,7 +10843,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -10856,11 +10856,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -11075,7 +11075,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -11088,11 +11088,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -11231,7 +11231,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -11244,11 +11244,11 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -11363,7 +11363,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -11376,11 +11376,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -11595,7 +11595,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -11608,11 +11608,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -11772,7 +11772,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -11785,11 +11785,11 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -11918,7 +11918,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -11931,11 +11931,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -12178,7 +12178,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -12191,11 +12191,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -12341,7 +12341,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -12354,11 +12354,11 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -12487,7 +12487,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -12500,11 +12500,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -12722,7 +12722,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -12735,11 +12735,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -12892,7 +12892,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -12905,11 +12905,11 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -13038,7 +13038,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -13051,11 +13051,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -13287,7 +13287,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -13300,11 +13300,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -13437,7 +13437,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -13450,7 +13450,7 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "children": {
@@ -13460,7 +13460,7 @@
                 "type": "array"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -13576,7 +13576,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -13589,11 +13589,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -13797,7 +13797,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -13810,11 +13810,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -13947,7 +13947,7 @@
                 "type": "object"
               },
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "binds": {
@@ -13960,7 +13960,7 @@
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "children": {
@@ -13970,7 +13970,7 @@
                 "type": "array"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "contextMenu": {
@@ -14086,7 +14086,7 @@
                     ]
                   },
                   "background": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "binds": {
@@ -14099,11 +14099,11 @@
                     "type": "boolean"
                   },
                   "border": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "color": {
-                    "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
                   "contextMenu": {
@@ -14276,34 +14276,42 @@
       ],
       "properties": {
         "type": {
-          "enum": [
-            "column",
-            "row",
-            "stack",
-            "grid",
-            "card",
-            "divider",
-            "spacer",
-            "text",
-            "heading",
-            "image",
-            "icon",
-            "progress",
-            "list",
-            "webview",
-            "input",
-            "checkbox",
-            "switch",
-            "radio",
-            "select",
-            "slider",
-            "date",
-            "time",
-            "button",
-            "iconButton",
-            "android.fab",
-            "android.bottomSheet",
-            "android.drawer"
+          "anyOf": [
+            {
+              "enum": [
+                "column",
+                "row",
+                "stack",
+                "grid",
+                "card",
+                "divider",
+                "spacer",
+                "text",
+                "heading",
+                "image",
+                "icon",
+                "progress",
+                "list",
+                "webview",
+                "input",
+                "checkbox",
+                "switch",
+                "radio",
+                "select",
+                "slider",
+                "date",
+                "time",
+                "button",
+                "iconButton",
+                "android.fab",
+                "android.bottomSheet",
+                "android.drawer"
+              ]
+            },
+            {
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+              "type": "string"
+            }
           ]
         }
       },
@@ -14315,6 +14323,74 @@
   },
   "description": "Généré par `ocara --ui-schema` depuis src/core/ui_schema.d (docs/oc-ui.md).",
   "properties": {
+    "components": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "layout": {
+            "$ref": "#/definitions/node"
+          },
+          "params": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "text",
+                    "number",
+                    "bool",
+                    "color",
+                    "icon",
+                    "action",
+                    "style",
+                    "length"
+                  ]
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "default": {},
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "enum": [
+                        "text",
+                        "number",
+                        "bool",
+                        "color",
+                        "icon",
+                        "action",
+                        "style",
+                        "length"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "layout"
+        ],
+        "type": "object"
+      },
+      "properties": {
+        "includes": {
+          "items": {
+            "pattern": "\\.oc\\.ui$",
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "layout": {
       "$ref": "#/definitions/node"
     },
@@ -14364,18 +14440,18 @@
         "additionalProperties": false,
         "properties": {
           "background": {
-            "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
             "type": "string"
           },
           "bold": {
             "type": "boolean"
           },
           "border": {
-            "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
             "type": "string"
           },
           "color": {
-            "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
             "type": "string"
           },
           "elevation": {
@@ -14439,18 +14515,18 @@
             "additionalProperties": false,
             "properties": {
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "bold": {
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "elevation": {
@@ -14515,18 +14591,18 @@
             "additionalProperties": false,
             "properties": {
               "background": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "bold": {
                 "type": "boolean"
               },
               "border": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "color": {
-                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
               "elevation": {
@@ -14633,7 +14709,7 @@
           "type": "integer"
         },
         "primary": {
-          "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+          "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
           "type": "string"
         },
         "resizable": {

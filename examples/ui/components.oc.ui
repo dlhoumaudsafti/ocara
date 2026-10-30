@@ -13,6 +13,14 @@ styles:
   dark:
     section: { color: "#80cbc4" }
 
+# Composant déclaré ici, développé à la compilation (docs/oc-ui.md, « Composants »).
+components:
+  chip:
+    params:
+      label: text
+      tone: { type: color, default: "rgb(224, 242, 241)" }
+    layout: { type: text, value: $label, background: $tone, padding: [4, 10], radius: 12 }
+
 start: form
 screens:
   form:
@@ -109,4 +117,9 @@ screens:
           direction: ltr-snake
           spacing: 4
           item: { type: text, bind: name }
+        - type: row
+          spacing: 6
+          children:
+            - { type: chip, id: chip_new, label: "Neuf" }
+            - { type: chip, id: chip_sold, label: "Vendu", tone: "#ffcdd2" }
         - { type: button, text: "Retour", icon: back, variant: text, onClick: back }

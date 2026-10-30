@@ -50,7 +50,7 @@ function kindOf(name: string, s: Schema): PropSpec {
         case 'webHandlers': return spec('actionMap');
     }
     if (s.enum) { return spec(name === 'icon' || name === 'name' ? 'icon' : 'enum', { values: s.enum }); }
-    if (typeof s.pattern === 'string' && s.pattern.startsWith('^#')) { return spec('color'); }
+    if (typeof s.pattern === 'string' && s.pattern.includes('#') && s.pattern.includes('rgba')) { return spec('color'); }
     if (s.anyOf?.some((a: Schema) => a.enum)) { return spec('length'); }
     if (s.anyOf?.some((a: Schema) => a.type === 'array')) { return spec('spacing'); }
     if (/^on[A-Z]/.test(name) || name === 'action') { return spec('action'); }
@@ -68,7 +68,9 @@ function props(properties: Schema | undefined, skip: string[] = []): PropSpec[] 
 export function loadCatalog(schemaPath: string): Catalog {
     const schema: Schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
     const node = schema.definitions.node;
-    const order: string[] = node.properties.type.enum;
+    // Types prédéfinis (`anyOf` : un nom de composant est aussi accepté).
+    const typeSchema = node.properties.type;
+    const order: string[] = typeSchema.enum ?? typeSchema.anyOf.find((a: Schema) => a.enum).enum;
     const rules = new Map<string, Schema>();
     for (const rule of node.allOf as Schema[]) {
         const type = rule.if?.properties?.type?.const;

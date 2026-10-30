@@ -189,7 +189,10 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
 
 - **Fichiers `.oc.ui`** (interfaces d'`ocara.UI`, docs/oc-ui.md) : complétion et validation à la
   frappe par le schéma `schemas/oc-ui.schema.json` (`ocara --ui-schema`, avec l'extension YAML de
-  Red Hat), et un **designer** : le bouton en haut à droite de l'éditeur bascule entre le source et
+  Red Hat) ; pastille et sélecteur des couleurs (`#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()`) ;
+  Ctrl+clic sur un chemin d'`includes` (ou le `src` local d'une image) pour l'ouvrir, sur la valeur
+  de `start` (écran), de `style` (style) ou de `type` (composant) pour aller à sa déclaration, même
+  dans un autre fichier de l'interface ; et un **designer** : le bouton en haut à droite de l'éditeur bascule entre le source et
   le designer (Alt+clic : designer à côté), comme l'aperçu Markdown. Le designer agit sur le même
   document (annulation Ctrl+Z, enregistrement Ctrl+S, commentaires et mise en forme du YAML gardés,
   seules les lignes modifiées changent) :
@@ -213,6 +216,13 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     **Fenêtre** (`window`, `start`), **Styles** (création, renommage avec mise à jour des nœuds,
     suppression, surcharges des thèmes sombre et clair) et **Menu** (entrées, sous-menus,
     séparateurs) ;
+  - **composants** (`components:`, docs/oc-ui.md) : « Mes composants » dans la palette (glisser une
+    instance, double-clic pour modifier le composant), « Nouveau composant », clic droit →
+    « Convertir en composant… » sur un nœud ; un composant se modifie comme un écran (◆ dans le choix
+    d'écran et la structure) avec ses paramètres (type, obligatoire, valeur par défaut) ; une instance
+    montre ses paramètres (et `bind` dans un gabarit de liste) ;
+  - **fichiers inclus** : liste dans la structure (ouvrir, retirer), inclure un fichier d'écrans ou de
+    composants existant, créer un fichier d'écrans ;
   - **écrans** : ajout, renommage, écran de démarrage ; écrans inclus (`screens.includes`) et
     **variantes de taille** (`x.md.oc.ui`) ouverts en un clic, variante manquante créée par copie ;
   - **vérification** par le compilateur (`ocara x.oc.ui`) à l'ouverture et à chaque

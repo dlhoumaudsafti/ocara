@@ -346,7 +346,7 @@ fn included_files_declare_their_styles() {
     let dir = files("inc_styles_key", &[("main.oc.ui", main), ("ui.d/a.oc.ui", a), ("ui.d/b.oc.ui", unknown)]);
     let errors = check_file(&dir.join("main.oc.ui")).unwrap_err();
     std::fs::remove_dir_all(&dir).ok();
-    assert!(errors.iter().any(|e| e.message.contains("seules 'screens' et 'styles'")), "{:?}", errors);
+    assert!(errors.iter().any(|e| e.message.contains("seules 'screens', 'styles' et 'components'")), "{:?}", errors);
 }
 
 #[test]
@@ -373,6 +373,86 @@ fn theme_style_overrides() {
     assert!(spec.tree["themeStyles"]["light"]["only_light"].is_object());
     let bad = "styles:\n  dark:\n    title: { colour: \"#ffffff\" }\n".to_string() + &screen("    - { type: text, value: a }\n");
     single_error(&bad, 3, "colour");
+}
+
+const CARD: &str = "components:\n  carCard:\n    params:\n      title: text\n      photo: { type: text, required: false }\n      tone: { type: color, default: \"#123\" }\n      onOpen: action\n    layout:\n      type: card\n      onClick: $onOpen\n      children:\n        - { type: image, id: photo, src: \"https://x/p.png\", tooltip: $photo, label: x }\n        - { type: text, id: title, value: \"Voiture : $title\", color: $tone }\n";
+
+#[test]
+fn components_are_expanded() {
+    let source = CARD.to_string() + "layout:\n  type: column\n  children:\n    - { type: carCard, id: a, title: Clio, photo: \"https://x/a.png\", onOpen: open_a, width: 200 }\n    - { type: carCard, id: b, title: Polo, onOpen: open_b, tone: \"rgb(255, 0, 0)\" }\n";
+    let spec = ok(&source);
+    let children = &spec.tree["screens"]["main"]["layout"]["children"];
+    let a = &children[0];
+    assert_eq!(a["type"], "card");
+    assert_eq!(a["id"], "a");
+    assert_eq!(a["width"], 200.0);
+    assert_eq!(a["onClick"], "open_a");
+    assert_eq!(a["children"][0]["id"], "a.photo");
+    assert_eq!(a["children"][1]["value"], "Voiture : Clio");
+    assert_eq!(a["children"][1]["color"], "#112233");
+    // `photo` absent : la clé qui le cite est retirée.
+    assert_eq!(a["children"][0]["tooltip"], "https://x/a.png");
+    let b = &children[1];
+    assert!(b["children"][0].get("tooltip").is_none(), "{}", b["children"][0]);
+    assert_eq!(b["children"][1]["id"], "b.title");
+    assert_eq!(b["children"][1]["color"], "#ff0000");
+    assert_eq!(spec.ids["b.title"], "text");
+    assert!(spec.actions.contains("open_b"));
+}
+
+#[test]
+fn component_errors() {
+    let screen = |c: &str| CARD.to_string() + "layout:\n  type: column\n  children:\n" + c;
+    let found = errors(&screen("    - { type: carCard, id: a, onOpen: go }\n"));
+    assert!(found.iter().any(|(_, m)| m.contains("paramètre 'title' obligatoire")), "{found:?}");
+    let found = errors(&screen("    - { type: carCard, id: a, title: x, onOpen: \"pas une action\" }\n"));
+    assert!(found.iter().any(|(_, m)| m.contains("paramètre 'onOpen' de 'carCard'")), "{found:?}");
+    // Deux instances sans `id` : les `id` internes se répètent.
+    let found = errors(&screen("    - { type: carCard, title: x, onOpen: go }\n    - { type: carCard, title: y, onOpen: go }\n"));
+    assert!(found.iter().any(|(_, m)| m.contains("id 'photo' déjà utilisé")), "{found:?}");
+    let found = errors(&screen("    - { type: carCrd, title: x, onOpen: go }\n"));
+    assert!(found.iter().any(|(_, m)| m.contains("vouliez-vous dire 'carCard'")), "{found:?}");
+    let bad = "components:\n  c:\n    params: { a: txt }\n    layout: { type: text, value: $b }\n".to_string() + &super_screen();
+    let found = errors(&bad);
+    assert!(found.iter().any(|(_, m)| m.contains("type 'txt' inconnu")), "{found:?}");
+    assert!(found.iter().any(|(_, m)| m.contains("'$b' n'est pas un paramètre")), "{found:?}");
+    let cycle = "components:\n  loop:\n    layout: { type: column, children: [{ type: loop }] }\n".to_string()
+        + "layout:\n  type: column\n  children:\n    - { type: loop }\n";
+    assert!(errors(&cycle).iter().any(|(_, m)| m.contains("utilisé dans lui-même")));
+}
+
+fn super_screen() -> String {
+    "layout:\n  type: column\n  children: []\n".to_string()
+}
+
+#[test]
+fn component_params_bound_in_list_items() {
+    let source = "components:\n  line:\n    params: { label: text }\n    layout: { type: text, value: $label }\n".to_string()
+        + "layout:\n  type: list\n  id: l\n  item: { type: line, label: { bind: name } }\n";
+    let spec = ok(&source);
+    let item = &spec.tree["screens"]["main"]["layout"]["item"];
+    assert_eq!(item["type"], "text");
+    assert_eq!(item["binds"]["value"], "name");
+    let outside = "components:\n  line:\n    params: { label: text }\n    layout: { type: text, value: $label }\n".to_string()
+        + "layout: { type: line, label: { bind: name } }\n";
+    assert!(errors(&outside).iter().any(|(_, m)| m.contains("'bind' n'est permis que dans le gabarit")));
+}
+
+#[test]
+fn components_from_included_files_locate_their_errors() {
+    use crate::core::ui_schema::check_file;
+    let main = "styles:\n  base: { bold: true }\ncomponents:\n  includes:\n    - ui.d/parts.oc.ui\nlayout:\n  type: column\n  children:\n    - { type: badge, text: \"Neuf\" }\n";
+    let parts = "styles:\n  badge_style: { color: \"#fff\" }\ncomponents:\n  badge:\n    params: { text: text }\n    layout: { type: text, value: $text, style: badge_style }\n";
+    let dir = files("comp_inc", &[("main.oc.ui", main), ("ui.d/parts.oc.ui", parts)]);
+    let spec = check_file(&dir.join("main.oc.ui")).expect("arbre attendu");
+    let badge = &spec.tree["screens"]["main"]["layout"]["children"][0];
+    assert_eq!(badge["value"], "Neuf");
+    assert_eq!(spec.tree["styles"]["badge_style"]["color"], "#ffffff");
+    let broken = "components:\n  badge:\n    params: { text: text }\n    layout: { type: text, value: $text, colour: red }\n";
+    let dir = files("comp_inc_err", &[("main.oc.ui", main), ("ui.d/parts.oc.ui", broken)]);
+    let errors = check_file(&dir.join("main.oc.ui")).unwrap_err();
+    std::fs::remove_dir_all(&dir).ok();
+    assert!(errors.iter().any(|e| e.file.ends_with("ui.d/parts.oc.ui") && e.line == 4 && e.message.contains("colour")), "{errors:?}");
 }
 
 #[test]

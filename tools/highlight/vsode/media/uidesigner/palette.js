@@ -5,6 +5,7 @@
 
 import { S, getIn, isContainer, layoutPath, template, insertNode, placeNode } from './model.js';
 import { startDrag, endDrag } from './dnd.js';
+import { allComponents, newComponent, openComponent } from './components.js';
 
 const GROUPS = [
     ['Conteneurs', ['column', 'row', 'stack', 'grid', 'card', 'list']],
@@ -53,10 +54,13 @@ export function renderPalette() {
     root.replaceChildren();
     const known = new Set(S.catalog.types.map(t => t.type));
     const grouped = new Set(GROUPS.flatMap(g => g[1]));
-    const groups = [...GROUPS, ['Autres', [...known].filter(t => !grouped.has(t))]];
+    const mine = Object.keys(allComponents()).sort();
+    mine.forEach(t => known.add(t));
+    const groups = [...GROUPS, ['Autres', [...known].filter(t => !grouped.has(t) && !mine.includes(t))], ['Mes composants', mine]];
     for (const [title, types] of groups) {
         const shown = types.filter(t => known.has(t) && (!filter || t.toLowerCase().includes(filter) || (LABEL[t] || '').toLowerCase().includes(filter)));
-        if (!shown.length) { continue; }
+        const own = title === 'Mes composants';
+        if (!shown.length && !own) { continue; }
         const h = document.createElement('h3');
         h.textContent = title;
         const grid = document.createElement('div');
@@ -67,12 +71,24 @@ export function renderPalette() {
             item.draggable = true;
             item.title = `${type} — glisser vers l'écran, ou cliquer pour ajouter`;
             item.innerHTML = '<span class="d-glyph"></span><span class="d-name"></span>';
-            item.querySelector('.d-glyph').textContent = GLYPH[type] || '□';
+            item.querySelector('.d-glyph').textContent = own ? '◆' : GLYPH[type] || '□';
+            if (own) {
+                item.title = `${type} — composant : glisser vers l'écran, cliquer pour ajouter, double-clic pour le modifier`;
+                item.addEventListener('dblclick', () => openComponent(type));
+            }
             item.querySelector('.d-name').textContent = LABEL[type] || type;
             item.addEventListener('dragstart', ev => startDrag(ev, { type }));
             item.addEventListener('dragend', endDrag);
             item.addEventListener('click', () => addNear(type));
             grid.appendChild(item);
+        }
+        if (own) {
+            const add = document.createElement('button');
+            add.className = 'd-palette-item d-palette-new';
+            add.innerHTML = '<span class="d-glyph">＋</span><span class="d-name">Nouveau composant</span>';
+            add.title = 'Déclarer un composant dans ce fichier (components:)';
+            add.addEventListener('click', newComponent);
+            grid.appendChild(add);
         }
         root.append(h, grid);
     }

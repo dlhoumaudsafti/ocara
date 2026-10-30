@@ -3,7 +3,8 @@
 // élément marqué du chemin de son nœud (`data-path`) pour la sélection et le
 // glisser-déposer. Les champs ne réagissent pas : un clic sélectionne.
 
-import { S, getIn, key, startsWith, styles, themeStyles, effectiveTheme, windowProps, layoutPath, screenPath, startScreen, rootLayout, isContainer, hasSlot, axisOf } from './model.js';
+import { S, typeSpec, editedComponent, getIn, key, startsWith, styles, themeStyles, effectiveTheme, windowProps, layoutPath, screenPath, startScreen, rootLayout, isContainer, hasSlot, axisOf } from './model.js';
+import { expand } from './components.js';
 
 const FLEX_ALIGN = { start: 'flex-start', center: 'center', end: 'flex-end', stretch: 'stretch' };
 const px = v => (typeof v === 'number' ? v + 'px' : v);
@@ -197,8 +198,25 @@ function android(node, p, path) {
 }
 
 /** Élément d'un nœud ; `path` nul : copie fantôme (éléments de liste). */
+/** Profondeur des instances en cours de rendu (composant utilisé dans lui-même). */
+let nesting = 0;
+
 function build(node, path, axis) {
     if (!node || typeof node !== 'object') { return el('div', 'd-invalid', 'nœud invalide'); }
+    // Instance d'un composant : son arbre développé, sélectionnable d'un bloc.
+    const expanded = !typeSpec(node.type) && expand(node, nesting);
+    if (expanded) {
+        nesting++;
+        const e = build(expanded, null, axis);
+        nesting--;
+        e.classList.add('d-instance');
+        e.dataset.component = node.type;
+        if (path) {
+            e.dataset.path = key(path);
+            if (S.problems.some(pb => pb.path && key(pb.path) === key(path))) { e.classList.add('d-error'); }
+        }
+        return e;
+    }
     const p = props(node);
     let e;
     switch (node.type) {
@@ -292,8 +310,9 @@ export function renderCanvas() {
     if (!S.model) { return; }
     const screen = getIn(S.model, screenPath()) || {};
     const bar = el('div', 'oc-bar');
-    if (!rootLayout() && S.screen !== startScreen()) { bar.appendChild(icon('back')); }
-    bar.appendChild(el('span', 'oc-bar-title', String((!rootLayout() && screen.title) || win.title || '')));
+    const component = editedComponent();
+    if (!component && !rootLayout() && S.screen !== startScreen()) { bar.appendChild(icon('back')); }
+    bar.appendChild(el('span', 'oc-bar-title', component ? `◆ ${component} — composant` : String((!rootLayout() && screen.title) || win.title || '')));
     bar.dataset.screen = '1';
     canvas.appendChild(bar);
     const body = el('div', 'oc-screen');

@@ -24,7 +24,7 @@ fn ty(t: Ty) -> Json {
             { "type": "number", "minimum": 0 },
             { "type": "array", "items": { "type": "number", "minimum": 0 }, "minItems": 2, "maxItems": 4 },
         ] }),
-        Ty::Color => json!({ "type": "string", "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" }),
+        Ty::Color => json!({ "type": "string", "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$" }),
         Ty::Enum(values) => json!({ "enum": values }),
         Ty::Id | Ty::Action => json!({ "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" }),
         Ty::StyleRef | Ty::Field => json!({ "type": "string" }),
@@ -74,13 +74,15 @@ fn node_case(name: &str) -> Json {
 }
 
 pub fn schema() -> Json {
+    let param_types: Vec<&str> = super::components::PARAM_TYPES.iter().map(|(n, _)| *n).collect();
     let mut window = object(schema::WINDOW_PROPS);
     window["properties"]["tauri"] = object(schema::WINDOW_TAURI);
     window["properties"]["android"] = object(schema::WINDOW_ANDROID);
     let node = json!({
         "type": "object",
         "required": ["type"],
-        "properties": { "type": { "enum": schema::NODE_TYPES } },
+        // Type prédéfini, ou nom d'un composant déclaré sous `components:`.
+        "properties": { "type": { "anyOf": [{ "enum": schema::NODE_TYPES }, { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" }] } },
         "allOf": schema::NODE_TYPES.iter().map(|t| node_case(t)).collect::<Vec<_>>(),
     });
     json!({
@@ -98,6 +100,32 @@ pub fn schema() -> Json {
                     "light": { "type": "object", "additionalProperties": object(schema::STYLE_PROPS) },
                 },
                 "additionalProperties": object(schema::STYLE_PROPS),
+            },
+            "components": {
+                "type": "object",
+                "properties": { "includes": { "type": "array", "items": { "type": "string", "pattern": "\\.oc\\.ui$" } } },
+                "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["layout"],
+                    "properties": {
+                        "params": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "anyOf": [
+                                    { "enum": param_types },
+                                    {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": ["type"],
+                                        "properties": { "type": { "enum": param_types }, "required": { "type": "boolean" }, "default": {} },
+                                    },
+                                ],
+                            },
+                        },
+                        "layout": { "$ref": "#/definitions/node" },
+                    },
+                },
             },
             "start": { "type": "string" },
             "screens": {

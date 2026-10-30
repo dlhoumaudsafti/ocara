@@ -2,6 +2,8 @@
 // (envoyées à l'extension, qui les applique au texte : src/uidesigner/yamlops.ts,
 // et appliquées ici aussitôt pour un affichage immédiat).
 
+import { allComponents, instanceTemplate } from './components.js';
+
 export const vscode = acquireVsCodeApi();
 
 export const S = {
@@ -13,6 +15,8 @@ export const S = {
     context: null,
     /** Styles déclarés dans les autres fichiers de l'interface (racine, fichiers inclus). */
     shared: {},
+    /** Composants des autres fichiers de l'interface : nom → { params, layout, __file }. */
+    sharedComponents: {},
 };
 
 const listeners = [];
@@ -83,8 +87,16 @@ export function screens() {
     if (m.screens && typeof m.screens === 'object') { return Object.keys(m.screens).filter(s => s !== 'includes'); }
     return m.layout ? ['main'] : [];
 }
-export function rootLayout() { return !!S.model && !S.model.screens && !!S.model.layout; }
-export function screenPath(name = S.screen) { return rootLayout() ? [] : ['screens', name]; }
+export function rootLayout() { return !!S.model && !S.model.screens && !!S.model.layout && !editedComponent(); }
+/** Composant en cours d'édition (`◆nom` dans le choix d'écran), ou `null`. */
+export function editedComponent(name = S.screen) {
+    return typeof name === 'string' && name.startsWith('◆') ? name.slice(1) : null;
+}
+export function screenPath(name = S.screen) {
+    const component = editedComponent(name);
+    if (component) { return ['components', component]; }
+    return rootLayout() ? [] : ['screens', name];
+}
 export function layoutPath(name = S.screen) { return [...screenPath(name), 'layout']; }
 export function startScreen() { return S.model?.start || screens()[0]; }
 
@@ -98,8 +110,11 @@ export function walk(fn) {
         (Array.isArray(node.children) ? node.children : []).forEach((c, i) => visit(c, [...path, 'children', i]));
         if (node.item) { visit(node.item, [...path, 'item']); }
     };
-    if (rootLayout()) { visit(S.model.layout, ['layout']); }
-    for (const s of screens()) { if (!rootLayout()) { visit(S.model.screens[s]?.layout, ['screens', s, 'layout']); } }
+    if (!S.model.screens) { visit(S.model.layout, ['layout']); }
+    for (const s of S.model.screens ? screens() : []) { visit(S.model.screens[s]?.layout, ['screens', s, 'layout']); }
+    for (const c of Object.keys(S.model?.components || {}).filter(n => n !== 'includes')) {
+        visit(S.model.components[c]?.layout, ['components', c, 'layout']);
+    }
 }
 
 export function ids() { const out = new Set(); walk(n => { if (n.id) { out.add(String(n.id)); } }); return out; }
@@ -133,6 +148,7 @@ export const inItem = path => path.includes('item');
 // ── composants neufs ───────────────────────────────────────────────────────
 
 export function template(type) {
+    if (!typeSpec(type) && allComponents()[type]) { return instanceTemplate(type); }
     const id = base => uniqueId(base);
     switch (type) {
         case 'column': case 'row': case 'stack': case 'card': return { type, spacing: 8, children: [] };

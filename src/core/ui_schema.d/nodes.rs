@@ -47,7 +47,12 @@ impl Checker {
         };
         let ty = text(type_node).unwrap_or_default();
         if schema::node_props(ty).is_none() {
-            return self.fail(type_node, format!("type de nœud '{ty}' inconnu{}", suggest(ty, schema::NODE_TYPES)));
+            if self.component_names().contains(&ty) {
+                return self.instance(node, ty);
+            }
+            let mut known: Vec<&str> = schema::NODE_TYPES.to_vec();
+            known.extend(self.component_names());
+            return self.fail(type_node, format!("type de nœud '{ty}' inconnu{}", suggest(ty, &known)));
         }
         let mut out = Map::new();
         out.insert("type".into(), Json::String(ty.to_string()));
@@ -142,7 +147,8 @@ impl Checker {
 
     /// `id` d'un nœud : identifiant, unique dans le fichier.
     fn id(&mut self, value: &Node, ty: &str) -> Option<Json> {
-        let id = text(value).filter(|s| is_ident(s));
+        // `a.b` : `id` interne d'un composant posé avec l'`id` `a`.
+        let id = text(value).filter(|s| s.split('.').all(is_ident));
         let Some(id) = id else {
             return self.fail(value, "'id' : identifiant attendu (lettres, chiffres, '_', sans chiffre en tête)".to_string());
         };

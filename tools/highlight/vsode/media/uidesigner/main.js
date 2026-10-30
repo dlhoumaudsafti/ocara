@@ -3,7 +3,8 @@
 // du document (`model`) ; la barre d'outils choisit l'écran, la largeur, la
 // plateforme et le thème de l'aperçu.
 
-import { S, vscode, onChange, refresh, getIn, key, screens, startScreen, setProp, rootLayout, screenPath, edit } from './model.js';
+import { S, editedComponent, vscode, onChange, refresh, getIn, key, screens, startScreen, setProp, rootLayout, screenPath, edit } from './model.js';
+import { ownComponents } from './components.js';
 import { renderCanvas, nodeAt } from './canvas.js';
 import { renderPalette } from './palette.js';
 import { renderTree, summary } from './tree.js';
@@ -26,6 +27,14 @@ function save() {
 function renderToolbar() {
     const select = $('screen');
     select.replaceChildren(...screens().map(s => new Option(s + (s === startScreen() ? '  ★' : ''), s)));
+    // Composants du fichier : modifiés comme un écran (leur `layout`).
+    const own = ownComponents();
+    if (own.length) {
+        const group = document.createElement('optgroup');
+        group.label = 'Composants';
+        own.forEach(c => group.appendChild(new Option('◆ ' + c, '◆' + c)));
+        select.appendChild(group);
+    }
     select.value = S.screen;
     $('screenAdd').hidden = rootLayout();
     $('sizes').querySelectorAll('button').forEach(b => b.classList.toggle('on', Number(b.dataset.width) === S.width));
@@ -198,10 +207,12 @@ window.addEventListener('message', ({ data }) => {
         S.appliedVariant = variant.file;
         if (!S.restored || S.restored !== variant.file) { S.width = (SIZES.find(s => s[0] === variant.size) || ['', 360])[1]; }
     }
-    Object.assign(S, { file: data.file, includes: data.includes, variants: data.variants, problems: data.problems, error: data.error, context: data.context || null, shared: data.shared || {} });
+    Object.assign(S, { file: data.file, includes: data.includes, variants: data.variants, problems: data.problems, error: data.error, context: data.context || null, shared: data.shared || {}, sharedComponents: data.components || {} });
     if (data.model) { S.model = data.model; }
     // Fichier sans écran : le premier composant déposé crée `screens.main`.
-    if (!screens().includes(S.screen)) { S.screen = S.model?.start && screens().includes(S.model.start) ? S.model.start : screens()[0] || 'main'; }
+    const component = editedComponent();
+    if (component && !ownComponents().includes(component)) { S.screen = ''; }
+    if (!editedComponent() && !screens().includes(S.screen)) { S.screen = S.model?.start && screens().includes(S.model.start) ? S.model.start : screens()[0] || 'main'; }
     if (S.selection && getIn(S.model, S.selection) === undefined) { S.selection = null; }
     document.title = S.file;
     refresh();
@@ -211,6 +222,7 @@ onChange(() => {
     if (!S.catalog) { return; }
     save();
     renderToolbar();
+    renderPalette();
     renderCanvas();
     renderTree();
     renderInspector();

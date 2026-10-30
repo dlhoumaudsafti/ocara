@@ -72,7 +72,7 @@ function color(value, set) {
     const picker = h('input', 'd-color');
     picker.type = 'color';
     picker.value = typeof value === 'string' && /^#[0-9a-fA-F]{6}/.test(value) ? value.slice(0, 7) : '#000000';
-    const text = textInput(value, set, { placeholder: '#rrggbb', pattern: /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/ });
+    const text = textInput(value, set, { placeholder: '#rrggbb, rgb(…)', pattern: /^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(,\s*[\d.]+\s*)?\))$/ });
     picker.addEventListener('change', () => set(picker.value + (typeof value === 'string' && value.length === 9 ? value.slice(7) : '')));
     wrap.append(picker, text, button('✕', 'Retirer', () => set(undefined)));
     return wrap;

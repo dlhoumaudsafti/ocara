@@ -298,4 +298,4 @@ pub const MENU_PROPS: &[(&str, Ty)] = &[
 pub const THEME_OVERRIDES: &[&str] = &["dark", "light"];
 
 /// Clés à la racine du fichier.
-pub const ROOT_KEYS: &[&str] = &["window", "styles", "start", "screens", "layout", "menu"];
+pub const ROOT_KEYS: &[&str] = &["window", "styles", "components", "start", "screens", "layout", "menu"];

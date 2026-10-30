@@ -30,7 +30,8 @@ type Message =
     | { type: 'source' }
     | { type: 'variant'; size: string }
     | { type: 'check' }
-    | { type: 'reveal'; path: (string | number)[] };
+    | { type: 'reveal'; path: (string | number)[] }
+    | { type: 'include'; section: 'screens' | 'components'; create: boolean };
 
 interface Problem { severity: string; message: string; line: number; file: string; path?: (string | number)[] }
 
@@ -81,6 +82,7 @@ export class UiDesigner implements vscode.CustomTextEditorProvider {
                 context: root && { root: path.relative(folder.fsPath, root.file), styles: allStyles(root.file, document.uri.fsPath), window: root.model?.window, menu: root.model?.menu },
                 // Styles des autres fichiers de l'interface (racine et inclus), utilisables ici.
                 shared: allStyles(root?.file ?? document.uri.fsPath, document.uri.fsPath),
+                components: allComponents(root?.file ?? document.uri.fsPath, document.uri.fsPath, folder.fsPath),
             });
         };
         const check = async () => {
@@ -125,6 +127,9 @@ export class UiDesigner implements vscode.CustomTextEditorProvider {
                 case 'reveal':
                     await this.reveal(document, msg.path);
                     break;
+                case 'include':
+                    await this.include(document, msg.section, msg.create);
+                    break;
             }
         });
     }
@@ -144,18 +149,46 @@ export class UiDesigner implements vscode.CustomTextEditorProvider {
     }
 
     /** Écrans des fichiers inclus (`screens.includes`), en lecture seule ici. */
-    private includes(document: vscode.TextDocument, model: any): { file: string; screens: string[] }[] {
-        const list = model?.screens?.includes;
-        if (!Array.isArray(list)) { return []; }
+    private includes(document: vscode.TextDocument, model: any): { file: string; screens: string[]; section: string }[] {
         const dir = path.dirname(document.uri.fsPath);
-        return list.filter(f => typeof f === 'string').map(file => {
-            try {
-                const included = parse(fs.readFileSync(path.resolve(dir, file), 'utf8')).doc.toJS();
-                return { file, screens: Object.keys(included?.screens ?? {}).filter(s => s !== 'includes') };
-            } catch {
-                return { file, screens: [] };
-            }
+        return ['screens', 'components'].flatMap(section => {
+            const list = model?.[section]?.includes;
+            if (!Array.isArray(list)) { return []; }
+            return list.filter(f => typeof f === 'string').map(file => {
+                try {
+                    const included = parse(fs.readFileSync(path.resolve(dir, file), 'utf8')).doc.toJS();
+                    const names = [
+                        ...Object.keys(included?.screens ?? {}).filter(s => s !== 'includes'),
+                        ...Object.keys(included?.components ?? {}).filter(s => s !== 'includes').map(c => '◆' + c),
+                    ];
+                    return { file, screens: names, section };
+                } catch {
+                    return { file, screens: [], section };
+                }
+            });
         });
+    }
+
+    /** Inclut un fichier existant (choisi) ou neuf (créé) dans `section.includes`. */
+    private async include(document: vscode.TextDocument, section: 'screens' | 'components', create: boolean): Promise<void> {
+        const dir = path.dirname(document.uri.fsPath);
+        const filters = { 'Interface Ocara': ['oc.ui', 'ui'] };
+        let target: vscode.Uri | undefined;
+        if (create) {
+            target = await vscode.window.showSaveDialog({ defaultUri: vscode.Uri.file(path.join(dir, 'ui.d', 'nouveau.oc.ui')), filters, title: 'Nouveau fichier d\'écrans' });
+            if (!target) { return; }
+            const name = path.basename(target.fsPath).replace(/\.oc\.ui$/, '').replace(/[^A-Za-z0-9_]/g, '_') || 'ecran';
+            fs.mkdirSync(path.dirname(target.fsPath), { recursive: true });
+            fs.writeFileSync(target.fsPath, `screens:\n  ${name}:\n    title: "${name}"\n    layout:\n      type: column\n      spacing: 12\n      padding: 16\n      children: []\n`);
+        } else {
+            target = (await vscode.window.showOpenDialog({ defaultUri: vscode.Uri.file(dir), filters, canSelectMany: false, title: `Inclure dans ${section}.includes` }))?.[0];
+            if (!target) { return; }
+        }
+        const relative = path.relative(dir, target.fsPath).split(path.sep).join('/');
+        const { doc } = parse(document.getText());
+        const list = doc.toJS()?.[section]?.includes;
+        if (Array.isArray(list) && list.includes(relative)) { return; }
+        await this.edit(document, [{ op: 'insert', parent: [section, 'includes'], index: Array.isArray(list) ? list.length : 0, value: relative }]);
     }
 
     /** Variantes de taille présentes à côté du fichier (`x.md.oc.ui`…). */
@@ -234,12 +267,12 @@ export class UiDesigner implements vscode.CustomTextEditorProvider {
     }
 }
 
-interface RootContext { file: string; model: any }
+export interface RootContext { file: string; model: any }
 
 /** Fichier racine d'un `.oc.ui` inclus (`screens.includes`, inclusions en
  *  chaîne comprises), cherché dans l'espace de travail ; `undefined` pour un
  *  fichier qui n'est inclus nulle part. */
-async function findRoot(file: string): Promise<RootContext | undefined> {
+export async function findRoot(file: string): Promise<RootContext | undefined> {
     const parents = new Map<string, { file: string; model: any }>();
     for (const uri of await vscode.workspace.findFiles('**/*.oc.ui', '**/{node_modules,target}/**', 2000)) {
         let model: any;
@@ -273,14 +306,42 @@ function allStyles(rootFile: string, except: string, seen = new Set<string>()): 
     let model: any;
     try { model = parse(fs.readFileSync(file, 'utf8')).doc.toJS(); } catch { return {}; }
     const out: Record<string, unknown> = file === path.resolve(except) ? {} : { ...(model?.styles ?? {}) };
-    for (const inc of Array.isArray(model?.screens?.includes) ? model.screens.includes : []) {
-        if (typeof inc !== 'string') { continue; }
+    for (const inc of includedFiles(model)) {
         const included = allStyles(path.resolve(path.dirname(file), inc), except, seen);
         // Surcharges par thème (`dark`, `light`) : fusionnées fichier par fichier.
         for (const theme of ['dark', 'light']) {
             if (included[theme] || out[theme]) { included[theme] = { ...(out[theme] as object ?? {}), ...(included[theme] as object ?? {}) }; }
         }
         Object.assign(out, included);
+    }
+    return out;
+}
+
+/** Fichiers inclus d'un modèle : `screens.includes` puis `components.includes`. */
+function includedFiles(model: any): string[] {
+    return ['screens', 'components'].flatMap(section => {
+        const list = model?.[section]?.includes;
+        return Array.isArray(list) ? list.filter((f: unknown) => typeof f === 'string') : [];
+    });
+}
+
+/** Composants déclarés dans les fichiers de l'interface de racine
+ *  `rootFile`, sauf `except` (le fichier affiché) : nom → déclaration et
+ *  `__file`, son fichier relatif à `from`. */
+function allComponents(rootFile: string, except: string, from: string, seen = new Set<string>()): Record<string, unknown> {
+    const file = path.resolve(rootFile);
+    if (seen.has(file)) { return {}; }
+    seen.add(file);
+    let model: any;
+    try { model = parse(fs.readFileSync(file, 'utf8')).doc.toJS(); } catch { return {}; }
+    const out: Record<string, unknown> = {};
+    if (file !== path.resolve(except)) {
+        for (const [name, decl] of Object.entries(model?.components ?? {})) {
+            if (name !== 'includes' && decl && typeof decl === 'object') { out[name] = { ...decl, __file: path.relative(from, file) }; }
+        }
+    }
+    for (const inc of includedFiles(model)) {
+        Object.assign(out, allComponents(path.resolve(path.dirname(file), inc), except, from, seen));
     }
     return out;
 }

@@ -16,6 +16,8 @@
 // Un `layout:` à la racine (sans `screens:`) est un écran unique `main`.
 // ─────────────────────────────────────────────────────────────────────────────
 
+mod colors;
+mod components;
 mod icons;
 mod images;
 pub mod json_schema;
@@ -82,9 +84,12 @@ pub fn check_source(file: &Path, source: &str) -> Result<UiSpec, Vec<Diagnostic>
         style_decls: HashMap::new(),
         included_styles: Map::new(),
         theme_styles: Map::new(),
+        components: HashMap::new(),
+        expanding: Vec::new(),
         in_item: 0,
     };
     checker.declare_styles(&root);
+    checker.declare_components(&root);
     let tree = checker.root(&root);
     if !checker.errors.is_empty() {
         checker.errors.sort_by(|a, b| (&a.file, a.line, a.col).cmp(&(&b.file, b.line, b.col)));
@@ -133,6 +138,10 @@ pub(super) struct Checker {
     included_styles: Map<String, Json>,
     /// Surcharges par thème (`styles.dark`, `styles.light`), tous fichiers confondus.
     theme_styles: Map<String, Json>,
+    /// Composants déclarés (`components:`), tous fichiers confondus.
+    components: HashMap<String, components::Component>,
+    /// Composants en cours de développement (composant utilisé dans lui-même).
+    expanding: Vec<String>,
     /// Profondeur dans un gabarit `item:` de liste (`bind` permis).
     in_item: usize,
 }
@@ -142,7 +151,8 @@ type Entry<'n> = (&'n Node, &'n str, &'n Node);
 impl Checker {
     /// Enregistre une erreur sur `node` ; rend toujours `None`.
     fn fail<T>(&mut self, node: &Node, message: String) -> Option<T> {
-        self.errors.push(Diagnostic::error(&self.file, node.line, node.col, message));
+        let file = node.file.as_deref().unwrap_or(&self.file);
+        self.errors.push(Diagnostic::error(file, node.line, node.col, message));
         None
     }
 
@@ -189,6 +199,11 @@ impl Checker {
             (Some((_, screens)), None) => self.screens(screens),
             (None, Some((_, layout))) => self.node(layout).map(|node| vec![("main".to_string(), json!({ "layout": node }), root.line)]),
             (None, None) => self.fail(root, "aucun écran : 'layout' (un écran) ou 'screens' (plusieurs) attendu".to_string()),
+        };
+        // Fichiers de composants (`components.includes`) : leurs styles, leurs écrans éventuels.
+        let screens = match get("components").map(|(_, c)| self.component_files(c)) {
+            Some(extra) if !extra.is_empty() => screens.map(|mut s| { s.extend(extra); s }),
+            _ => screens,
         };
         // Styles des fichiers inclus (lus avec leurs écrans) : avec ceux de la racine.
         if !self.included_styles.is_empty() {
@@ -246,7 +261,7 @@ impl Checker {
         let mut out = Vec::new();
         for (key, name, value) in entries {
             if name == "includes" {
-                out.extend(self.includes(value));
+                out.extend(self.includes(value, "screens.includes"));
                 continue;
             }
             if !is_ident(name) {
@@ -271,17 +286,28 @@ impl Checker {
         Some(out)
     }
 
-    /// `screens.includes` : fichiers `.oc.ui` (relatifs au fichier courant)
-    /// qui ne contiennent que `screens:` et `styles:`, includes imbriqués compris.
-    fn includes(&mut self, node: &Node) -> Vec<(String, Json, usize)> {
+    /// `components:` : les déclarations sont lues d'avance (`declare_components`) ;
+    /// ici, les fichiers de `components.includes` (styles, écrans éventuels).
+    fn component_files(&mut self, node: &Node) -> Vec<(String, Json, usize)> {
+        let Kind::Map(pairs) = &node.kind else {
+            return self.fail(node, "'components' : table attendue (nom: { params, layout })".to_string()).unwrap_or_default();
+        };
+        let includes: Vec<Node> = pairs.iter().filter(|(k, _)| text(k) == Some("includes")).map(|(_, v)| v.clone()).collect();
+        includes.iter().flat_map(|list| self.includes(list, "components.includes")).collect()
+    }
+
+    /// `screens.includes`, `components.includes` : fichiers `.oc.ui` (relatifs
+    /// au fichier courant) qui ne contiennent que `screens:`, `styles:` et
+    /// `components:`, includes imbriqués compris.
+    fn includes(&mut self, node: &Node, what: &str) -> Vec<(String, Json, usize)> {
         let Kind::Seq(items) = &node.kind else {
-            self.fail::<()>(node, "'screens.includes' : liste de fichiers .oc.ui attendue".to_string());
+            self.fail::<()>(node, format!("'{what}' : liste de fichiers .oc.ui attendue"));
             return Vec::new();
         };
         let mut out = Vec::new();
         for item in items {
             let Some(relative) = text(item) else {
-                self.fail::<()>(item, "'screens.includes' : chemin de fichier attendu".to_string());
+                self.fail::<()>(item, format!("'{what}' : chemin de fichier attendu"));
                 continue;
             };
             let path = self.file.parent().unwrap_or(Path::new("")).join(relative);
@@ -328,8 +354,9 @@ impl Checker {
                     let styles = self.styles(value);
                     self.included_styles.extend(styles);
                 }
+                "components" => out.extend(self.component_files(value)),
                 _ => {
-                    self.fail::<()>(key, format!("clé '{name}' inconnue dans un fichier inclus (seules 'screens' et 'styles' sont permises)"));
+                    self.fail::<()>(key, format!("clé '{name}' inconnue dans un fichier inclus (seules 'screens', 'styles' et 'components' sont permises)"));
                 }
             }
         }

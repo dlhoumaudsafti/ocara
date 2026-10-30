@@ -13,6 +13,9 @@ pub struct Node {
     pub kind: Kind,
     pub line: usize,
     pub col: usize,
+    /// Fichier du nœud quand il diffère du fichier validé : nœuds d'un
+    /// composant déclaré ailleurs, recopiés à l'endroit où il est utilisé.
+    pub file: Option<std::rc::Rc<std::path::PathBuf>>,
 }
 
 #[derive(Debug, Clone)]
@@ -85,14 +88,14 @@ pub fn load(text: &str) -> Result<Option<Node>, YamlError> {
                 let bytes = unsafe { std::slice::from_raw_parts(scalar.value, scalar.length as usize) };
                 let text = String::from_utf8_lossy(bytes).into_owned();
                 let plain = scalar.style == sys::YAML_PLAIN_SCALAR_STYLE;
-                done = Some(Node { kind: Kind::Scalar { text, plain }, line, col });
+                done = Some(Node { kind: Kind::Scalar { text, plain }, line, col, file: None });
             }
             sys::YAML_SEQUENCE_START_EVENT => stack.push(Frame::Seq(Vec::new(), line, col)),
             sys::YAML_MAPPING_START_EVENT => stack.push(Frame::Map(Vec::new(), None, line, col)),
             sys::YAML_SEQUENCE_END_EVENT | sys::YAML_MAPPING_END_EVENT => {
                 done = match stack.pop() {
-                    Some(Frame::Seq(items, line, col)) => Some(Node { kind: Kind::Seq(items), line, col }),
-                    Some(Frame::Map(pairs, _, line, col)) => Some(Node { kind: Kind::Map(pairs), line, col }),
+                    Some(Frame::Seq(items, line, col)) => Some(Node { kind: Kind::Seq(items), line, col, file: None }),
+                    Some(Frame::Map(pairs, _, line, col)) => Some(Node { kind: Kind::Map(pairs), line, col, file: None }),
                     None => None,
                 };
             }

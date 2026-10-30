@@ -10,6 +10,7 @@ import { editor, menuEditor, h } from './editors.js';
 import { LABEL } from './palette.js';
 import { duplicate, moveBy } from './actions.js';
 import { ask, confirmBox } from './dialog.js';
+import { allComponents, paramsOf, PARAM_KINDS, componentPanel, openComponent, editedComponent } from './components.js';
 
 /** Options d'une liste en grille, montrées avec `display: grid` seulement. */
 const GRID_PROPS = ['itemWidth', 'minColumns', 'maxColumns', 'direction'];
@@ -93,6 +94,7 @@ function header(title, sub, buttons = []) {
 function nodePanel(path) {
     const node = getIn(S.model, path);
     const spec = typeSpec(node.type);
+    if (!spec && allComponents()[node.type]) { return instancePanel(path, node); }
     const out = [];
     out.push(header(LABEL[node.type] || node.type, node.type, [
         ['↑', 'Monter (Alt+↑)', () => moveBy(path, -1)],
@@ -152,6 +154,45 @@ function nodePanel(path) {
         });
         out.push(section(title, rows, { id: platform, collapsed: !node[platform] }));
     }
+    return out;
+}
+
+/** Instance d'un composant : ses paramètres, puis les propriétés appliquées
+ *  à la racine du composant (disposition, présentation). */
+function instancePanel(path, node) {
+    const component = allComponents()[node.type];
+    const out = [header(`◆ ${node.type}`, 'instance de composant', [
+        ['↑', 'Monter (Alt+↑)', () => moveBy(path, -1)],
+        ['↓', 'Descendre (Alt+↓)', () => moveBy(path, 1)],
+        ['⧉', 'Dupliquer (Ctrl+D)', () => duplicate(path)],
+        ['◆', 'Modifier le composant', () => openComponent(node.type)],
+        ['{ }', 'Voir dans le source', () => vscode.postMessage({ type: 'reveal', path })],
+        ['🗑', 'Supprimer (Suppr)', () => removeNode(path)],
+    ])];
+    S.problems.filter(p => p.path && JSON.stringify(p.path) === JSON.stringify(path))
+        .forEach(p => out.push(h('div', 'd-problem-inline ' + p.severity, p.message)));
+    const params = paramsOf(component).map(p => {
+        const spec = { name: p.name, kind: PARAM_KINDS[p.type] || 'text' };
+        const shown = node[p.name] && typeof node[p.name] === 'object' ? { ...node, [p.name]: undefined } : node;
+        const r = field(spec, path, shown, { required: p.required, inherited: p.default });
+        // Dans un gabarit de liste, le paramètre peut lire un champ de l'élément.
+        if (inItem(path)) {
+            const bound = node[p.name] && typeof node[p.name] === 'object' ? node[p.name].bind : undefined;
+            const bind = h('input', 'd-input d-narrow');
+            bind.placeholder = 'bind';
+            bind.title = 'Lire ce paramètre dans un champ de l\'élément de liste';
+            bind.value = bound || '';
+            bind.addEventListener('change', () => setProp(path, p.name, bind.value ? { bind: bind.value } : undefined));
+            r.appendChild(bind);
+        }
+        return r;
+    });
+    if (!params.length) { params.push(h('p', 'd-muted d-pad', 'Ce composant n\'a pas de paramètre.')); }
+    out.push(section('Paramètres', params, { id: 'instance-params' }));
+    const common = Object.fromEntries(S.catalog.common.map(p => [p.name, p]));
+    const row = p => field(p, path, node);
+    out.push(section('Disposition', LAYOUT.map(n => common[n] && row(common[n])), { id: 'layout' }));
+    out.push(section('Présentation', S.catalog.style.map(row), { id: 'style', collapsed: true }));
     return out;
 }
 
@@ -319,6 +360,8 @@ export function renderInspector() {
     const owner = { window: 'window', styles: 'styles', menu: 'menu' }[S.tab];
     if (owner && S.context && S.model[owner] === undefined) { parts = rootNotice(owner); } else if (S.tab === 'window') { parts = windowPanel(); } else if (S.tab === 'styles') { parts = stylesPanel(); } else if (S.tab === 'menu') { parts = menuPanel(); } else if (node && typeof node === 'object' && node.type) {
         parts = nodePanel(sel);
+    } else if (editedComponent()) {
+        parts = componentPanel(editedComponent(), header, section);
     } else if (!rootLayout() && S.screen) {
         parts = screenPanel(S.screen);
     } else {

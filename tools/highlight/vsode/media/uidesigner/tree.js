@@ -2,7 +2,8 @@
 // sélectionne, un glisser déplace (avant, après ou dans un conteneur selon
 // la hauteur du pointeur sur la ligne), le triangle replie.
 
-import { S, getIn, key, same, screens, rootLayout, layoutPath, screenPath, isContainer, hasSlot, startScreen, refresh, vscode } from './model.js';
+import { S, edit, editedComponent, getIn, key, same, screens, rootLayout, layoutPath, screenPath, isContainer, hasSlot, startScreen, refresh, vscode } from './model.js';
+import { ownComponents, allComponents } from './components.js';
 import { startDrag, endDrag, drop, dragging } from './dnd.js';
 import { GLYPH } from './palette.js';
 
@@ -56,7 +57,7 @@ function nodeRows(out, node, path, depth) {
     const children = Array.isArray(node.children) ? node.children : [];
     const collapsible = children.length > 0 || !!node.item;
     const r = row(depth, node.type, summary(node), {
-        glyph: GLYPH[node.type] || '□', selected: same(S.selection, path), collapsible, collapsed: !!S.collapsed[k],
+        glyph: GLYPH[node.type] || (allComponents()[node.type] ? '◆' : '□'), selected: same(S.selection, path), collapsible, collapsed: !!S.collapsed[k],
         error: S.problems.some(p => p.path && key(p.path) === k),
         toggle: () => { S.collapsed[k] = !S.collapsed[k]; refresh(); },
     });
@@ -118,11 +119,58 @@ export function renderTree() {
             root.appendChild(empty);
         }
     }
+    // Composants du fichier : leur layout se modifie comme un écran.
+    for (const name of ownComponents()) {
+        const current = editedComponent() === name;
+        const path = ['components', name];
+        const r = row(0, name, 'composant', { glyph: '◆', selected: current && same(S.selection, path) });
+        r.classList.add('d-tree-screen');
+        r.addEventListener('click', () => { S.screen = '◆' + name; S.selection = path; S.tab = 'props'; refresh(); });
+        root.appendChild(r);
+        const layout = getIn(S.model, [...path, 'layout']);
+        if (current && layout) { nodeRows(root, layout, [...path, 'layout'], 1); }
+    }
+    includeRows(root);
+}
+
+/** Fichiers inclus (`screens.includes`, `components.includes`) : ouvrir,
+ *  retirer, inclure un fichier existant ou en créer un. */
+function includeRows(root) {
+    const head = row(0, 'Fichiers inclus', '', { glyph: '↗' });
+    head.classList.add('d-tree-screen', 'd-tree-head');
+    root.appendChild(head);
     for (const inc of S.includes) {
-        const r = row(0, inc.file, inc.screens.join(', '), { glyph: '↗' });
+        const r = row(1, inc.file, inc.screens.join(', '), { glyph: inc.section === 'components' ? '◆' : '▭' });
         r.classList.add('d-tree-include');
-        r.title = 'Fichier inclus (screens.includes) : ouvrir dans le designer';
+        r.title = `Inclus par ${inc.section}.includes : ouvrir dans le designer`;
         r.addEventListener('click', () => vscode.postMessage({ type: 'open', file: inc.file, designer: true }));
+        const del = document.createElement('button');
+        del.className = 'd-mini d-tree-del';
+        del.textContent = '✕';
+        del.title = 'Retirer l\'inclusion (le fichier reste)';
+        del.addEventListener('click', ev => {
+            ev.stopPropagation();
+            const list = getIn(S.model, [inc.section, 'includes']) || [];
+            const index = list.indexOf(inc.file);
+            if (index >= 0) { edit([{ op: 'remove', path: [inc.section, 'includes', index] }]); }
+        });
+        r.appendChild(del);
         root.appendChild(r);
     }
+    const tools = document.createElement('div');
+    tools.className = 'd-inline d-tree-tools';
+    const button = (label, title, message) => {
+        const b = document.createElement('button');
+        b.className = 'd-mini';
+        b.textContent = label;
+        b.title = title;
+        b.addEventListener('click', () => vscode.postMessage(message));
+        tools.appendChild(b);
+    };
+    if (!rootLayout()) {
+        button('＋ écrans…', 'Inclure un fichier d\'écrans existant (screens.includes)', { type: 'include', section: 'screens', create: false });
+        button('＋ nouveau', 'Créer un fichier d\'écrans et l\'inclure', { type: 'include', section: 'screens', create: true });
+    }
+    button('＋ composants…', 'Inclure un fichier de composants (components.includes)', { type: 'include', section: 'components', create: false });
+    root.appendChild(tools);
 }

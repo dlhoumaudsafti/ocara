@@ -107,7 +107,7 @@ fn collect_names(root: &Node, file: &Path, seen: &mut BTreeSet<PathBuf>, names: 
                     }
                 }
             }
-            (Some("screens"), Kind::Map(screens)) => {
+            (Some("screens" | "components"), Kind::Map(screens)) => {
                 let includes = screens.iter().filter(|(k, _)| text(k) == Some("includes"));
                 for (_, list) in includes {
                     let Kind::Seq(items) = &list.kind else { continue };

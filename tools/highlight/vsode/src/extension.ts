@@ -15,6 +15,7 @@ import { LinterProvider } from './linterview';
 import { ArchitectureProvider } from './architecture';
 import { registerFileStatus } from './filestatus';
 import { UiDesigner } from './uidesigner/designer';
+import { registerUiLanguage } from './uidesigner/language';
 
 export function activate(context: vscode.ExtensionContext): void {
     // Serveur de langage du compilateur : diagnostics en direct, définition,
@@ -55,6 +56,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
     // Designer des fichiers .oc.ui (bouton source ↔ designer en haut à droite).
     new UiDesigner(context.extensionUri).register(context);
+    // .oc.ui : couleurs, Ctrl+clic sur les includes, définition de start/style/type.
+    registerUiLanguage(context);
 }
 
 export function deactivate(): Thenable<void> | undefined {

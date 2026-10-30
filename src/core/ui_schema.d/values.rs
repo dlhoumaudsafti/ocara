@@ -49,11 +49,6 @@ pub fn is_ident(s: &str) -> bool {
         && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
-fn is_color(s: &str) -> bool {
-    let hex = s.strip_prefix('#').unwrap_or("");
-    (hex.len() == 6 || hex.len() == 8) && hex.chars().all(|c| c.is_ascii_hexdigit())
-}
-
 impl Checker {
     /// Contrôle `node` contre un type simple et rend sa valeur normalisée ;
     /// `what` nomme la valeur dans les messages (`propriété 'width' de 'row'`).
@@ -90,11 +85,11 @@ impl Checker {
                 _ => self.fail(node, format!("{what} : nombre positif, 'fill' ou 'wrap' attendu")),
             },
             Ty::Spacing => self.spacing(node, what),
-            Ty::Color => match string {
-                Some(s) if is_color(&s) => Some(Json::String(s)),
+            Ty::Color => match string.as_deref().and_then(super::colors::normalize) {
+                Some(color) => Some(Json::String(color)),
                 _ if value == Some(Json::Null) => self.fail(node, format!(
                     "{what} : couleur attendue, entre guillemets (\"#rrggbb\") : '#' commence un commentaire YAML")),
-                _ => self.fail(node, format!("{what} : couleur attendue (\"#rrggbb\" ou \"#rrggbbaa\")")),
+                _ => self.fail(node, format!("{what} : couleur attendue (\"#rrggbb\", \"#rrggbbaa\", \"#rgb\", \"rgb(r, g, b)\" ou \"rgba(r, g, b, a)\")")),
             },
             Ty::Enum(allowed) => match string {
                 Some(s) if allowed.contains(&s.as_str()) => Some(Json::String(s)),
