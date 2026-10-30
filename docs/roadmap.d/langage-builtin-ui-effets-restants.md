@@ -1,35 +1,40 @@
-# `ocara.UI` : effets et animations, ce qui reste
+# `ocara.UI` : `backdropBlur` partout sur Android
 
-Les styles d'état, effets et animations sont en place (docs/oc-ui.md,
-« Styles d'état et effets », « Animations ») ; restent des écarts entre les
-moteurs et l'outillage.
+Les effets et animations sont alignés entre les moteurs (docs/oc-ui.md,
+« Styles d'état et effets », « Animations ») ; reste le flou d'arrière-plan
+sur Android.
 
-## Android (OcaraUIEffects.kt, OcaraUINodes.kt)
+## État actuel (vérifié dans le code)
 
-- **Étapes d'animation** : `color`, `blur`, `width`/`height` ne sont animés
-  que sur desktop (Compose : `animateColor` pour la couleur du texte,
-  `Modifier.blur` piloté par la progression, taille par `Modifier.size`).
-- **`shadow`** : seule la première ombre, sa couleur et son flou ;
-  décalage `x`/`y`, `spread`, `inset` et ombres multiples ignorés (à
-  dessiner dans un `drawBehind` avec un `Paint` à `setShadowLayer`, qui
-  accepte décalage et couleur).
-- **Ombre sous un nœud translucide** : l'ombre d'élévation est peinte sous
-  toute la forme et se voit à travers une opacité partielle (desktop :
-  seulement autour) — même piste `drawBehind`.
-- **`backdropBlur`** : ignoré (pas d'équivalent Compose ; `RenderEffect`
-  sur la couche d'arrière-plan, Android 12 et plus, à évaluer).
-- **`transition`** : `background`, `color`, `opacity` seulement.
+- `OcaraUIShadows.kt` : le contenu de l'écran est enregistré dans un
+  `GraphicsLayer` (`backdropSource`), et un nœud de la couche de l'écran
+  (`LocalBackdrop` fourni autour du `fab` et des `floating` fixes) dessine
+  ce calque flouté (`BlurEffect`, Android 12 et plus) sous sa forme.
+- Ailleurs, `backdropBlur` est ignoré :
+  - **nœud dans le flux de l'écran, `floating` en `position: absolute`** :
+    le nœud fait partie du calque qu'il devrait dessiner (cycle de
+    `RenderNode`) ;
+  - **`drawer`, `bottomSheet`** : rendus par Material (`ModalDrawerSheet`,
+    `ModalBottomSheet`, ce dernier dans une autre fenêtre), sans accès au
+    calque.
 
-## Designer de l'extension VS Code
+## Pistes
 
-- Aperçu du canevas : les tables d'état (`hover`…), `shadow`, `opacity`,
-  `blur` et les animations ne sont pas rendus (canvas.js a son propre
-  rendu, pas effects.js).
-- `animations:` (racine) ne s'édite que dans le source ; une animation
-  `{ name, on }` sur un nœud s'affiche comme du texte.
+- Flux de l'écran : enregistrer, pour chaque nœud flouté, un calque de ce
+  qui est dessiné avant lui (frères précédents et ancêtres, sans lui ni la
+  suite), comme la bibliothèque Haze (`hazeSource`/`hazeEffect`) ; ou
+  dépendre de Haze (dépendance Gradle à ajouter au paquet Android).
+- Tiroir : peindre le fond de `ModalDrawerSheet` avec le calque de l'écran
+  (même fenêtre) ; panneau inférieur : capture par `PixelCopy` de la fenêtre
+  principale à l'ouverture, floutée (image figée, à évaluer).
 
-## Lien
+## Tests
 
-- `link` n'ouvre pas d'URL : le gestionnaire de `onClick` le fait. Une
-  propriété `url` (navigateur du système, desktop et Android) est à
-  étudier.
+- Démo Android : `floating` à `backdropBlur` au-dessus d'une liste qui
+  défile, nœud flouté dans le flux, tiroir flouté ; captures comparées à
+  l'aperçu desktop.
+
+## Complexité
+
+**Structurel** — rendu Compose seulement ; schéma, desktop et designer sont
+déjà faits.

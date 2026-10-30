@@ -146,6 +146,15 @@ impl Checker {
         if written.contains(&"onInvalid") && props.get("submit") != Some(&Json::Bool(true)) {
             self.fail::<()>(node, format!("'{ty}' : 'onInvalid' n'a de sens qu'avec 'submit: true'"));
         }
+        if ty == "link" {
+            if let Some(target) = props.get("target").and_then(Json::as_str) {
+                if !written.contains(&"url") {
+                    self.fail::<()>(node, "'link' : 'target' sans 'url' (adresse à ouvrir dans la vue web)".to_string());
+                }
+                let file = node.file.as_deref().cloned().unwrap_or_else(|| self.file.clone());
+                self.link_targets.push((target.to_string(), file, node.line, node.col));
+            }
+        }
         if ty == "spinner" && written.contains(&"kind") && written.contains(&"src") {
             self.fail::<()>(node, "'spinner' : 'kind' (modèle proposé) ou 'src' (image animée), pas les deux".to_string());
         }

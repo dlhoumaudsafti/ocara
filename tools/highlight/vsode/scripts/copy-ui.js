@@ -3,6 +3,8 @@
 //   - l'apparence du moteur desktop (runtime_tauri/src/ui/engine.css), dont
 //     les règles de page (`:root`, `body`) sont ramenées à la zone d'aperçu
 //     `.oc-canvas` : l'aperçu a l'apparence de la vraie fenêtre ;
+//   - les effets du moteur (runtime_tauri/src/ui/effects.js : états, ombres,
+//     animations), rendus tels quels dans l'aperçu ;
 //   - les tracés des icônes (src/core/ui_schema.d/icons.rs) → icons.json.
 // Copies = artefacts de build (ignorés par git), jamais éditées ici.
 const fs = require('fs');
@@ -25,9 +27,12 @@ css = replaceAll(css, '\nbody {', '\n.oc-canvas {');
 css = replaceAll(css, ':root', '.oc-canvas');
 fs.writeFileSync(path.join(target, 'engine.css'), `/* Copie de runtime_tauri/src/ui/engine.css (scripts/copy-ui.js) : ne pas éditer. */\n${css}`);
 
+const effects = fs.readFileSync(path.join(repo, 'runtime_tauri/src/ui/effects.js'), 'utf8');
+fs.writeFileSync(path.join(target, 'effects.js'), `// Copie de runtime_tauri/src/ui/effects.js (scripts/copy-ui.js) : ne pas éditer.\n${effects}`);
+
 const rust = fs.readFileSync(path.join(repo, 'src/core/ui_schema.d/icons.rs'), 'utf8');
 const icons = {};
 for (const m of rust.matchAll(/\("([a-z_]+)", "([^"]+)"\)/g)) { icons[m[1]] = m[2]; }
 if (Object.keys(icons).length === 0) { throw new Error('copy-ui : aucune icône lue dans icons.rs'); }
 fs.writeFileSync(path.join(target, 'icons.json'), JSON.stringify(icons));
-console.log(`copy-ui : engine.css et ${Object.keys(icons).length} icône(s) copiés dans media/uidesigner`);
+console.log(`copy-ui : engine.css, effects.js et ${Object.keys(icons).length} icône(s) copiés dans media/uidesigner`);

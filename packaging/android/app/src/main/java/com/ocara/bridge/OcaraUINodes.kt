@@ -69,7 +69,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -192,14 +194,18 @@ private fun Screen(tree: JSONObject, sizeClass: String) {
                     }
                 },
             ) { padding ->
+                val backdrop = rememberBackdrop()
                 Box(Modifier.padding(padding).fillMaxSize()) {
-                    Node(layout, ctx, Modifier.fillMaxSize())
-                    // Couche de l'écran : bouton flottant (`position`), conteneurs flottants fixes.
-                    material.fab?.let { fab ->
-                        val position = props(fab, ctx)["position"] as? String
-                        Box(Modifier.align(alignmentOf(position)).padding(16.dp)) { Fab(fab, ctx) }
+                    Node(layout, ctx, Modifier.fillMaxSize().backdropSource(backdrop))
+                    // Couche de l'écran : bouton flottant (`position`), conteneurs flottants
+                    // fixes ; leur `backdropBlur` floute le contenu de l'écran.
+                    CompositionLocalProvider(LocalBackdrop provides backdrop) {
+                        material.fab?.let { fab ->
+                            val position = props(fab, ctx)["position"] as? String
+                            Box(Modifier.align(alignmentOf(position)).padding(16.dp)) { Fab(fab, ctx) }
+                        }
+                        for (floating in material.floatings) Placed(floating, ctx.copy(layer = true))
                     }
-                    for (floating in material.floatings) Placed(floating, ctx.copy(layer = true))
                 }
             }
         }
@@ -294,22 +300,26 @@ internal fun iconVector(path: String): ImageVector =
         .addPath(PathParser().parsePathString(path).toNodes(), fill = SolidColor(Color.Black))
         .build()
 
-/** Taille, marges, fond, bordure et ombre d'un nœud ; `faded` (opacité,
- *  flou) s'applique à ce qui suit l'ombre. */
+/** Taille, marges, fond, bordure et ombres d'un nœud ; `faded` (opacité,
+ *  flou, flou d'arrière-plan) s'applique à ce qui suit l'ombre. */
 private fun decorate(modifier: Modifier, p: Map<String, Any?>, faded: Modifier = Modifier): Modifier {
     var m = modifier
     spacing(p["margin"])?.let { m = m.padding(it) }
     val shape = RoundedCornerShape((p.num("radius") ?: 0.0).toFloat().dp)
     (p["width"] as? Number)?.let { m = m.width(it.toFloat().dp) }
     (p["height"] as? Number)?.let { m = m.height(it.toFloat().dp) }
-    p.num("elevation")?.let { m = m.shadow(it.toFloat().dp, shape) }
-    // Ombre réglable : sa couleur et son flou ; le décalage n'a pas d'équivalent Compose.
-    (p["shadow"] as? JSONArray)?.optJSONObject(0)?.let { s ->
-        val color = parseColor(s.opt("color")) ?: Color.Black
-        m = m.shadow((s.optDouble("blur", 0.0) / 2).toFloat().dp, shape, ambientColor = color, spotColor = color)
+    val (outer, inner) = shadowsOf(p["shadow"])
+    // Élévation : ombre Material sous un fond opaque ; sinon celle d'engine.css,
+    // autour de la forme seulement (elle ne se voit pas à travers le nœud).
+    val background = parseColor(p["background"])
+    val opaque = (p.num("opacity") ?: 1.0) >= 1.0 && (background?.alpha ?: if (p["type"] == "card") 1f else 0f) >= 1f
+    p.num("elevation")?.toFloat()?.takeIf { it > 0f }?.let { e ->
+        m = if (opaque) m.shadow(e.dp, shape) else m.outerShadows(listOf(elevationShadow(e)), shape)
     }
+    m = m.outerShadows(outer, shape)
     m = m.then(faded)
-    parseColor(p["background"])?.let { m = m.background(it, shape) }
+    background?.let { m = m.background(it, shape) }
+    m = m.innerShadows(inner, shape)
     parseColor(p["border"])?.let { m = m.border(BorderStroke(1.dp, it), shape) }
     spacing(p["padding"])?.let { m = m.padding(it) }
     p.text("label")?.let { label -> m = m.semantics { contentDescription = label } }
@@ -389,7 +399,7 @@ internal fun Node(node: JSONObject, ctx: Ctx, modifier: Modifier) {
     val states = remember { NodeStates() }
     val shown = transitioned(withStates(base, states))
     val frame = animationFrame(shown, states, id, ctx)
-    val p = frame.background?.let { shown + ("background" to it) } ?: shown
+    val p = shown + frame.overrides()
     val enabled = p.flag("enabled", true)
     val type = node.getString("type")
     // `floating` fixe : rendu dans la couche de l'écran (OcaraUIMaterial.kt).
@@ -397,7 +407,8 @@ internal fun Node(node: JSONObject, ctx: Ctx, modifier: Modifier) {
     // Une carte peint son fond elle-même (surface Material, forme de `radius`) et
     // porte sa marge intérieure : une seule couche, de la taille de son ombre.
     val decorated = if (type == "card") p - "background" - "padding" else p
-    val m = decorate(modifier.effects(states, frame, watchesInteraction(base)), decorated, fade(p, frame)).events(base, id, ctx)
+    val behind = Modifier.backdropBlur(p.num("backdropBlur")?.toFloat(), RoundedCornerShape((p.num("radius") ?: 0.0).toFloat().dp))
+    val m = decorate(modifier.effects(states, frame, watchesInteraction(base)), decorated, fade(p, frame).then(behind)).events(base, id, ctx)
     if (type in CONTAINERS) return Container(node, type, p, id, ctx, m)
     when (type) {
         "divider" -> HorizontalDivider(m)
@@ -479,8 +490,10 @@ internal fun Node(node: JSONObject, ctx: Ctx, modifier: Modifier) {
         }
         "link" -> {
             val color = parseColor(p["color"]) ?: if (p["visited"] == true) VISITED else MaterialTheme.colorScheme.primary
+            val context = LocalContext.current
             val click = {
                 OcaraUIEngine.changed(id, "visited", true)
+                p.text("url")?.let { OcaraUIEngine.openLink(context, it, p.text("target")) }
                 itemClick(p, id, ctx)
             }
             Text(p.text("text") ?: "", m.clickable(onClick = click), style = textStyle(p, bodyStyle()).copy(color = color, textDecoration = TextDecoration.Underline))

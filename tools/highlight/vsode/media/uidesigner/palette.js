@@ -11,7 +11,7 @@ const GROUPS = [
     ['Conteneurs', ['column', 'row', 'stack', 'grid', 'card', 'list']],
     ['Affichage', ['text', 'heading', 'image', 'icon', 'progress', 'divider', 'spacer', 'webview']],
     ['Saisie', ['input', 'checkbox', 'switch', 'radio', 'select', 'slider', 'date', 'time']],
-    ['Actions', ['button', 'iconButton']],
+    ['Actions', ['button', 'iconButton', 'link']],
     ['Écran', ['fab', 'bottomSheet', 'drawer', 'floating', 'spinner']],
 ];
 
@@ -20,7 +20,7 @@ export const GLYPH = {
     column: '▤', row: '▥', stack: '◫', grid: '▦', card: '▢', list: '☰',
     text: 'T', heading: 'H', image: '🖼', icon: '★', progress: '▬', divider: '―', spacer: '↔', webview: '🌐',
     input: '⌨', checkbox: '☑', switch: '⏻', radio: '◉', select: '▾', slider: '⎯', date: '📅', time: '🕒',
-    button: '⏺', iconButton: '◎', 'fab': '⊕', 'bottomSheet': '⬓', 'drawer': '◧',
+    button: '⏺', iconButton: '◎', link: '🔗', 'fab': '⊕', 'bottomSheet': '⬓', 'drawer': '◧',
     floating: '⧉', spinner: '◌',
 };
 
@@ -28,7 +28,7 @@ export const LABEL = {
     column: 'Colonne', row: 'Ligne', stack: 'Pile', grid: 'Grille', card: 'Carte', list: 'Liste',
     text: 'Texte', heading: 'Titre', image: 'Image', icon: 'Icône', progress: 'Progression', divider: 'Séparateur',
     spacer: 'Espace', webview: 'Vue web', input: 'Champ', checkbox: 'Case', switch: 'Interrupteur', radio: 'Radio',
-    select: 'Liste déroulante', slider: 'Curseur', date: 'Date', time: 'Heure', button: 'Bouton', iconButton: 'Bouton icône',
+    select: 'Liste déroulante', slider: 'Curseur', date: 'Date', time: 'Heure', button: 'Bouton', iconButton: 'Bouton icône', link: 'Lien',
     'fab': 'Bouton flottant', 'bottomSheet': 'Panneau inférieur', 'drawer': 'Tiroir',
     floating: 'Flottant', spinner: 'Attente',
 };

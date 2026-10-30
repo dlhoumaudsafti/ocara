@@ -108402,6 +108402,9 @@
                   "style": {
                     "$ref": "#/definitions/values/v4"
                   },
+                  "target": {
+                    "$ref": "#/definitions/values/v2"
+                  },
                   "text": {
                     "$ref": "#/definitions/values/v2"
                   },
@@ -108410,6 +108413,9 @@
                   },
                   "transition": {
                     "$ref": "#/definitions/values/v18"
+                  },
+                  "url": {
+                    "$ref": "#/definitions/values/v2"
                   },
                   "visible": {
                     "$ref": "#/definitions/values/v1"
@@ -109872,6 +109878,9 @@
               "style": {
                 "$ref": "#/definitions/values/v4"
               },
+              "target": {
+                "$ref": "#/definitions/values/v2"
+              },
               "tauri": {
                 "additionalProperties": false,
                 "properties": {
@@ -111321,6 +111330,9 @@
                   "style": {
                     "$ref": "#/definitions/values/v4"
                   },
+                  "target": {
+                    "$ref": "#/definitions/values/v2"
+                  },
                   "text": {
                     "$ref": "#/definitions/values/v2"
                   },
@@ -111329,6 +111341,9 @@
                   },
                   "transition": {
                     "$ref": "#/definitions/values/v18"
+                  },
+                  "url": {
+                    "$ref": "#/definitions/values/v2"
                   },
                   "visible": {
                     "$ref": "#/definitions/values/v1"
@@ -111356,6 +111371,9 @@
               },
               "type": {
                 "const": "link"
+              },
+              "url": {
+                "$ref": "#/definitions/values/v2"
               },
               "visible": {
                 "$ref": "#/definitions/values/v1"
@@ -258626,6 +258644,13 @@
                   "style": {
                     "type": "string"
                   },
+                  "target": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
+                    ]
+                  },
                   "text": {
                     "type": [
                       "string",
@@ -258670,6 +258695,13 @@
                       }
                     },
                     "type": "object"
+                  },
+                  "url": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
+                    ]
                   },
                   "visible": {
                     "type": "boolean"
@@ -260313,6 +260345,13 @@
               "style": {
                 "type": "string"
               },
+              "target": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
               "tauri": {
                 "additionalProperties": false,
                 "properties": {
@@ -261932,6 +261971,13 @@
                   "style": {
                     "type": "string"
                   },
+                  "target": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
+                    ]
+                  },
                   "text": {
                     "type": [
                       "string",
@@ -261976,6 +262022,13 @@
                       }
                     },
                     "type": "object"
+                  },
+                  "url": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
+                    ]
                   },
                   "visible": {
                     "type": "boolean"
@@ -262054,6 +262107,13 @@
               },
               "type": {
                 "const": "link"
+              },
+              "url": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
               },
               "visible": {
                 "type": "boolean"

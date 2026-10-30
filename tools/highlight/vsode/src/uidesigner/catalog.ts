@@ -12,7 +12,7 @@ import * as fs from 'fs';
 export type Kind =
     | 'text' | 'bool' | 'int' | 'number' | 'length' | 'spacing' | 'color' | 'enum' | 'id'
     | 'icon' | 'action' | 'style' | 'field' | 'node' | 'children' | 'strings' | 'options'
-    | 'menu' | 'actionMap' | 'binds' | 'override' | 'object';
+    | 'menu' | 'actionMap' | 'binds' | 'override' | 'object' | 'animation' | 'webview' | 'iterations';
 
 /** `object` : table aux champs `fields` (table d'état, `shadow`, `transition`) ;
  *  `list` : une liste de ces tables est aussi acceptée (`shadow`). */
@@ -30,6 +30,10 @@ export interface Catalog {
     windowAndroid: PropSpec[];
     screen: PropSpec[];
     menu: PropSpec[];
+    /** Réglages d'une animation (`animations:`), hors `keyframes`. */
+    animation: PropSpec[];
+    /** Propriétés d'une étape de `keyframes`. */
+    keyframe: PropSpec[];
     icons: string[];
 }
 
@@ -50,6 +54,9 @@ function kindOf(name: string, s: Schema): PropSpec {
         case 'contextMenu': case 'menu': return spec('menu');
         case 'options': return spec('options');
         case 'webHandlers': return spec('actionMap');
+        case 'animation': return spec('animation');
+        case 'target': return spec('webview');
+        case 'iterations': return spec('iterations');
     }
     const table = (x: Schema) => x?.type === 'object' && x.properties;
     if (table(s)) { return spec('object', { fields: props(s.properties) }); }
@@ -95,6 +102,7 @@ export function loadCatalog(schemaPath: string): Catalog {
         return { type, own, required: rule.required ?? [] };
     });
     const win = schema.properties.window.properties;
+    const anim = schema.properties.animations.additionalProperties.properties;
     const icons = types.flatMap(t => t.own).find(p => p.kind === 'icon')?.values ?? [];
     return {
         types,
@@ -105,6 +113,8 @@ export function loadCatalog(schemaPath: string): Catalog {
         windowAndroid: props(win.android.properties),
         screen: props(schema.properties.screens.additionalProperties.properties, ['layout']),
         menu: props(schema.definitions.menuItem.properties),
+        animation: props(anim, ['keyframes']),
+        keyframe: props(anim.keyframes.additionalProperties.properties),
         icons,
     };
 }

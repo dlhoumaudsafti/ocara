@@ -79,6 +79,8 @@ function installToolbar() {
     });
     $('platform').addEventListener('click', ev => { const p = ev.target.dataset?.platform; if (p) { S.platform = p; save(); refresh(); } });
     $('theme').addEventListener('click', ev => { const t = ev.target.dataset?.theme; if (t) { S.theme = t; save(); refresh(); } });
+    $('state').addEventListener('change', () => { S.previewState = $('state').value; renderCanvas(); });
+    $('replay').addEventListener('click', () => renderCanvas());
     $('source').addEventListener('click', () => vscode.postMessage({ type: 'source' }));
     $('check').addEventListener('click', () => vscode.postMessage({ type: 'check' }));
     $('paletteFilter').addEventListener('input', renderPalette);
@@ -105,7 +107,7 @@ function renderOverlay() {
     $('selectTag').textContent = target ? `${sel.type} ${summary(sel)}` : '';
 }
 
-const INLINE = { text: 'value', heading: 'value', button: 'text' };
+const INLINE = { text: 'value', heading: 'value', button: 'text', link: 'text' };
 
 function editInPlace(e, path) {
     const node = getIn(S.model, path);

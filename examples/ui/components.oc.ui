@@ -82,6 +82,9 @@ screens:
           children:
             - { type: text, value: "Survol, double clic, appui long, balayage" }
         - { type: link, id: more, text: "En savoir plus", onClick: more }
+        # `url` : dans la vue web `page` (écran list), sinon le navigateur du système.
+        - { type: link, id: doc_here, text: "Documentation dans la vue", url: "https://example.com/", target: page }
+        - { type: link, id: doc_out, text: "Documentation (navigateur)", url: "https://example.com/" }
         # Composants d'écran : rendus dans une couche au-dessus de l'écran.
         - { type: fab, id: add, icon: add, label: "Ajouter", position: bottomCenter, onClick: add_item }
         - type: drawer

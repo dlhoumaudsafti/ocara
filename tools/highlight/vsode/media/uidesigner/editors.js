@@ -4,7 +4,7 @@
 // Les champs texte valident à la sortie du champ ou sur Entrée (une étape
 // d'annulation par valeur, pas par frappe).
 
-import { S, actions, styles } from './model.js';
+import { S, actions, styles, webviewIds } from './model.js';
 import { icon } from './canvas.js';
 
 export function h(tag, cls, text) {
@@ -133,26 +133,51 @@ function pairs(value, set, keyHint, valueHint, valueList) {
     return wrap;
 }
 
-/** Table aux champs typés (table d'état, `shadow`, `transition`) ; une
- *  liste de plusieurs tables (`shadow`) se modifie dans le source. */
-function objectEditor(spec, value, set) {
-    if (Array.isArray(value) && value.length > 1) {
-        return h('p', 'd-muted', `${value.length} valeurs : à modifier dans le source`);
-    }
-    const one = Array.isArray(value) ? value[0] : value;
-    const current = one && typeof one === 'object' ? { ...one } : {};
+/** Champs typés d'une table (`fields`) ; `set(table)`, `undefined` si vide. */
+export function fieldsEditor(fields, value, set) {
+    const current = value && typeof value === 'object' ? { ...value } : {};
     const wrap = h('div', 'd-rows d-object');
-    for (const field of spec.fields) {
+    for (const field of fields) {
         const r = h('div', 'd-field');
         const label = h('label', 'd-label', field.name);
         if (current[field.name] !== undefined) { label.classList.add('d-set'); }
         r.append(label, editor(field, current[field.name], v => {
             if (v === undefined) { delete current[field.name]; } else { current[field.name] = v; }
-            const out = Object.keys(current).length ? current : undefined;
-            set(spec.list && out ? [out] : out);
+            set(Object.keys(current).length ? current : undefined);
         }));
         wrap.appendChild(r);
     }
+    return wrap;
+}
+
+/** Table aux champs typés (table d'état, `transition`) ; liste de tables
+ *  (`shadow` : plusieurs ombres, la première devant). */
+function objectEditor(spec, value, set) {
+    if (!spec.list) { return fieldsEditor(spec.fields, value, set); }
+    const list = (Array.isArray(value) ? value : value ? [value] : []).map(o => ({ ...o }));
+    const out = () => set(list.length ? list : undefined);
+    const wrap = h('div', 'd-rows');
+    list.forEach((item, i) => {
+        const head = h('div', 'd-inline');
+        head.append(h('span', 'd-muted', `${spec.name} ${i + 1}`),
+            button('↑', 'Monter', () => { if (i) { list.splice(i - 1, 0, list.splice(i, 1)[0]); out(); } }),
+            button('✕', 'Retirer', () => { list.splice(i, 1); out(); }));
+        wrap.append(head, fieldsEditor(spec.fields, item, v => { list[i] = v || {}; out(); }));
+    });
+    wrap.appendChild(button(`＋ ${spec.name}`, '', () => { list.push(spec.name === 'shadow' ? { x: 0, y: 2, blur: 6, color: '#00000040' } : {}); out(); }, 'd-add'));
+    return wrap;
+}
+
+/** `animation` d'un nœud : nom (sous `animations:`) et déclencheur ; le nom
+ *  seul se lit `appear`. */
+function animationEditor(value, set) {
+    const current = typeof value === 'string' ? { name: value } : value && typeof value === 'object' ? { ...value } : {};
+    const commit = () => set(!current.name ? undefined : current.on && current.on !== 'appear' ? { name: current.name, on: current.on } : current.name);
+    const wrap = h('div', 'd-inline');
+    wrap.append(
+        select(Object.keys(S.model?.animations || {}), current.name, v => { current.name = v; commit(); }, '— aucune —'),
+        select(['appear', 'hover', 'active', 'focus'], current.on, v => { current.on = v; commit(); }, 'appear'),
+    );
     return wrap;
 }
 
@@ -262,6 +287,13 @@ export function editor(spec, value, set, ctx = {}) {
         case 'actionMap': return pairs(value, set, 'message', 'action', 'actionList');
         case 'binds': return pairs(value, set, 'propriété', 'champ');
         case 'object': return objectEditor(spec, value, set);
+        case 'animation': return animationEditor(value, set);
+        case 'webview': return select(webviewIds(), value, set, '— navigateur du système —');
+        case 'iterations': return textInput(value, set, {
+            placeholder: '1 · infinite',
+            pattern: /^(infinite|[1-9]\d*)$/,
+            parse: v => (v === '' ? undefined : v === 'infinite' ? v : Number(v)),
+        });
         default: {
             if (spec.name === 'html' || (typeof value === 'string' && value.includes('\n'))) {
                 const t = h('textarea', 'd-input');

@@ -213,7 +213,9 @@ const BUTTON: &[(&str, Ty)] = &[
     ("onInvalid", Ty::Action),
 ];
 // Lien : texte cliquable ; passe à l'état `visited` après son premier clic.
-const LINK: &[(&str, Ty)] = &[("text", Ty::Text), ("onClick", Ty::Action)];
+// `url` : ouverte dans la vue web `target` (un `id` de `webview`, sur cet
+// écran ou un autre), sinon dans le navigateur du système.
+const LINK: &[(&str, Ty)] = &[("text", Ty::Text), ("url", Ty::Text), ("target", Ty::Text), ("onClick", Ty::Action)];
 const ICON_BUTTON: &[(&str, Ty)] = &[("icon", Ty::Icon), ("onClick", Ty::Action), ("submit", Ty::Bool), ("onInvalid", Ty::Action)];
 
 // Composants d'écran (desktop et Android) : bouton flottant, tiroir de

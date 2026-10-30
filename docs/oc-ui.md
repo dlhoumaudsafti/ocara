@@ -145,7 +145,7 @@ Un nœud est une table dont `type` est l'un des types ci-dessous.
 | `date`, `time` | `value` (ISO), `placeholder`, `required`, `onChange` | |
 | `button` | `text`, `icon`, `variant` (`primary`, `secondary`, `text`), `onClick`, `submit`, `onInvalid` | |
 | `iconButton` | `icon`, `onClick`, `submit`, `onInvalid` | `icon`, `label` |
-| `link` | `text`, `onClick` ; état `visited` après le premier clic (voir « Styles d'état et effets ») | `text` |
+| `link` | `text`, `url`, `target` (voir ci-dessous), `onClick` ; état `visited` après le premier clic (voir « Styles d'état et effets ») | `text` |
 | `fab` | `icon`, `text` (bouton étendu), `position` (voir « Composants d'écran »), `onClick` | `icon`, `label` |
 | `bottomSheet` | `children`, `spacing`, `open`, `onDismiss` | `id` |
 | `drawer` | `children`, `spacing`, `open`, `side` (`start`, `end`), `permanentFrom` (classe de taille), `onDismiss` | `id` |
@@ -226,6 +226,23 @@ Android, animée à partir d'Android 9). `kind` et `src` s'excluent ; `size`
 - { type: spinner, kind: dots, size: 32, color: "#1565c0", label: Chargement }
 - { type: spinner, src: images/loader.webp, size: 48 }
 ```
+
+### Liens
+
+Un `link` lance son `onClick` et, avec `url`, ouvre cette adresse :
+
+```yaml
+- { type: link, text: "Aide", url: "https://example.com/aide" }                 # navigateur du système
+- { type: link, text: "Aide ici", url: "https://example.com/aide", target: help } # vue web `help`
+```
+
+- sans `target` : dans le navigateur par défaut du système (desktop et
+  Android) ;
+- `target` : `id` d'une `webview` du fichier, sur cet écran ou un autre ;
+  son écran est d'abord affiché (comme `ui.navigate`), puis la vue charge
+  l'adresse à la place de sa source déclarée (`url`, `file` ou `html`). Un
+  `target` qui ne désigne pas une `webview` est une erreur ; `target` sans
+  `url` aussi.
 
 ### Tailles par défaut
 
@@ -440,9 +457,13 @@ Effets :
 |---|---|---|
 | `opacity` | 0 à 1 | |
 | `blur` | flou du nœud, rayon en px | Android 12 et plus |
-| `backdropBlur` | flou de ce qui est derrière le nœud (verre dépoli), rayon en px | ignoré (pas d'équivalent Compose) |
-| `shadow` | `{ x, y, blur, spread, color, inset }` (valeurs absentes : 0, noir translucide), ou liste d'ombres | une ombre : couleur et flou ; décalage, `spread` et `inset` ignorés ; à travers un nœud translucide, l'ombre se voit |
-| `transition` | `{ duration, delay, easing, properties }` : changements de ces propriétés (états, `ui.set`) animés ; `properties` absent : toutes | `background`, `color`, `opacity` |
+| `backdropBlur` | flou de ce qui est derrière le nœud (verre dépoli), rayon en px | Android 12 et plus, nœuds de la couche de l'écran (`floating` fixe et son contenu) ; ignoré ailleurs |
+| `shadow` | `{ x, y, blur, spread, color, inset }` (valeurs absentes : 0, noir translucide), ou liste d'ombres (la première devant) | |
+| `transition` | `{ duration, delay, easing, properties }` : changements de ces propriétés (états, `ui.set`) animés ; `properties` absent : toutes | `background`, `color`, `border`, `opacity`, `fontSize`, `radius`, `elevation`, `blur`, `backdropBlur`, `padding`/`margin` (valeur unique) |
+
+Les ombres portées (`shadow`, `elevation`) sont dessinées autour du nœud
+seulement : elles ne se voient pas à travers un nœud translucide. Sur
+Android, `elevation` sous un fond opaque reste l'ombre Material.
 
 `easing` : `linear`, `ease`, `ease-in`, `ease-out`, `ease-in-out`.
 `elevation` reste un raccourci d'ombre.
@@ -486,9 +507,8 @@ layout:
   nom en `event.value()`.
 - **Réglage système « réduire les animations »** : animations et
   transitions immédiates.
-- **Android** : `opacity`, `scale`, `rotate`, `translateX`/`Y` et
-  `background` sont animés ; `color`, `blur`, `width`/`height` ne le sont
-  que sur desktop.
+- **Android** : toutes les propriétés sont animées ; `blur` à partir
+  d'Android 12.
 
 ## Écrans inclus
 
@@ -749,7 +769,10 @@ compilateur (styles déclarés, `id` uniques, `bind`, images).
 Le bouton en haut à droite d'un `.oc.ui` ouvre le **designer** de
 l'extension (comme l'aperçu Markdown) : aperçu de l'écran avec l'apparence
 du moteur desktop, composants glissés depuis une palette, structure des
-nœuds, panneau de toutes les propriétés, styles, menu et fenêtre. Il
+nœuds, panneau de toutes les propriétés, styles, animations, menu et
+fenêtre. L'aperçu rend ombres, flous, transitions et animations comme le
+moteur desktop (bouton ▶ pour les rejouer), et montre un état choisi
+(survol, focus, appui…) avec ses tables `states`. Il
 modifie le même document que l'éditeur texte (annulable, seules les lignes
 touchées changent) et affiche les erreurs du compilateur sur les nœuds.
 On y déclare et modifie aussi les composants, on pose leurs instances et on

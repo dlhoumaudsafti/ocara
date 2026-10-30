@@ -11,6 +11,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -32,9 +33,8 @@ import org.json.JSONObject
 /**
  * Styles d'état, effets et animations d'un nœud (docs/oc-ui.md, « Styles
  * d'état et effets », « Animations »), comme runtime_tauri/src/ui/effects.js.
- * Animés ici : `opacity`, `scale`, `rotate`, `translateX`/`Y`, `background` ;
- * `color`, `blur`, `width`/`height` des étapes et `backdropBlur` ne le sont
- * que sur desktop.
+ * `backdropBlur` : Android 12 et plus, nœuds de la couche de l'écran (`fab`,
+ * `floating` fixe et leur contenu) seulement.
  */
 
 /** États tirés de l'interaction ; les autres viennent des propriétés. */
@@ -55,7 +55,20 @@ internal data class Frame(
     val translateX: Float = 0f,
     val translateY: Float = 0f,
     val background: Color? = null,
-)
+    val color: Color? = null,
+    val blur: Float? = null,
+    val width: Float? = null,
+    val height: Float? = null,
+) {
+    /** Propriétés remplacées par l'étape courante. */
+    fun overrides(): Map<String, Any?> = listOfNotNull(
+        background?.let { "background" to it }, color?.let { "color" to it }, blur?.let { "blur" to it },
+        width?.let { "width" to it }, height?.let { "height" to it },
+    ).toMap()
+
+    /** Transformations à poser sur un calque ? */
+    val transformed get() = scale != 1f || rotate != 0f || translateX != 0f || translateY != 0f
+}
 
 private val EASINGS: Map<String, Easing> = mapOf(
     "linear" to LinearEasing,
@@ -64,6 +77,11 @@ private val EASINGS: Map<String, Easing> = mapOf(
     "ease-out" to CubicBezierEasing(0f, 0f, 0.58f, 1f),
     "ease-in-out" to CubicBezierEasing(0.42f, 0f, 0.58f, 1f),
 )
+
+/** Propriétés animées par `transition` (comme `TRANSITIONS` d'effects.js ;
+ *  `padding`/`margin` : valeur unique seulement). */
+private val TRANSITION_COLORS = listOf("background", "color", "border")
+private val TRANSITION_NUMBERS = listOf("opacity", "fontSize", "radius", "elevation", "blur", "backdropBlur", "padding", "margin")
 
 /** Propriétés `p` avec les tables des états actifs par-dessus. */
 internal fun withStates(p: Map<String, Any?>, s: NodeStates): Map<String, Any?> {
@@ -103,15 +121,15 @@ internal fun transitioned(p: Map<String, Any?>): Map<String, Any?> {
     val easing = EASINGS[t.optString("easing", "ease")] ?: LinearEasing
     fun animates(name: String) = names == null || name in names
     val out = HashMap(p)
-    for (name in listOf("background", "color")) {
-        val target = parseColor(p[name]) ?: continue
-        if (!animates(name)) continue
-        val color by animateColorAsState(target, tween(duration, t.optInt("delay", 0), easing), label = name)
-        out[name] = color
+    for (name in TRANSITION_COLORS) {
+        val target = parseColor(p[name])
+        if (target == null || !animates(name)) continue
+        out[name] = key(name) { animateColorAsState(target, tween(duration, t.optInt("delay", 0), easing), label = name).value }
     }
-    (p["opacity"] as? Number)?.takeIf { animates("opacity") }?.let {
-        val opacity by animateFloatAsState(it.toFloat(), tween(duration, t.optInt("delay", 0), easing), label = "opacity")
-        out["opacity"] = opacity
+    for (name in TRANSITION_NUMBERS) {
+        val target = (p[name] as? Number)?.toFloat()
+        if (target == null || !animates(name)) continue
+        out[name] = key(name) { animateFloatAsState(target, tween(duration, t.optInt("delay", 0), easing), label = name).value }
     }
     return out
 }
@@ -132,16 +150,22 @@ private fun frameAt(steps: JSONArray, progress: Float): Frame {
     val at = progress * 100f
     fun number(prop: String, default: Float) =
         (interpolate(steps, prop, at) { a, b, f -> (a as Number).toFloat() + ((b as Number).toFloat() - a.toFloat()) * f } as? Number)?.toFloat() ?: default
-    val background = interpolate(steps, "background", at) { a, b, f ->
+    fun optional(prop: String) =
+        (interpolate(steps, prop, at) { a, b, f -> (a as Number).toFloat() + ((b as Number).toFloat() - a.toFloat()) * f } as? Number)?.toFloat()
+    fun color(prop: String) = interpolate(steps, prop, at) { a, b, f ->
         lerp(parseColor(a) ?: Color.Transparent, parseColor(b) ?: Color.Transparent, f)
-    }
+    }.let { it as? Color ?: parseColor(it) }
     return Frame(
         opacity = number("opacity", 1f),
         scale = number("scale", 1f),
         rotate = number("rotate", 0f),
         translateX = number("translateX", 0f),
         translateY = number("translateY", 0f),
-        background = background as? Color ?: parseColor(background),
+        background = color("background"),
+        color = color("color"),
+        blur = optional("blur"),
+        width = optional("width"),
+        height = optional("height"),
     )
 }
 
@@ -218,7 +242,7 @@ internal fun Modifier.effects(states: NodeStates, frame: Frame, watch: Boolean):
             }
         }.onFocusChanged { states.focused = it.hasFocus }
     }
-    if (frame != Frame(opacity = frame.opacity, background = frame.background)) {
+    if (frame.transformed) {
         m = m.graphicsLayer {
             scaleX = frame.scale
             scaleY = frame.scale

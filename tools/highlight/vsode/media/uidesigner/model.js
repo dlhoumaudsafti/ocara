@@ -11,6 +11,8 @@ export const S = {
     model: null, file: '', includes: [], variants: [], problems: [], error: undefined,
     screen: '', selection: null, platform: 'tauri', theme: 'light', width: 360,
     tab: 'props', clipboard: null, collapsed: {},
+    /** État prévisualisé (`hover`…) : tables `states` appliquées à l'aperçu. */
+    previewState: '',
     /** Fichier inclus : fichier racine qui l'inclut (`root`), ses `styles`, `window`, `menu`. */
     context: null,
     /** Styles déclarés dans les autres fichiers de l'interface (racine, fichiers inclus). */
@@ -119,6 +121,30 @@ export function walk(fn) {
 
 export function ids() { const out = new Set(); walk(n => { if (n.id) { out.add(String(n.id)); } }); return out; }
 
+/** `id` des `webview` du fichier (cible d'un `link`). */
+export function webviewIds() { const out = []; walk(n => { if (n.type === 'webview' && n.id) { out.push(String(n.id)); } }); return out.sort(); }
+
+/** Moment d'une étape (`from`, `to`, `50%`) en pourcentage ; `null` : invalide. */
+export function stepAt(name) {
+    if (name === 'from') { return 0; }
+    if (name === 'to') { return 100; }
+    const m = /^(\d+(?:\.\d+)?)%$/.exec(name);
+    return m ? Number(m[1]) : null;
+}
+
+/** Animations du fichier comme dans l'arbre normalisé (src/core/ui_schema.d/effects.rs) :
+ *  réglages par défaut posés, étapes en liste `{ at, … }` triée. */
+export function animations() {
+    const out = {};
+    for (const [name, a] of Object.entries(S.model?.animations || {})) {
+        if (!a || typeof a !== 'object') { continue; }
+        const keyframes = Object.entries(a.keyframes || {}).map(([k, v]) => ({ ...(v || {}), at: stepAt(k) }))
+            .filter(k => k.at != null).sort((x, y) => x.at - y.at);
+        out[name] = { duration: 300, delay: 0, easing: 'ease', iterations: 1, direction: 'normal', fill: 'none', ...a, keyframes };
+    }
+    return out;
+}
+
 /** Actions nommées dans le fichier, plus `back` et `close` (prises en charge par le moteur). */
 export function actions() {
     const out = new Set(['back', 'close']);
@@ -167,6 +193,7 @@ export function template(type) {
         case 'date': case 'time': return { type, id: id(type) };
         case 'button': return { type, text: 'Bouton', variant: 'primary' };
         case 'iconButton': return { type, icon: 'add', label: 'Ajouter' };
+        case 'link': return { type, text: 'Lien', url: 'https://example.com' };
         case 'fab': return { type, icon: 'add', label: 'Ajouter' };
         case 'bottomSheet': return { type, id: id('sheet'), children: [] };
         case 'drawer': return { type, id: id('drawer'), children: [] };

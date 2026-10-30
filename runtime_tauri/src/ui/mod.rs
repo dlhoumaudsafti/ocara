@@ -55,10 +55,18 @@ pub(crate) fn receive(this: i64, args_json: &str) {
     if message.get("webview").is_some() {
         return webview::place(this, &message);
     }
+    // `link` sans `target` : navigateur du système.
+    if let Some(url) = message.get("open").and_then(Value::as_str) {
+        return webview::open_external(this, url);
+    }
     if message.get("action").and_then(Value::as_str) == Some("ready") {
         eval(this, &format!("OcaraUI.restore({})", core::state(this)));
     }
     core::post(this, &message);
+    // `link` vers une vue web : l'`url` posée par le moteur la recharge.
+    if let (Some(id), Some(prop)) = (message.get("id").and_then(Value::as_str), message.get("prop").and_then(Value::as_str)) {
+        webview::apply(this, id, prop);
+    }
 }
 
 fn eval(this: i64, script: &str) {

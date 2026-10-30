@@ -543,3 +543,11 @@ fn screen_components() {
     let found = errors(&screen("    - { type: spinner, kind: dots, src: anim.gif }\n"));
     assert!(found.iter().any(|(_, m)| m.contains("'kind' (modèle proposé) ou 'src' (image animée), pas les deux")), "{found:?}");
 }
+
+#[test]
+fn link_url_and_target() {
+    ok(&screen("    - { type: link, text: Doc, url: \"https://example.com\" }\n    - { type: link, text: Doc, url: \"https://example.com\", target: page }\n    - { type: webview, id: page, url: \"about:blank\" }\n"));
+    single_error(&screen("    - { type: link, text: Doc, url: \"https://example.com\", target: pag }\n    - { type: webview, id: page }\n"), 4, "aucune 'webview' d'id 'pag' (vouliez-vous dire 'page' ?)");
+    single_error(&screen("    - { type: link, text: Doc, url: \"https://example.com\", target: t }\n    - { type: text, id: t }\n"), 4, "'target' doit désigner une 'webview' ('t' est un 'text')");
+    single_error(&screen("    - { type: link, text: Doc, target: page }\n    - { type: webview, id: page }\n"), 4, "'target' sans 'url'");
+}

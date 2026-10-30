@@ -49,5 +49,6 @@ tools/highlight/vsode/docs/
 # Copies du moteur desktop pour le designer .oc.ui (scripts/copy-ui.js)
 tools/highlight/vsode/media/uidesigner/engine.css
 tools/highlight/vsode/media/uidesigner/icons.json
+tools/highlight/vsode/media/uidesigner/effects.js
 __ocaraunit__*
 examples/tests/images

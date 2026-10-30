@@ -3,7 +3,7 @@
 // élément marqué du chemin de son nœud (`data-path`) pour la sélection et le
 // glisser-déposer. Les champs ne réagissent pas : un clic sélectionne.
 
-import { S, typeSpec, editedComponent, getIn, key, startsWith, styles, themeStyles, effectiveTheme, windowProps, layoutPath, screenPath, startScreen, rootLayout, isContainer, hasSlot, axisOf } from './model.js';
+import { S, typeSpec, editedComponent, getIn, key, startsWith, styles, themeStyles, effectiveTheme, windowProps, layoutPath, screenPath, startScreen, rootLayout, isContainer, hasSlot, axisOf, animations } from './model.js';
 import { expand } from './components.js';
 
 const FLEX_ALIGN = { start: 'flex-start', center: 'center', end: 'flex-end', stretch: 'stretch' };
@@ -17,14 +17,37 @@ function el(tag, cls, text) {
     return e;
 }
 
-/** Propriétés effectives : style nommé, nœud, surcharge de la plateforme affichée. */
+/** Propriétés effectives : style nommé, nœud, surcharge de la plateforme
+ *  affichée ; tables d'état fusionnées (comme le moteur), celle de l'état
+ *  prévisualisé (barre d'outils) appliquée. */
 function props(node) {
     const named = node.style && styles()[node.style];
     const themed = node.style && themeStyles(effectiveTheme())[node.style];
     const out = {};
     for (const layer of [named || {}, themed || {}, node, node[S.platform] || {}]) {
-        for (const k in layer) { if (k !== 'tauri' && k !== 'android') { out[k] = layer[k]; } }
+        for (const k in layer) {
+            if (k === 'tauri' || k === 'android') { continue; }
+            out[k] = k === 'states' && window.OcaraEffects ? OcaraEffects.mergeStates(out.states, layer[k]) : layer[k];
+        }
     }
+    const forced = S.previewState && out.states?.[S.previewState];
+    return normalized(forced ? { ...out, ...forced } : out);
+}
+
+/** Ombre complète (comme `shadow_with_defaults`, src/core/ui_schema.d/effects.rs). */
+const fullShadow = s => ({ x: 0, y: 0, blur: 0, spread: 0, color: '#00000040', inset: false, ...s });
+
+/** Valeurs d'effets sous la forme de l'arbre normalisé qu'attend effects.js :
+ *  `shadow` en liste complète, `animation` en table `{ name, on }`. */
+function normalized(p) {
+    const out = { ...p };
+    const shadows = v => (Array.isArray(v) ? v : [v]).filter(s => s && typeof s === 'object').map(fullShadow);
+    if (out.shadow) { out.shadow = shadows(out.shadow); }
+    if (out.states && typeof out.states === 'object') {
+        out.states = Object.fromEntries(Object.entries(out.states).map(([k, t]) => [k, t && t.shadow ? { ...t, shadow: shadows(t.shadow) } : t]));
+    }
+    if (typeof out.animation === 'string') { out.animation = { name: out.animation, on: 'appear' }; }
+    else if (out.animation && typeof out.animation === 'object') { out.animation = { on: 'appear', ...out.animation }; }
     return out;
 }
 
@@ -71,7 +94,12 @@ function decorate(e, p, parentAxis, container) {
     if (p.tooltip) { e.title = String(p.tooltip); }
     if (p.visible === false) { e.classList.add('d-invisible'); }
     if (p.enabled === false) { e.classList.add('oc-disabled'); }
+    // Ombres, opacité, flous, transitions, tables d'état et animations : effects.js du moteur.
+    if (window.OcaraEffects) { OcaraEffects.apply(e, p, animationTable); }
 }
+
+/** Animations de l'aperçu, normalisées à chaque rendu. */
+let animationTable = {};
 
 function container(node, p, path) {
     const e = el('div', 'oc-' + node.type);
@@ -292,6 +320,10 @@ function build(node, path, axis) {
             if (p.icon) { e.appendChild(icon(p.icon)); }
             if (node.type === 'button' && p.text != null) { e.appendChild(document.createTextNode(String(p.text))); }
             break;
+        case 'link':
+            e = el('a', 'oc-link' + (p.visited ? ' oc-visited' : ''), p.text == null ? '' : String(p.text));
+            if (p.url) { e.title = p.target ? `${p.url} → vue web ${p.target}` : `${p.url} (navigateur)`; }
+            break;
         case 'webview':
             e = el('div', 'oc-webview');
             e.dataset.src = p.url || p.file || (p.html != null ? 'html' : '');
@@ -341,6 +373,8 @@ export function renderCanvas() {
     canvas.dataset.platform = S.platform;
     canvas.style.setProperty('--oc-primary', win.primary || '#3f51b5');
     if (!S.model) { return; }
+    animationTable = animations();
+    if (window.OcaraEffects) { OcaraEffects.setTree({ animations: animationTable }); }
     const screen = getIn(S.model, screenPath()) || {};
     const bar = el('div', 'oc-bar');
     const component = editedComponent();

@@ -231,6 +231,14 @@ pub(crate) fn apply(this: i64, id: &str, prop: &str) {
     });
 }
 
+/// Adresse ouverte dans le navigateur du système (`link` sans `target`).
+pub(crate) fn open_external(this: i64, url: &str) {
+    let url = url.to_string();
+    on_main(this, move |_| {
+        let _ = gtk::show_uri_on_window(None::<&gtk::Window>, &url, gtk::current_event_time());
+    });
+}
+
 /// `ui.postMessage(id, data)` : `window.ocara.onMessage` de la page.
 pub(crate) fn post_message(this: i64, id: &str, data: &Value) {
     run(this, id, format!("window.ocara && window.ocara.__receive({data})"));

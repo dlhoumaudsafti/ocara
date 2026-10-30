@@ -94,10 +94,12 @@ pub fn check_source(file: &Path, source: &str) -> Result<UiSpec, Vec<Diagnostic>
         in_item: 0,
         bindings: BTreeMap::new(),
         animations: BTreeSet::new(),
+        link_targets: Vec::new(),
     };
     checker.declare_styles(&root);
     checker.declare_components(&root);
     let tree = checker.root(&root);
+    checker.check_link_targets();
     if !checker.errors.is_empty() {
         checker.errors.sort_by(|a, b| (&a.file, a.line, a.col).cmp(&(&b.file, b.line, b.col)));
         return Err(checker.errors);
@@ -165,12 +167,30 @@ pub(super) struct Checker {
     bindings: BTreeMap<String, Vec<roots::Bound>>,
     /// Noms déclarés sous `animations:` (effects.rs), connus avant les nœuds.
     animations: BTreeSet<String>,
+    /// `target` des `link` (vérifiés une fois tous les `id` connus) : valeur,
+    /// fichier, ligne et colonne du lien.
+    link_targets: Vec<(String, PathBuf, usize, usize)>,
 }
 
 type Entry<'n> = (&'n Node, &'n str, &'n Node);
 
 impl Checker {
     /// Enregistre une erreur sur `node` ; rend toujours `None`.
+    /// Chaque `target` de `link` désigne une `webview` du fichier.
+    fn check_link_targets(&mut self) {
+        for (target, file, line, col) in std::mem::take(&mut self.link_targets) {
+            let message = match self.ids.get(&target).map(|(ty, _)| ty.as_str()) {
+                Some("webview") => continue,
+                Some(ty) => format!("'link' : 'target' doit désigner une 'webview' ('{target}' est un '{ty}')"),
+                None => {
+                    let webviews: Vec<&str> = self.ids.iter().filter(|(_, (ty, _))| ty == "webview").map(|(id, _)| id.as_str()).collect();
+                    format!("'link' : aucune 'webview' d'id '{target}'{}", suggest(&target, &webviews))
+                }
+            };
+            self.errors.push(Diagnostic::error(&file, line, col, message));
+        }
+    }
+
     fn fail<T>(&mut self, node: &Node, message: String) -> Option<T> {
         let file = node.file.as_deref().unwrap_or(&self.file);
         self.errors.push(Diagnostic::error(file, node.line, node.col, message));

@@ -62,6 +62,12 @@
   node("more").click();
   check("lien → onClick", last().action === "more");
   check("lien visité", node("more").classList.contains("oc-visited") && OcaraUI.get("more", "visited") === true);
+  node("doc_out").click();
+  check("lien sans target → navigateur", sent.some(function (m) { return m.open === "https://example.com/"; }) && node("doc_out").getAttribute("href") === "https://example.com/");
+  node("doc_here").click();
+  check("lien → vue web d'un autre écran", node("page") && OcaraUI.get("page", "url") === "https://example.com/" && OcaraUI.get("page", "html") === null
+    && last().id === "page" && last().prop === "url");
+  OcaraUI.navigate("form");
 
   // Composants d'écran (layers.js) : dans la couche, rien à leur place.
   check("couche de l'écran", !q(".oc-screen .oc-panel") && q(".oc-layer .oc-drawer") && q(".oc-layer .oc-bottomSheet"));

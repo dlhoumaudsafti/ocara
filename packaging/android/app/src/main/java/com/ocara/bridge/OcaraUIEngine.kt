@@ -1,5 +1,8 @@
 package com.ocara.bridge
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -169,6 +172,35 @@ object OcaraUIEngine {
         if (id == null) return
         state[key(id, prop)] = value
         send(JSONObject().put("id", id).put("prop", prop).put("value", value ?: JSONObject.NULL))
+    }
+
+    /**
+     * `url` d'un `link` : dans la vue web `target` (son écran affiché
+     * d'abord), sinon dans le navigateur du système.
+     */
+    fun openLink(context: Context, url: String, target: String?) {
+        if (target == null) {
+            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                .onFailure { Log.w(TAG, "lien $url : ${it.message}") }
+            return
+        }
+        screenOf(target)?.let { if (backStack.lastOrNull() != it) navigate(it) }
+        // `html`/`file` passent avant `url` : la source déclarée est remplacée.
+        changed(target, "html", null)
+        changed(target, "file", null)
+        changed(target, "url", url)
+    }
+
+    /** Écran dont la disposition contient le nœud `id`. */
+    private fun screenOf(id: String): String? {
+        fun has(node: JSONObject?): Boolean {
+            if (node == null) return false
+            if (node.optString("id") == id) return true
+            val children = node.optJSONArray("children") ?: return false
+            return (0 until children.length()).any { has(children.optJSONObject(it)) }
+        }
+        val screens = tree.value?.optJSONObject("screens") ?: return null
+        return screens.keys().asSequence().firstOrNull { has(screens.getJSONObject(it).optJSONObject("layout")) }
     }
 
     /** Action déclarée par `event` (`onClick`…) dans les propriétés `props`. */

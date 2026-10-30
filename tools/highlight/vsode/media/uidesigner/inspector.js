@@ -4,9 +4,9 @@
 
 import {
     S, getIn, edit, setProp, typeSpec, allProps, inItem, screens, rootLayout, screenPath, startScreen,
-    removeNode, refresh, vscode, styles,
+    removeNode, refresh, vscode, styles, stepAt,
 } from './model.js';
-import { editor, menuEditor, h } from './editors.js';
+import { editor, menuEditor, fieldsEditor, h } from './editors.js';
 import { LABEL } from './palette.js';
 import { duplicate, moveBy } from './actions.js';
 import { ask, confirmBox } from './dialog.js';
@@ -328,6 +328,92 @@ function walkStyles(name, fn) {
     visit(S.model, []);
 }
 
+/** Animations nommées (`animations:`, docs/oc-ui.md « Animations ») :
+ *  réglages et étapes (`from`, `to`, `50%`). */
+function animationsPanel() {
+    const all = S.model.animations || {};
+    const out = [header('Animations', 'animations', [['＋', 'Nouvelle animation', async () => {
+        const name = await ask('Nom de l\'animation', '');
+        if (name && /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) && !all[name]) {
+            edit([{ op: 'set', path: ['animations', name], value: { duration: 300, keyframes: { from: { opacity: 0 }, to: { opacity: 1 } } } }]);
+            open[`anim:${name}`] = false;
+        }
+    }]])];
+    const used = {};
+    JSON.stringify(S.model, (k, v) => {
+        const name = k === 'animation' ? (typeof v === 'string' ? v : v?.name) : undefined;
+        if (name) { used[name] = (used[name] || 0) + 1; }
+        return v;
+    });
+    for (const name of Object.keys(all)) {
+        const path = ['animations', name];
+        const anim = all[name] || {};
+        const tools = h('div', 'd-inline');
+        const rename = h('button', 'd-mini', '✎ renommer');
+        rename.addEventListener('click', async () => {
+            const to = await ask('Nouveau nom de l\'animation', name);
+            if (!to || to === name || all[to] || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(to)) { return; }
+            const ops = [{ op: 'rename', path: ['animations'], from: name, to }];
+            walkAnimations(name, (p, v) => ops.push({ op: 'set', path: [...p, 'animation'], value: typeof v === 'string' ? to : { ...v, name: to } }));
+            edit(ops);
+        });
+        const del = h('button', 'd-mini', '🗑 supprimer');
+        del.addEventListener('click', () => {
+            const ops = [{ op: 'remove', path }];
+            walkAnimations(name, p => ops.push({ op: 'remove', path: [...p, 'animation'] }));
+            edit(ops);
+        });
+        tools.append(rename, del);
+        const rows = [tools, ...S.catalog.animation.map(p => field(p, path, anim)), ...keyframeRows(path, anim.keyframes || {})];
+        out.push(section(`${name}  ·  ${used[name] || 0} nœud(s)`, rows, { id: `anim:${name}`, collapsed: true }));
+    }
+    if (!Object.keys(all).length) { out.push(h('p', 'd-muted d-pad', 'Aucune animation. Une animation nommée décrit des étapes (opacité, échelle, rotation, déplacement, couleurs, flou, taille), jouée par la propriété animation d\'un nœud ou par ui.animate.')); }
+    return out;
+}
+
+/** Étapes d'une animation, dans l'ordre : moment (renommable) et propriétés. */
+function keyframeRows(path, keyframes) {
+    const kpath = [...path, 'keyframes'];
+    const names = Object.keys(keyframes).sort((a, b) => (stepAt(a) ?? 0) - (stepAt(b) ?? 0));
+    const rows = names.map(step => {
+        const box = h('div', 'd-keyframe');
+        const head = h('div', 'd-inline');
+        const at = h('input', 'd-input d-narrow');
+        at.value = step;
+        at.title = 'from, to ou pourcentage (50%)';
+        at.addEventListener('change', () => {
+            const to = at.value.trim();
+            if (stepAt(to) == null || keyframes[to]) { at.classList.add('d-bad'); return; }
+            edit([{ op: 'rename', path: kpath, from: step, to }]);
+        });
+        const del = h('button', 'd-mini', '✕');
+        del.title = 'Retirer l\'étape';
+        del.addEventListener('click', () => edit([{ op: 'remove', path: [...kpath, step] }]));
+        head.append(h('span', 'd-muted', 'étape'), at, del);
+        box.append(head, fieldsEditor(S.catalog.keyframe, keyframes[step], v => setProp(kpath, step, v || {})));
+        return box;
+    });
+    const add = h('button', 'd-mini d-add', '＋ étape');
+    add.addEventListener('click', () => {
+        let n = 50;
+        while (keyframes[`${n}%`]) { n += 5; }
+        edit([{ op: 'set', path: [...kpath, `${n}%`], value: {} }]);
+    });
+    return [h('div', 'd-label', 'keyframes'), ...rows, add];
+}
+
+/** Nœuds dont l'`animation` joue `name` : fn(chemin, valeur). */
+function walkAnimations(name, fn) {
+    const visit = (v, path) => {
+        if (Array.isArray(v)) { v.forEach((x, i) => visit(x, [...path, i])); return; }
+        if (!v || typeof v !== 'object') { return; }
+        const a = v.type && v.animation;
+        if (a && (a === name || a.name === name)) { fn(path, a); }
+        for (const [k, x] of Object.entries(v)) { if (k !== 'animations') { visit(x, [...path, k]); } }
+    };
+    visit(S.model, []);
+}
+
 function menuPanel() {
     const r = h('div', 'd-field d-wide');
     r.appendChild(menuEditor(S.model.menu, v => setProp([], 'menu', v)));
@@ -367,7 +453,7 @@ export function renderInspector() {
     const sel = S.selection;
     const node = sel && getIn(S.model, sel);
     const owner = { window: 'window', styles: 'styles', menu: 'menu' }[S.tab];
-    if (owner && S.context && S.model[owner] === undefined) { parts = rootNotice(owner); } else if (S.tab === 'window') { parts = windowPanel(); } else if (S.tab === 'styles') { parts = stylesPanel(); } else if (S.tab === 'menu') { parts = menuPanel(); } else if (node && typeof node === 'object' && node.type) {
+    if (owner && S.context && S.model[owner] === undefined) { parts = rootNotice(owner); } else if (S.tab === 'window') { parts = windowPanel(); } else if (S.tab === 'styles') { parts = stylesPanel(); } else if (S.tab === 'menu') { parts = menuPanel(); } else if (S.tab === 'animations') { parts = animationsPanel(); } else if (node && typeof node === 'object' && node.type) {
         parts = nodePanel(sel);
     } else if (editedComponent()) {
         parts = componentPanel(editedComponent(), header, section);

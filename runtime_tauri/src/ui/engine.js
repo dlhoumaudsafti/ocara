@@ -394,13 +394,39 @@
     var e = el("a", "oc-link");
     e.href = "#";
     e.textContent = p.text == null ? "" : p.text;
+    if (p.url) e.href = p.url;
     e.addEventListener("click", function (ev) {
       ev.preventDefault();
       e.classList.add("oc-visited");
       changed(node.id, "visited", true);
+      if (p.url) openLink(p.url, p.target);
     });
     onClick(e, node, p, ctx);
     return e;
+  }
+
+  /// Écran dont la disposition contient le nœud `id` (`null` : aucun).
+  function screenOf(id) {
+    function has(node) {
+      return !!node && (node.id === id || (node.children || []).some(has));
+    }
+    for (var name in tree.screens) if (has(tree.screens[name].layout)) return name;
+    return null;
+  }
+
+  /// `url` d'un `link` : dans la vue web `target` (son écran affiché
+  /// d'abord), sinon dans le navigateur du système (hôte).
+  function openLink(url, target) {
+    if (!target) return send({ open: url });
+    var screen = screenOf(target);
+    if (screen && screen !== current) OcaraUI.navigate(screen);
+    // `html`/`file` passent avant `url` : la source déclarée est remplacée.
+    ["html", "file", "url"].forEach(function (prop) {
+      var value = prop === "url" ? url : null;
+      if (prop !== "url" && OcaraUI.get(target, prop) == null) return;
+      OcaraUI.set(target, prop, value);
+      send({ id: target, prop: prop, value: value });
+    });
   }
 
   function button(node, p, ctx) {

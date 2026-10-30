@@ -11,3 +11,11 @@ pub(crate) fn eval(_this: i64, _id: &str, _script: &str) -> String {
 }
 pub(crate) fn navigate(_this: i64, _id: &str, _step: &'static str) {}
 pub(crate) fn release(_this: i64) {}
+
+/// Adresse ouverte dans le navigateur du système (`link` sans `target`).
+pub(crate) fn open_external(_this: i64, url: &str) {
+    #[cfg(target_os = "macos")]
+    let _ = std::process::Command::new("open").arg(url).spawn();
+    #[cfg(target_os = "windows")]
+    let _ = std::process::Command::new("rundll32").args(["url.dll,FileProtocolHandler", url]).spawn();
+}
