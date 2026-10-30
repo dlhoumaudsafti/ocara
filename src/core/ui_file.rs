@@ -110,7 +110,7 @@ pub fn check_call(tree: &str, method: &str, args: &[Expr], span: &Span) -> Resul
                 Err((span.clone(), format!("ui.on : action '{name}' absente du .oc.ui{}", suggestion(name, &actions))))
             }
         }
-        "get" | "set" => id_of(None),
+        "get" | "set" | "has" => id_of(None),
         "setItems" => id_of(Some("list")),
         "postMessage" | "eval" | "webBack" | "webForward" | "reload" => id_of(Some("webview")),
         "navigate" => {

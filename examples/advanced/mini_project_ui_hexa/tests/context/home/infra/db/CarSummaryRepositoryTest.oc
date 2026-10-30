@@ -1,6 +1,7 @@
 import ocara.UnitTest
 import context.home.domain.entity.CarSummaryEntity
 import context.home.infra.db.CarSummaryRepository
+import context.car.infra.db.CarPhotoRepository
 import tests.support.Fixture
 
 class CarSummaryRepositoryTest extends UnitTest {
@@ -30,6 +31,34 @@ class CarSummaryRepositoryTest extends UnitTest {
             }
         }
         self::assertEquals(2, found)
+        Fixture::cleanup()
+        return 0
+    }
+
+    // Première photo de chaque voiture, seulement si elle est demandée.
+    public method allWithPhotosTest(): int {
+        Fixture::reset()
+        const id:int = Fixture::car("PHOTO", "Peugeot", "208", 9000.0)
+        const bare_id:int = Fixture::car("NOPHOTO", "Renault", "Clio", 8000.0)
+        CarPhotoRepository::setPath(CarPhotoRepository::reserve(id), "uploads/first.jpg")
+        CarPhotoRepository::setPath(CarPhotoRepository::reserve(id), "uploads/second.jpg")
+        var found:int = 0
+        for car in CarSummaryRepository::all(true) {
+            if car.id equal id {
+                found += 1
+                self::assertEquals("uploads/first.jpg", car.photo)
+            }
+            if car.id equal bare_id {
+                found += 1
+                self::assertEquals("", car.photo)
+            }
+        }
+        self::assertEquals(2, found)
+        for car in CarSummaryRepository::all() {
+            if car.id equal id {
+                self::assertEquals("", car.photo)
+            }
+        }
         Fixture::cleanup()
         return 0
     }

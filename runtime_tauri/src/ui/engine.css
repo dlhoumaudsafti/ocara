@@ -20,6 +20,8 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+/* `visible: false` (attribut hidden) l'emporte sur le `display` des conteneurs. */
+[hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; }
 body {
   background: var(--oc-bg); color: var(--oc-text);

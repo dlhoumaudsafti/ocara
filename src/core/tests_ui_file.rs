@@ -63,6 +63,8 @@ fn calls_are_checked_against_the_tree() {
     assert!(message.contains("action 'serch'") && message.contains("'search'"), "{message}");
     assert!(check_call(tree, "get", &lit("q"), &span).is_ok());
     assert!(check_call(tree, "set", &lit("nope"), &span).unwrap_err().1.contains("id 'nope'"));
+    assert!(check_call(tree, "has", &lit("q"), &span).is_ok());
+    assert!(check_call(tree, "has", &lit("nope"), &span).unwrap_err().1.contains("ui.has : id 'nope'"));
     assert!(check_call(tree, "setItems", &lit("q"), &span).unwrap_err().1.contains("'list' attendu"));
     assert!(check_call(tree, "eval", &lit("web"), &span).is_ok());
     assert!(check_call(tree, "navigate", &lit("detail"), &span).unwrap_err().1.contains("'details'"));

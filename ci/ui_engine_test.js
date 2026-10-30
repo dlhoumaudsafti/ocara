@@ -46,7 +46,7 @@
   OcaraUI.set("save", "text", "Valider");
   check("set réaffiche le nœud", node("save").textContent === "Valider");
   OcaraUI.set("save", "visible", false);
-  check("set visible", node("save").hidden);
+  check("set visible", node("save").hidden && getComputedStyle(node("save")).display === "none");
   OcaraUI.set("name", "value", "Grace");
   check("set valeur", node("name").value === "Grace");
   check("get", OcaraUI.get("name", "value") === "Grace");

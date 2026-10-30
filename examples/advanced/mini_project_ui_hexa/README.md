@@ -44,5 +44,5 @@ l'autre passe par les noms d'action, liés dans `configs/actions/`.
 | redirection + message flash | `ui.navigate` + `ui.toast("${flash_…}")` |
 | upload multipart | `ui.pickFile` puis copie dans `uploads/` |
 | confirmation JavaScript | `ui.confirm` |
-| feuille de style responsive | variantes `garage.md.oc.ui` |
+| feuille de style responsive | variantes `garage.md.oc.ui`, `garage.lg.oc.ui` (flotte en grille, photo des voitures : chargée seulement si la variante l'affiche, `ui.has("car_photo")`) |
 | langue par cookie | `ui.setVars(Language::vars(code))` |

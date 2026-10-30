@@ -5,8 +5,9 @@ import context.home.domain.entity.CarSummaryEntity
 import context.home.domain.contract.CarSummaryContract
 
 class DashboardService {
-    public static method build(): DashboardDto {
-        const cars:array<CarSummaryEntity> = CarSummaryContract::all()
+    // `withPhotos` : l'interface affichée montre la photo des voitures.
+    public static method build(withPhotos:bool = false): DashboardDto {
+        const cars:array<CarSummaryEntity> = CarSummaryContract::all(withPhotos)
         var total_purchase:float = 0.0
         var total_estimated:float = 0.0
         for car in cars {

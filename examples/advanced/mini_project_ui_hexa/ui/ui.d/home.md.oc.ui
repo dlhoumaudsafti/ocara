@@ -106,24 +106,34 @@ screens:
                       - type: row
                         spacing: 8
                         children:
-                          - { type: text, bind: reference, style: card_ref }
-                          - { type: text, bind: model_line, width: fill }
-                          - { type: iconButton, icon: delete, label: "${delete_label}", tooltip: "${delete_label}", onClick: delete_car, color: "#c62828" }
-                      - type: row
-                        spacing: 24
-                        children:
                           - type: column
+                            spacing: 8
                             children:
-                              - { type: text, value: "${card_purchase}", style: stat_label }
-                              - { type: text, bind: purchase }
+                              - { type: image, src: "", label: "${photo_label}", fit: cover, id: car_photo, bind: photo, width: 100, height: 100 }
                           - type: column
+                            spacing: 8
                             children:
-                              - { type: text, value: "${card_estimated}", style: stat_label }
-                              - { type: text, bind: estimated, style: highlight }
-                          - type: column
-                            children:
-                              - { type: text, value: "${card_maintenance}", style: stat_label }
-                              - { type: text, bind: maintenance }
+                              - type: row
+                                spacing: 8
+                                children:
+                                  - { type: text, bind: reference, style: card_ref }
+                                  - { type: text, bind: model_line, width: fill }
+                                  - { type: iconButton, icon: delete, label: "${delete_label}", tooltip: "${delete_label}", onClick: delete_car, color: "#c62828" }
+                              - type: row
+                                spacing: 24
+                                children:
+                                  - type: column
+                                    children:
+                                      - { type: text, value: "${card_purchase}", style: stat_label }
+                                      - { type: text, bind: purchase }
+                                  - type: column
+                                    children:
+                                      - { type: text, value: "${card_estimated}", style: stat_label }
+                                      - { type: text, bind: estimated, style: highlight }
+                                  - type: column
+                                    children:
+                                      - { type: text, value: "${card_maintenance}", style: stat_label }
+                                      - { type: text, bind: maintenance }
         - { type: android.fab, icon: search, label: "${nav_search}", onClick: go_search }
         - type: android.drawer
           id: home_drawer

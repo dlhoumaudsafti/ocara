@@ -4,5 +4,6 @@ import context.home.domain.entity.CarSummaryEntity
 
 interface CarSummaryContract {
     wiring context.home.infra.db.CarSummaryRepository
-    public static method all(): array<CarSummaryEntity>
+    // `withPhotos` : chemin de la première photo de chaque voiture (sinon "").
+    public static method all(withPhotos:bool = false): array<CarSummaryEntity>
 }

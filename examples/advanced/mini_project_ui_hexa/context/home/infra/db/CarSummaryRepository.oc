@@ -20,6 +20,7 @@ class CarSummaryRepository implements CarSummaryContract {
         var purchase_price:float = row["purchase_price"]
         var estimated_price:float = row["estimated_sale_price"]
         var maintenance_total:float = row["maintenance_total"]
+        var photo:string = row["photo"]
         return use CarSummaryEntity(
             id,
             reference,
@@ -27,15 +28,29 @@ class CarSummaryRepository implements CarSummaryContract {
             model,
             purchase_price,
             estimated_price,
-            maintenance_total
+            maintenance_total,
+            photo
         )
     }
 
-    public static method all(): array<CarSummaryEntity> {
+    public static method all(withPhotos:bool = false): array<CarSummaryEntity> {
+        // Première photo : la sous-requête n'est évaluée que si `:withPhotos`
+        // vaut 1 (l'interface affichée la montre).
+        var with_photos:int = 0
+        if withPhotos {
+            with_photos = 1
+        }
         const db:SQLite = Database::connect()
         const rows:array<map<string, mixed>> = db.query(`
             SELECT 
-                cars.*, 
+                cars.*,
+                CASE WHEN :withPhotos = 1 THEN
+                    COALESCE((
+                        SELECT path FROM car_photos
+                        WHERE car_photos.car_id = cars.id AND path != ''
+                        ORDER BY car_photos.id LIMIT 1
+                    ), '')
+                ELSE '' END as photo,
                 COALESCE(
                     SUM(
                         CASE WHEN maintenances.type = 'maintenance' THEN
@@ -45,7 +60,7 @@ class CarSummaryRepository implements CarSummaryContract {
                 0) as maintenance_total
             FROM cars LEFT JOIN maintenances ON maintenances.car_id = cars.id
             GROUP BY cars.id ORDER BY cars.created_at DESC
-        `)
+        `, {"withPhotos": with_photos})
         db.close()
         var items:array<CarSummaryEntity> = []
         for row in rows {

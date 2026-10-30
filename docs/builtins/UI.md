@@ -80,6 +80,18 @@ pour les grands écrans (`garage.md.oc.ui`…) : voir
 courante (`xxs` … `xxl`, `""` avant l'affichage) ; l'action prédéfinie
 `resize` prévient d'un changement.
 
+`ui.has(id)` évite de calculer une donnée que l'interface affichée ne
+montre pas : une variante peut avoir un nœud de plus (une photo dans les
+cartes d'une liste, par exemple). Le relancer à l'action `resize`, la
+variante pouvant changer :
+
+```ocara
+ui.on("resize", nameless(u:UI, event:UIEvent): void {
+    // `car_photo` : image du gabarit de la liste, dans garage.lg.oc.ui seulement.
+    u.setItems("cars", Cars::rows(u.has("car_photo")))
+})
+```
+
 Le fichier est lu **à la compilation** : une erreur du `.oc.ui` est une
 erreur de compilation à sa ligne, et l'arbre normalisé est embarqué dans le
 binaire (rien à livrer à côté, APK compris ; les images locales aussi, voir
@@ -136,6 +148,7 @@ est signalée sur la sortie d'erreur ; les actions suivantes sont traitées.
 | `ui.get(id, prop)` → `mixed` | valeur courante : saisie de l'utilisateur, valeur posée par `set`, sinon celle du `.oc.ui`, sinon `null` |
 | `ui.set(id, prop, value)` | change une propriété (`value`, `text`, `checked`, `visible`, `enabled`…) ; le nœud est réaffiché |
 | `ui.setItems(id, rows)` | éléments d'une `list` (`array<map<string, mixed>>`, lus par `bind`) |
+| `ui.has(id)` → `bool` | le nœud `id` est-il dans la variante de taille affichée (gabarits `item` des listes compris) ? `false` s'il n'est que dans une autre variante |
 
 `id` doit exister dans le `.oc.ui` (sinon `UIException` 102). L'état est
 gardé par le runtime : `get` ne questionne pas l'interface, et l'état posé

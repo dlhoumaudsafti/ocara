@@ -18,6 +18,8 @@ class HomeView implements HomeViewPort {
                 "purchase": Format::price(car.purchase_price),
                 "estimated": Format::price(car.estimated_price),
                 "maintenance": Format::price(car.maintenance_total),
+                "photo": car.photo,
+                "has_photo": car.photo not equal "",
             })
         }
         const profit:float = dashboard.total_estimated_value - dashboard.total_purchase_value

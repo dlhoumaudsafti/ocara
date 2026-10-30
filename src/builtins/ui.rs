@@ -4,7 +4,7 @@
 // (runtime_tauri/src/ui) ; Android : moteur Compose (runtime_android/ui).
 //
 //   use UI("x.oc.ui", vars)           // lu et validé à la compilation (src/core/ui_file.rs)
-//   ui.setVars(vars) / ui.sizeClass() → string
+//   ui.setVars(vars) / ui.sizeClass() → string / ui.has(id) → bool
 //   ui.on(action, Classe::methode)    // gestionnaire (ui:UI, event:UIEvent): void
 //   ui.get(id, prop) → mixed / ui.set(id, prop, valeur) / ui.setItems(id, rows)
 //   ui.navigate(screen) / ui.back() / ui.run() / ui.close()
@@ -68,6 +68,9 @@ pub fn class() -> ClassInfo {
     methods.insert("setVars".to_string(), inst_m(vec![("vars", Type::Map(Box::new(Type::String), Box::new(Type::Mixed)))], Type::Void));
     // Classe de taille de la fenêtre ou de l'écran (`xxs` … `xxl`, "" avant run()).
     methods.insert("sizeClass".to_string(), inst_m(vec![], Type::String));
+    // Nœud `id` présent dans la variante affichée (gabarits de liste compris) :
+    // ne calculer une donnée que si l'interface l'affiche.
+    methods.insert("has".to_string(), inst_m(vec![("id", Type::String)], Type::Bool));
     methods.insert("on".to_string(), inst_m(vec![("action", Type::String), ("handler", handler_ty())], Type::Void));
     methods.insert("get".to_string(), inst_m(vec![("id", Type::String), ("prop", Type::String)], Type::Mixed));
     methods.insert("set".to_string(), inst_m(vec![("id", Type::String), ("prop", Type::String), ("value", Type::Mixed)], Type::Void));

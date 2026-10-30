@@ -3,7 +3,8 @@ namespace context.home.domain.entity
 // Modèle de lecture propre à ce contexte (tableau de bord) — n'est PAS
 // context.car.domain.entity.CarEntity : ce contexte n'a besoin que d'un
 // résumé déjà agrégé (total d'entretiens inclus) pour l'affichage de chaque
-// carte, jamais d'écrire quoi que ce soit.
+// carte, jamais d'écrire quoi que ce soit. `photo` : chemin de la première
+// photo, "" sans photo ou quand l'interface ne l'affiche pas.
 
 class CarSummaryEntity {
     public property id:int
@@ -13,6 +14,7 @@ class CarSummaryEntity {
     public property purchase_price:float
     public property estimated_price:float
     public property maintenance_total:float
+    public property photo:string
 
     init(
         id:int,
@@ -21,7 +23,8 @@ class CarSummaryEntity {
         model:string,
         purchase_price:float,
         estimated_price:float,
-        maintenance_total:float
+        maintenance_total:float,
+        photo:string = ""
     ) {
         self.id = id
         self.reference = reference
@@ -30,5 +33,6 @@ class CarSummaryEntity {
         self.purchase_price = purchase_price
         self.estimated_price = estimated_price
         self.maintenance_total = maintenance_total
+        self.photo = photo
     }
 }

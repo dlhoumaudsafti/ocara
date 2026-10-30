@@ -9,7 +9,7 @@ import tests.support.fake.FakeDatabase
 
 class FakeCarSummaryRepository implements CarSummaryContract {
 
-    public static method all(): array<CarSummaryEntity> {
+    public static method all(withPhotos:bool = false): array<CarSummaryEntity> {
         var items:array<CarSummaryEntity> = []
         for row in FakeDatabase::cars() {
             var id:int = row["id"]

@@ -150,6 +150,37 @@ pub fn size_class(this: i64) -> String {
     with(this, |ui| ui.size_class.clone()).unwrap_or_default()
 }
 
+/// `ui.has(id)` : le nœud `id` est-il dans la variante affichée (celle de
+/// la classe rapportée par le moteur ; l'arbre par défaut avant
+/// l'affichage) ? Les gabarits `item` des listes comptent.
+pub fn has(this: i64, id: &str) -> bool {
+    with(this, |ui| {
+        let shown = displayed(&ui.tree, &ui.size_class);
+        shown.get("screens").and_then(Value::as_object).into_iter().flat_map(|s| s.values())
+            .any(|screen| declares(&screen["layout"], id))
+    }).unwrap_or(false)
+}
+
+/// Arbre affiché pour la classe `class` : la plus grande variante dont le
+/// seuil ne dépasse pas celui de la classe (même règle que les moteurs).
+fn displayed<'t>(tree: &'t Value, class: &str) -> &'t Value {
+    let sizes = tree.get("sizes").and_then(Value::as_object);
+    let width = sizes.and_then(|s| s.get(class)).and_then(Value::as_u64);
+    let (Some(sizes), Some(width), Some(variants)) = (sizes, width, tree.get("variants").and_then(Value::as_object)) else { return tree };
+    variants.iter()
+        .filter_map(|(c, v)| sizes.get(c).and_then(Value::as_u64).filter(|w| *w <= width).map(|w| (w, v)))
+        .max_by_key(|(w, _)| *w)
+        .map(|(_, v)| v)
+        .unwrap_or(tree)
+}
+
+/// Le nœud ou un de ses descendants (enfants, gabarit `item`) a l'`id`.
+fn declares(node: &Value, id: &str) -> bool {
+    node.get("id").and_then(Value::as_str) == Some(id)
+        || node.get("children").and_then(Value::as_array).into_iter().flatten().any(|c| declares(c, id))
+        || node.get("item").is_some_and(|item| declares(item, id))
+}
+
 /// Libération de l'objet `UI` : son état natif.
 pub fn release(this: i64) {
     // Gestionnaires : rendus avec le champ `__kept` de l'objet (`on`).
@@ -312,4 +343,24 @@ fn dispatch(this: i64, event: Event) {
 /// Texte Ocara possédé (pour les plateformes).
 pub fn ocara_string(text: &str) -> i64 {
     string(text)
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    /// Arbre affiché selon la classe, puis `id` cherché jusque dans les gabarits de liste.
+    #[test]
+    fn has_looks_at_the_displayed_variant() {
+        let list = |item: serde_json::Value| json!({ "screens": { "home": { "layout": { "type": "column", "children": [{ "type": "list", "id": "cars", "item": item }] } } } });
+        let mut tree = list(json!({ "type": "text", "bind": "name" }));
+        tree["sizes"] = json!({ "xs": 360, "md": 840, "lg": 1200, "xl": 1600 });
+        tree["variants"] = json!({ "lg": list(json!({ "type": "card", "children": [{ "type": "image", "id": "car_photo", "bind": "photo" }] })) });
+        let shown = |class: &str| super::declares(&super::displayed(&tree, class)["screens"]["home"]["layout"], "car_photo");
+        assert!(!shown(""));
+        assert!(!shown("md"));
+        assert!(shown("lg"));
+        assert!(shown("xl"));
+        assert!(super::declares(&tree["screens"]["home"]["layout"], "cars"));
+    }
 }

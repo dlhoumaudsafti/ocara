@@ -20,6 +20,18 @@ class HomeViewTest extends UnitTest {
         self::assertEquals("Peugeot 308", items[0]["model_line"])
         self::assertEquals("10500,00 €", items[0]["estimated"])
         self::assertEquals("120,00 €", items[0]["maintenance"])
+        self::assertEquals(false, items[0]["has_photo"])
+        return 0
+    }
+
+    // Photo de la carte (grande fenêtre) : chemin et visibilité.
+    public method presentPhotoTest(): int {
+        var cars:array<CarSummaryEntity> = []
+        cars.push(use CarSummaryEntity(5, "REF-PIC", "Fiat", "500", 9000.0, 9000.0, 0.0, "uploads/pic.jpg"))
+        const state:map<string, map<string, mixed>> = HomeView::present(use DashboardDto(cars, 9000.0, 9000.0))
+        var items:array<map<string, mixed>> = state["cars"]["items"]
+        self::assertEquals("uploads/pic.jpg", items[0]["photo"])
+        self::assertEquals(true, items[0]["has_photo"])
         return 0
     }
 

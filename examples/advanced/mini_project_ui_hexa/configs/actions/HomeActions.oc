@@ -1,6 +1,7 @@
 namespace configs.actions
 // Accueil — GET / de mini_project_hexa (configs/routes/Home.oc) : le tableau
-// de bord est rafraîchi à chaque affichage de l'écran (onShow).
+// de bord est rafraîchi à chaque affichage de l'écran (onShow) et à chaque
+// changement de taille (la grande fenêtre montre la photo des voitures).
 
 import ocara.UI
 import context.home.infra.controllers.HomeController
@@ -8,5 +9,6 @@ import context.home.infra.controllers.HomeController
 class HomeActions {
     init(ui:UI) {
         ui.on("show_home", HomeController::show)
+        ui.on("resize", HomeController::resized)
     }
 }

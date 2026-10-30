@@ -112,6 +112,15 @@ screens:
                           - { type: text, bind: reference, style: card_ref }
                           - { type: text, bind: model_line, width: fill }
                           - { type: iconButton, icon: delete, label: "${delete_label}", tooltip: "${delete_label}", onClick: delete_car, color: "#c62828" }
+                      # Première photo de la voiture (grande fenêtre seulement) :
+                      # HomeController ne la charge que si `car_photo` est
+                      # affiché (ui.has), la carte la montre si elle existe.
+                      - type: row
+                        spacing: 8
+                        align: center
+                        binds: { visible: has_photo }
+                        children:
+                          - { type: image, id: car_photo, bind: photo, label: "${photo_label}", width: fill, height: 140, fit: cover, radius: 8 }
                       - type: row
                         spacing: 24
                         children:

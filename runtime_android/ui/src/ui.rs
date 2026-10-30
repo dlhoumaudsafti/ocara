@@ -76,6 +76,12 @@ pub extern "C" fn UI_sizeClass(this: i64) -> i64 {
     ocara_runtime_ui::ffi::string(&core::size_class(this))
 }
 
+/// `ui.has(id)` → `bool` : nœud présent dans la variante affichée.
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_has(this: i64, id: i64) -> i64 {
+    core::has(this, &str_arg(id)) as i64
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn UI_on(this: i64, action: i64, handler: i64) {
     core::on(this, &str_arg(action), handler);
