@@ -142,7 +142,7 @@ export function uniqueId(base) {
     return `${base}${n}`;
 }
 
-/** Le nœud est-il dans un gabarit d'élément de liste (seul lieu de `bind`) ? */
+/** Le nœud est-il dans un gabarit d'élément de liste (`bind` d'un champ de l'élément ; ailleurs, `racine.champ` d'un objet lié) ? */
 export const inItem = path => path.includes('item');
 
 // ── composants neufs ───────────────────────────────────────────────────────

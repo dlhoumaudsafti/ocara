@@ -211,10 +211,12 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     liste ou dans un écran vide ; menu contextuel (dupliquer, copier, couper, coller, envelopper
     dans une colonne, une ligne ou une carte, voir dans le source, supprimer) et raccourcis
     (Suppr, Ctrl+D, Ctrl+C/X/V, Alt+↑/↓, Échap pour le parent) ;
-  - **propriétés** : toutes celles du type sélectionné, par rubrique (propriétés, événements avec
-    complétion des actions, disposition, présentation avec les valeurs héritées du style,
-    accessibilité, `binds` dans un gabarit de liste, menu contextuel, surcharges desktop et
-    Android), changement de type ; options de grille d'une liste montrées avec `display: grid`
+  - **propriétés** : toutes celles du type sélectionné, par rubrique (propriétés — `required`,
+    `submit`, `form`, `bind` compris —, événements avec complétion des actions, ceux du type et
+    ceux de tout nœud (`onHover`, `onLeave`, `onFocus`, `onBlur`, `onLongPress`, `onDoubleClick`,
+    `onSwipe`), disposition, présentation avec les valeurs héritées du style, accessibilité,
+    liaisons `binds` — champs de l'élément dans un gabarit de liste, `racine.champ` d'un objet lié
+    ailleurs —, menu contextuel, surcharges desktop et Android), changement de type ; options de grille d'une liste montrées avec `display: grid`
     (`itemWidth` posé à 50 au choix d'un serpentin, encadré en rouge s'il est vidé) ; onglets
     **Fenêtre** (`window`, `start`), **Styles** (création, renommage avec mise à jour des nœuds,
     suppression, surcharges des thèmes sombre et clair) et **Menu** (entrées, sous-menus,

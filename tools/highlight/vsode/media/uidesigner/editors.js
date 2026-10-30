@@ -226,7 +226,7 @@ export function editor(spec, value, set, ctx = {}) {
         case 'action': return textInput(value, set, { list: 'actionList', placeholder: 'nom d\'action (self.nom : action du composant)', pattern: /^(self\.)?[A-Za-z_][A-Za-z0-9_]*$/ });
         case 'id': return textInput(value, set, { placeholder: 'identifiant', pattern: /^[A-Za-z_][A-Za-z0-9_]*$/ });
         case 'style': return select(Object.keys(styles()), value, set, '— aucun —');
-        case 'field': return textInput(value, set, { placeholder: 'champ de l\'élément (a.b)' });
+        case 'field': return textInput(value, set, { placeholder: 'champ de l\'élément (a.b), hors liste : racine.champ' });
         case 'strings': {
             const t = h('textarea', 'd-input');
             t.value = Array.isArray(value) ? value.join('\n') : '';

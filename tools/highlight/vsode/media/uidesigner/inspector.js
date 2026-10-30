@@ -123,15 +123,21 @@ function nodePanel(path) {
     const required = spec?.required || [];
     const named = node.style && styles()[node.style];
     const row = p => field(p, path, node, { required: required.includes(p.name), inherited: named?.[p.name] });
-    const own = (spec?.own || []).filter(p => !['children', 'node'].includes(p.kind) && (p.kind !== 'field' || inItem(path)))
+    const own = (spec?.own || []).filter(p => !['children', 'node'].includes(p.kind))
         .filter(p => node.type !== 'list' || node.display === 'grid' || !GRID_PROPS.includes(p.name));
     const common = Object.fromEntries(S.catalog.common.map(p => [p.name, p]));
     out.push(section('Propriétés', own.filter(p => p.kind !== 'action').map(p => (node.type === 'list' ? gridRow(p, path, node, row) : row(p))), { id: 'own' }));
-    out.push(section('Événements', own.filter(p => p.kind === 'action').map(row), { id: 'events' }));
+    // Événements du type (`onClick`…), puis ceux de tout nœud (`onHover`, `onSwipe`…).
+    const events = [...own, ...S.catalog.common].filter(p => p.kind === 'action');
+    out.push(section('Événements', events.map(row), { id: 'events' }));
     out.push(section('Disposition', LAYOUT.map(n => common[n] && row(common[n])), { id: 'layout' }));
     out.push(section('Présentation', S.catalog.style.map(row), { id: 'style', collapsed: true }));
     out.push(section('Accessibilité', A11Y.map(n => common[n] && row(common[n])), { id: 'a11y' }));
-    if (inItem(path) && common.binds) { out.push(section('Liaisons (élément de liste)', [row(common.binds)], { id: 'binds' })); }
+    // Dans une liste : champs de l'élément ; ailleurs : `racine.champ` d'un objet relié par `ui.bind`.
+    if (common.binds) {
+        const title = inItem(path) ? 'Liaisons (élément de liste)' : 'Liaisons (objet : racine.champ)';
+        out.push(section(title, [row(common.binds)], { id: 'binds', collapsed: !node.binds }));
+    }
     if (common.contextMenu) {
         const r = h('div', 'd-field d-wide');
         r.appendChild(menuEditor(node.contextMenu, v => setProp(path, 'contextMenu', v)));
