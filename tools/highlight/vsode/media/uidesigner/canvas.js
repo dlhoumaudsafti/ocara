@@ -3,7 +3,7 @@
 // élément marqué du chemin de son nœud (`data-path`) pour la sélection et le
 // glisser-déposer. Les champs ne réagissent pas : un clic sélectionne.
 
-import { S, getIn, key, startsWith, styles, windowProps, layoutPath, screenPath, startScreen, rootLayout, isContainer, hasSlot, axisOf } from './model.js';
+import { S, getIn, key, startsWith, styles, themeStyles, effectiveTheme, windowProps, layoutPath, screenPath, startScreen, rootLayout, isContainer, hasSlot, axisOf } from './model.js';
 
 const FLEX_ALIGN = { start: 'flex-start', center: 'center', end: 'flex-end', stretch: 'stretch' };
 const px = v => (typeof v === 'number' ? v + 'px' : v);
@@ -19,8 +19,9 @@ function el(tag, cls, text) {
 /** Propriétés effectives : style nommé, nœud, surcharge de la plateforme affichée. */
 function props(node) {
     const named = node.style && styles()[node.style];
+    const themed = node.style && themeStyles(effectiveTheme())[node.style];
     const out = {};
-    for (const layer of [named || {}, node, node[S.platform] || {}]) {
+    for (const layer of [named || {}, themed || {}, node, node[S.platform] || {}]) {
         for (const k in layer) { if (k !== 'tauri' && k !== 'android') { out[k] = layer[k]; } }
     }
     return out;
@@ -89,11 +90,15 @@ function list(node, p, path) {
         const item = build(node.item, path && [...path, 'item'], 'column');
         item.classList.add('oc-list-item', 'd-template');
         e.appendChild(item);
-        for (let i = 0; i < 2; i++) {
+        const cells = [item];
+        // Copies fantômes : une ligne de grille et un retour à la ligne.
+        for (let i = 0; i < (p.display === 'grid' ? 5 : 2); i++) {
             const ghost = build(node.item, null, 'column');
             ghost.classList.add('oc-list-item', 'd-ghost');
             e.appendChild(ghost);
+            cells.push(ghost);
         }
+        if (p.display === 'grid') { grid(e, cells, p); }
     } else {
         const slot = el('div', 'd-empty d-slot', 'Gabarit d\'élément : déposez un composant');
         if (path) { slot.dataset.slot = key([...path, 'item']); }
@@ -101,6 +106,40 @@ function list(node, p, path) {
     }
     return e;
 }
+
+/** Liste en grille : même règle que le moteur desktop (engine.js, `grid`). */
+function grid(e, cells, p) {
+    const gap = p.spacing || 0;
+    const dir = p.direction || 'ltr';
+    const snake = /snake$/.test(dir);
+    const rtl = dir.startsWith('rtl');
+    const width = p.itemWidth || (snake ? 50 : null);
+    if (width == null) {
+        e.style.flexFlow = (rtl ? 'row-reverse' : 'row') + ' wrap';
+        for (const c of cells) {
+            if (p.maxColumns) { c.style.minWidth = `calc((100% - ${(p.maxColumns - 1) * gap}px) / ${p.maxColumns})`; }
+            if (p.minColumns) { c.style.maxWidth = `calc((100% - ${(p.minColumns - 1) * gap}px) / ${p.minColumns})`; }
+        }
+        return;
+    }
+    e.style.display = 'grid';
+    e.ocPlace = () => {
+        let n = Math.floor((e.clientWidth + gap) / (width + gap));
+        n = Math.max(p.minColumns || 1, Math.min(p.maxColumns || n, n), 1);
+        e.style.gridTemplateColumns = `repeat(${n}, minmax(0, 1fr))`;
+        cells.forEach((c, i) => {
+            const line = Math.floor(i / n);
+            const col = i % n;
+            const reversed = rtl !== (snake && line % 2 === 1);
+            c.style.gridRow = String(line + 1);
+            c.style.gridColumn = String((reversed ? n - 1 - col : col) + 1);
+        });
+    };
+    grids.push(e);
+}
+
+/** Grilles à colonnes calculées : placées une fois l'aperçu dans la page. */
+const grids = [];
 
 function field(node, p) {
     if (node.type === 'select') {
@@ -241,12 +280,13 @@ export function renderCanvas() {
         .filter(e => e.scrollTop || e.scrollLeft)
         .map(e => [e.dataset.path || 'screen', e.scrollTop, e.scrollLeft]);
     canvas.replaceChildren();
+    grids.length = 0;
     const win = windowProps();
     // Taille d'une vraie fenêtre : `height: fill` et `scroll` s'y comportent
     // comme dans l'application (l'écran défile dans le cadre).
     frame.style.width = S.width + 'px';
     frame.style.height = (S.platform === 'android' ? 780 : Number(win.height) || 720) + 'px';
-    canvas.dataset.theme = S.theme;
+    canvas.dataset.theme = effectiveTheme();
     canvas.dataset.platform = S.platform;
     canvas.style.setProperty('--oc-primary', win.primary || '#3f51b5');
     if (!S.model) { return; }
@@ -267,6 +307,7 @@ export function renderCanvas() {
         body.appendChild(slot);
     }
     canvas.appendChild(body);
+    grids.forEach(g => g.ocPlace());
     for (const [path, top, left] of scrolled) {
         const e = path === 'screen' ? body : [...canvas.querySelectorAll('[data-path]')].find(x => x.dataset.path === path);
         if (e) { e.scrollTop = top; e.scrollLeft = left; }

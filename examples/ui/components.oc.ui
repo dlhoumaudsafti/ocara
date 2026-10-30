@@ -9,6 +9,9 @@ window:
 
 styles:
   section: { fontSize: 13, bold: true, color: "#00796b" }
+  # Surcharge en thème sombre, par-dessus `section`.
+  dark:
+    section: { color: "#80cbc4" }
 
 start: form
 screens:
@@ -97,4 +100,13 @@ screens:
           height: 140
           onMessage: page_message
           html: "<body style='font:15px sans-serif'><b>Vue web isolée</b><p><button onclick='ocara.post(\"clic\")'>Envoyer à Ocara</button></p></body>"
+        # Grille de liste : 3 colonnes au plus, en serpentin (1 2 3 / 6 5 4).
+        - type: list
+          id: tiles
+          display: grid
+          itemWidth: 90
+          maxColumns: 3
+          direction: ltr-snake
+          spacing: 4
+          item: { type: text, bind: name }
         - { type: button, text: "Retour", icon: back, variant: text, onClick: back }

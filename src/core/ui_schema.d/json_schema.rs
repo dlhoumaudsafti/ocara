@@ -91,7 +91,14 @@ pub fn schema() -> Json {
         "additionalProperties": false,
         "properties": {
             "window": window,
-            "styles": { "type": "object", "additionalProperties": object(schema::STYLE_PROPS) },
+            "styles": {
+                "type": "object",
+                "properties": {
+                    "dark": { "type": "object", "additionalProperties": object(schema::STYLE_PROPS) },
+                    "light": { "type": "object", "additionalProperties": object(schema::STYLE_PROPS) },
+                },
+                "additionalProperties": object(schema::STYLE_PROPS),
+            },
             "start": { "type": "string" },
             "screens": {
                 "type": "object",

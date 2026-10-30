@@ -11,6 +11,37 @@ import { LABEL } from './palette.js';
 import { duplicate, moveBy } from './actions.js';
 import { ask, confirmBox } from './dialog.js';
 
+/** Options d'une liste en grille, montrées avec `display: grid` seulement. */
+const GRID_PROPS = ['itemWidth', 'minColumns', 'maxColumns', 'direction'];
+const SNAKE_WIDTH = 50;
+
+/** Propriété d'une liste : en serpentin, `itemWidth` est obligatoire (50
+ *  posé au choix de la direction, champ vidé encadré en rouge). Quitter la
+ *  grille retire ses options. */
+function gridRow(p, path, node, row) {
+    const snake = /snake$/.test(node.direction || '');
+    if (p.name === 'direction') {
+        return field(p, path, node, { set: v => {
+            const ops = [{ op: 'set', path: [...path, 'direction'], value: v }];
+            if (/snake$/.test(v || '') && node.itemWidth === undefined) { ops.push({ op: 'set', path: [...path, 'itemWidth'], value: SNAKE_WIDTH }); }
+            edit(ops);
+        } });
+    }
+    if (p.name === 'display') {
+        return field(p, path, node, { set: v => {
+            const ops = [{ op: 'set', path: [...path, 'display'], value: v }];
+            if (v !== 'grid') { GRID_PROPS.forEach(k => node[k] !== undefined && ops.push({ op: 'set', path: [...path, k] })); }
+            edit(ops);
+        } });
+    }
+    const r = row(p);
+    if (p.name === 'itemWidth' && snake && node.itemWidth === undefined) {
+        r.classList.add('d-invalid-field');
+        r.title = 'Obligatoire en serpentin (50 si absent à l\'exécution)';
+    }
+    return r;
+}
+
 const LAYOUT = ['id', 'style', 'visible', 'enabled', 'width', 'height', 'weight', 'align'];
 const A11Y = ['label', 'tooltip'];
 /** Ni surchargées par plateforme, ni listées dans les rubriques ordinaires. */
@@ -32,13 +63,13 @@ function section(title, rows, { id = title, collapsed = false } = {}) {
 }
 
 /** Ligne libellé + éditeur ; `path` : table qui porte la propriété. */
-function field(spec, path, holder, { required = false, inherited } = {}) {
+function field(spec, path, holder, { required = false, inherited, set } = {}) {
     const r = h('div', 'd-field');
     const label = h('label', 'd-label', spec.name);
     if (required) { label.appendChild(h('span', 'd-required', ' *')); }
     if (holder?.[spec.name] !== undefined) { label.classList.add('d-set'); }
     label.title = `${spec.name} (${spec.kind})`;
-    r.append(label, editor(spec, holder?.[spec.name], v => setProp(path, spec.name, v), { inherited }));
+    r.append(label, editor(spec, holder?.[spec.name], set || (v => setProp(path, spec.name, v)), { inherited }));
     r.dataset.key = JSON.stringify([...path, spec.name]);
     if (required && holder?.[spec.name] === undefined) { r.classList.add('d-missing'); }
     return r;
@@ -90,9 +121,10 @@ function nodePanel(path) {
     const required = spec?.required || [];
     const named = node.style && styles()[node.style];
     const row = p => field(p, path, node, { required: required.includes(p.name), inherited: named?.[p.name] });
-    const own = (spec?.own || []).filter(p => !['children', 'node'].includes(p.kind) && (p.kind !== 'field' || inItem(path)));
+    const own = (spec?.own || []).filter(p => !['children', 'node'].includes(p.kind) && (p.kind !== 'field' || inItem(path)))
+        .filter(p => node.type !== 'list' || node.display === 'grid' || !GRID_PROPS.includes(p.name));
     const common = Object.fromEntries(S.catalog.common.map(p => [p.name, p]));
-    out.push(section('Propriétés', own.filter(p => p.kind !== 'action').map(row), { id: 'own' }));
+    out.push(section('Propriétés', own.filter(p => p.kind !== 'action').map(p => (node.type === 'list' ? gridRow(p, path, node, row) : row(p))), { id: 'own' }));
     out.push(section('Événements', own.filter(p => p.kind === 'action').map(row), { id: 'events' }));
     out.push(section('Disposition', LAYOUT.map(n => common[n] && row(common[n])), { id: 'layout' }));
     out.push(section('Présentation', S.catalog.style.map(row), { id: 'style', collapsed: true }));
@@ -105,7 +137,8 @@ function nodePanel(path) {
     }
     for (const [platform, title] of [['tauri', 'Surcharge desktop (tauri)'], ['android', 'Surcharge Android']]) {
         const holder = node[platform] && typeof node[platform] === 'object' ? node[platform] : {};
-        const props = allProps(node.type).filter(p => !STRUCTURAL.includes(p.name) && !['children', 'node'].includes(p.kind));
+        const props = allProps(node.type).filter(p => !STRUCTURAL.includes(p.name) && !['children', 'node'].includes(p.kind))
+            .filter(p => node.type !== 'list' || node.display === 'grid' || !GRID_PROPS.includes(p.name));
         const rows = props.map(p => {
             const r = h('div', 'd-field');
             const label = h('label', 'd-label', p.name);
@@ -171,7 +204,8 @@ function windowPanel() {
 }
 
 function stylesPanel() {
-    const styles = S.model.styles || {};
+    const all = S.model.styles || {};
+    const styles = Object.fromEntries(Object.entries(all).filter(([n]) => !THEMES.includes(n)));
     const out = [header('Styles', 'styles', [['＋', 'Nouveau style', async () => {
         const name = await ask('Nom du style', '');
         if (name && /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) && !styles[name]) { edit([{ op: 'set', path: ['styles', name], value: {} }]); open[`style:${name}`] = false; }
@@ -200,7 +234,37 @@ function stylesPanel() {
         out.push(section(`${name}  ·  ${used[name] || 0} nœud(s)`, [tools, ...rows], { id: `style:${name}`, collapsed: true }));
     }
     if (!Object.keys(styles).length) { out.push(h('p', 'd-muted d-pad', 'Aucun style. Un style nommé regroupe des propriétés de présentation, appliquées par la propriété style d\'un nœud.')); }
+    for (const theme of THEMES) { out.push(themePanel(theme, all[theme] || {})); }
     return out;
+}
+
+const THEMES = ['dark', 'light'];
+
+/** Surcharges d'un thème (`styles.dark`, `styles.light`) : propriétés
+ *  appliquées par-dessus le style de même nom quand ce thème est affiché. */
+function themePanel(theme, overrides) {
+    const rows = [];
+    const add = h('select', 'd-input');
+    add.append(new Option(`＋ surcharger un style en thème ${theme === 'dark' ? 'sombre' : 'clair'}…`, ''),
+        ...Object.keys(styles()).filter(n => !overrides[n]).map(n => new Option(n, n)));
+    add.addEventListener('change', () => { if (add.value) { edit([{ op: 'set', path: ['styles', theme, add.value], value: {} }]); open[`${theme}:${add.value}`] = false; } });
+    const tools = h('div', 'd-inline');
+    tools.appendChild(add);
+    rows.push(tools);
+    for (const name of Object.keys(overrides)) {
+        const path = ['styles', theme, name];
+        const del = h('button', 'd-mini', '🗑 retirer la surcharge');
+        del.addEventListener('click', () => {
+            const rest = Object.keys(overrides).filter(n => n !== name);
+            edit([{ op: 'remove', path: rest.length ? path : ['styles', theme] }]);
+        });
+        const line = h('div', 'd-inline');
+        line.appendChild(del);
+        const base = styles()[name] || {};
+        const fields = S.catalog.style.map(p => field(p, path, overrides[name], { inherited: base[p.name] }));
+        rows.push(section(`${name}`, [line, ...fields], { id: `${theme}:${name}`, collapsed: true }));
+    }
+    return section(theme === 'dark' ? 'Thème sombre (styles.dark)' : 'Thème clair (styles.light)', rows, { id: `theme:${theme}`, collapsed: !Object.keys(overrides).length });
 }
 
 /** Nœuds qui utilisent le style `name` : fn(chemin). */

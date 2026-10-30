@@ -101,7 +101,7 @@ screens:
 | Clé | Contenu |
 |-----|---------|
 | `window` | fenêtre principale (ci-dessous) |
-| `styles` | styles nommés : `nom: { propriétés de présentation }` (aussi dans les fichiers inclus, voir « Écrans inclus ») |
+| `styles` | styles nommés : `nom: { propriétés de présentation }` (aussi dans les fichiers inclus, voir « Écrans inclus ») ; `dark:` et `light:` y surchargent des styles pour un thème (voir « Styles par thème ») |
 | `screens` | écrans nommés : `nom: { title, layout, onShow }` (`onShow` : action lancée à chaque affichage de l'écran, valeur : son nom) |
 | `start` | écran affiché au lancement ; facultatif s'il n'y a qu'un écran |
 | `layout` | à la place de `screens` : un seul écran, nommé `main` |
@@ -134,7 +134,7 @@ Un nœud est une table dont `type` est l'un des types ci-dessous.
 | `image` | `src`, `bind`, `fit` (`contain`, `cover`, `fill`, `none`) | `src` ou `bind`, `label` |
 | `icon` | `name` | `name` |
 | `progress` | `value` (0 à 1 ; absente : indéterminée) | |
-| `list` | `item` (gabarit d'un élément), `spacing`, `onSelect` | `item` |
+| `list` | `item` (gabarit d'un élément), `spacing`, `onSelect` ; `display` (`list`, `grid`) et, en grille, `itemWidth`, `minColumns`, `maxColumns` (1 à 64), `direction` (`ltr`, `rtl`, `ltr-snake`, `rtl-snake`) | `item` |
 | `webview` | une source parmi `url`, `file`, `html` ; `javascript`, `storage`, `allow` (liste d'hôtes), `zoom`, `userAgent`, `webHandlers` (nom → action), `onLoad`, `onError`, `onMessage` | |
 | `input` | `value`, `bind`, `placeholder`, `kind` (`text`, `password`, `email`, `number`, `multiline`), `readonly`, `onChange`, `onSubmit`, `onFocus`, `onBlur` | |
 | `checkbox`, `switch` | `checked`, `bind`, `onChange` | |
@@ -257,6 +257,65 @@ plateforme seulement :
 ```
 
 `type`, `id`, `children` et `item` ne se surchargent pas.
+
+### Liste en grille
+
+Avec `display: grid`, les éléments d'une liste se suivent sur une ligne et
+passent à la ligne suivante quand la place manque :
+
+```yaml
+- type: list
+  id: cars
+  display: grid
+  spacing: 8
+  minColumns: 1        # facultatif
+  maxColumns: 4        # facultatif
+  itemWidth: 280       # facultatif
+  direction: ltr       # ltr (défaut), rtl, ltr-snake, rtl-snake
+  item: { … }
+```
+
+- Sans `itemWidth`, chaque case garde sa **largeur naturelle** ;
+  `maxColumns` met au plus ce nombre de cases par ligne (largeur minimale
+  d'une case : la ligne divisée par `maxColumns`), `minColumns` au moins
+  (largeur maximale : la ligne divisée par `minColumns`).
+- Avec `itemWidth`, le nombre de colonnes suit la largeur de la liste :
+  `(largeur + spacing) / (itemWidth + spacing)`, borné par `minColumns` et
+  `maxColumns` ; les cases se partagent la ligne. Il est recalculé à chaque
+  changement de largeur (fenêtre redimensionnée, rotation, écran plié).
+- `direction` : de gauche à droite (`ltr`), de droite à gauche (`rtl`), ou
+  en **serpentin**, chaque ligne repartant du côté où la précédente s'arrête.
+  Le serpentin a besoin d'un nombre fixe de colonnes : sans `itemWidth`, il
+  prend `itemWidth: 50`. Avec 3 colonnes et 7 éléments :
+
+| `direction` | ligne 1 | ligne 2 | ligne 3 |
+|---|---|---|---|
+| `ltr` | 1 2 3 | 4 5 6 | 7 · · |
+| `rtl` | 3 2 1 | 6 5 4 | · · 7 |
+| `ltr-snake` | 1 2 3 | 6 5 4 | 7 · · |
+| `rtl-snake` | 3 2 1 | 4 5 6 | · · 7 |
+
+Le rang d'un élément (`onSelect`, `onClick` du gabarit) reste celui des
+données, pas sa place à l'écran. Les options de grille sans `display:
+grid`, ou `minColumns` supérieur à `maxColumns`, sont des erreurs.
+
+### Styles par thème
+
+Sous `styles:`, `dark:` et `light:` surchargent des styles pour un thème :
+leurs propriétés s'appliquent par-dessus le style de même nom quand ce
+thème est affiché (`window.theme`, ou celui du système pour `auto`).
+
+```yaml
+styles:
+  maClass: { bold: true, color: "#1565c0" }    # tous les thèmes
+  dark:
+    maClass: { color: "#90caf9" }               # thème sombre : par-dessus maClass
+```
+
+`dark` et `light` sont donc des noms réservés sous `styles:`. Les
+surcharges peuvent aussi être déclarées dans un fichier inclus ; un même
+style surchargé deux fois pour un thème est une erreur. Dans l'arbre
+normalisé, elles sont sous `themeStyles` (`{ "dark": {…}, "light": {…} }`).
 
 ## Écrans inclus
 
@@ -396,7 +455,7 @@ une clé en double dans une table est une erreur.
 
 ## Arbre normalisé
 
-`--dump` affiche ce que le binaire embarque : `window`, `styles`, `start`,
+`--dump` affiche ce que le binaire embarque : `window`, `styles`, `themeStyles`, `start`,
 `screens` (chaque écran : `title`, `layout`), `menu`, `icons`, `vars`,
 `sizes` (seuils des classes), `variants` (arbres des variantes de taille),
 `source` (build de debug : chemins pour le rechargement à chaud), plus `ids`

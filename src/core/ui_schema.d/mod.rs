@@ -81,6 +81,7 @@ pub fn check_source(file: &Path, source: &str) -> Result<UiSpec, Vec<Diagnostic>
         styles: BTreeSet::new(),
         style_decls: HashMap::new(),
         included_styles: Map::new(),
+        theme_styles: Map::new(),
         in_item: 0,
     };
     checker.declare_styles(&root);
@@ -130,6 +131,8 @@ pub(super) struct Checker {
     style_decls: HashMap<String, (PathBuf, usize)>,
     /// Styles déclarés dans les fichiers inclus, ajoutés à ceux de la racine.
     included_styles: Map<String, Json>,
+    /// Surcharges par thème (`styles.dark`, `styles.light`), tous fichiers confondus.
+    theme_styles: Map<String, Json>,
     /// Profondeur dans un gabarit `item:` de liste (`bind` permis).
     in_item: usize,
 }
@@ -195,6 +198,9 @@ impl Checker {
             } else {
                 out.insert("styles".into(), Json::Object(included));
             }
+        }
+        if !self.theme_styles.is_empty() {
+            out.insert("themeStyles".into(), Json::Object(std::mem::take(&mut self.theme_styles)));
         }
         if let Some(screens) = screens {
             self.start(root, get("start").map(|(_, v)| v), &screens, &mut out);

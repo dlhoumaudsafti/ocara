@@ -350,6 +350,32 @@ fn included_files_declare_their_styles() {
 }
 
 #[test]
+fn list_grid_options() {
+    let grid = "    - { type: list, id: l, display: grid, itemWidth: 120, minColumns: 2, maxColumns: 4, direction: rtl-snake, item: { type: text, bind: a } }\n";
+    let spec = ok(&screen(grid));
+    let list = &spec.tree["screens"]["main"]["layout"]["children"][0];
+    assert_eq!(list["display"], "grid");
+    assert_eq!(list["direction"], "rtl-snake");
+    assert_eq!(list["maxColumns"], 4);
+    single_error(&screen("    - { type: list, id: l, maxColumns: 3, item: { type: text, bind: a } }\n"), 4, "'maxColumns' n'a de sens qu'avec 'display: grid'");
+    single_error(&screen("    - { type: list, id: l, display: grid, minColumns: 5, maxColumns: 2, item: { type: text, bind: a } }\n"), 4, "'minColumns' (5) doit être inférieur ou égal à 'maxColumns' (2)");
+    single_error(&screen("    - { type: list, id: l, display: grid, direction: snake, item: { type: text, bind: a } }\n"), 4, "direction");
+}
+
+#[test]
+fn theme_style_overrides() {
+    let source = "styles:\n  title: { bold: true, color: \"#000000\" }\n  dark:\n    title: { color: \"#ffffff\" }\n  light:\n    only_light: { italic: true }\n".to_string()
+        + &screen("    - { type: text, value: a, style: title }\n    - { type: text, value: b, style: only_light }\n");
+    let spec = ok(&source);
+    assert_eq!(spec.tree["styles"]["title"]["bold"], true);
+    assert!(spec.tree["styles"].get("dark").is_none(), "{}", spec.tree["styles"]);
+    assert_eq!(spec.tree["themeStyles"]["dark"]["title"]["color"], "#ffffff");
+    assert!(spec.tree["themeStyles"]["light"]["only_light"].is_object());
+    let bad = "styles:\n  dark:\n    title: { colour: \"#ffffff\" }\n".to_string() + &screen("    - { type: text, value: a }\n");
+    single_error(&bad, 3, "colour");
+}
+
+#[test]
 fn variables_in_texts() {
     let spec = ok(&screen("    - { type: text, value: \"${title} (${count})\", tooltip: \"$${pas_une}\" }\n"));
     let vars: Vec<&str> = spec.vars.iter().map(String::as_str).collect();

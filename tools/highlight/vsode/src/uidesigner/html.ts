@@ -21,7 +21,7 @@ export function html(webview: vscode.Webview, media: vscode.Uri): string {
       <button data-platform="tauri" class="on" title="Aperçu desktop (Tauri)">Desktop</button><button data-platform="android" title="Aperçu Android (Compose)">Android</button>
     </div>
     <div class="d-seg" id="theme">
-      <button data-theme="light" title="Thème clair">☀</button><button data-theme="dark" title="Thème sombre">☾</button>
+      <button data-theme="auto" title="Thème auto : window.theme du fichier, sinon celui de VS Code (le système, dans l'application)">Auto</button><button data-theme="light" title="Forcer le thème clair">☀</button><button data-theme="dark" title="Forcer le thème sombre">☾</button>
     </div>
     <span class="d-grow"></span>
     <div class="d-seg" id="variants" title="Variantes de taille du fichier"></div>

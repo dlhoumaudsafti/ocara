@@ -44,7 +44,9 @@
     var out = {};
     var item = ctx && ctx.item;
     var named = node.style && tree.styles && tree.styles[node.style];
-    var layers = [named || {}, node, node[platform] || {}, (node.id && !item && state[node.id]) || {}];
+    // Surcharge du style pour le thème affiché (`styles.dark`, `styles.light`).
+    var themed = node.style && tree.themeStyles && tree.themeStyles[theme()] && tree.themeStyles[theme()][node.style];
+    var layers = [named || {}, themed || {}, node, node[platform] || {}, (node.id && !item && state[node.id]) || {}];
     layers.forEach(function (layer) {
       for (var k in layer) if (k !== "tauri" && k !== "android") out[k] = layer[k];
     });
@@ -52,6 +54,14 @@
       for (var prop in node.binds) out[prop] = field(item, node.binds[prop]);
     }
     return out;
+  }
+
+  /// Thème affiché : `window.theme`, ou celui du système pour `auto`.
+  var darkQuery = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  function theme() {
+    var t = (tree.window || {}).theme;
+    if (t === "dark" || t === "light") return t;
+    return darkQuery && darkQuery.matches ? "dark" : "light";
   }
 
   function field(item, path) {
@@ -158,14 +168,57 @@
   function list(node, p, ctx) {
     var e = el("div", "oc-list");
     if (p.spacing != null) e.style.gap = px(p.spacing);
-    (p.items || []).forEach(function (row, index) {
+    var cells = (p.items || []).map(function (row, index) {
       var item = build(node.item, { item: row, index: index }, "column");
       item.classList.add("oc-list-item");
       if (p.onSelect) item.addEventListener("click", function () { fire(p, "onSelect", node.id, row, index); });
       e.appendChild(item);
+      return item;
     });
+    if (p.display === "grid") grid(e, cells, p);
     return e;
   }
+
+  /// Liste en grille (`display: grid`). Sans `itemWidth`, chaque case garde
+  /// sa largeur naturelle et passe à la ligne quand la place manque
+  /// (`minColumns`/`maxColumns` bornent sa largeur) ; avec `itemWidth`
+  /// (50 par défaut en serpentin), le nombre de colonnes suit la largeur de
+  /// la liste et chaque case est placée selon `direction` : `ltr`, `rtl`,
+  /// `ltr-snake`, `rtl-snake` (chaque ligne repart du côté où la précédente
+  /// s'arrête). L'ordre des éléments (rang, `onSelect`) reste celui des données.
+  function grid(e, cells, p) {
+    var gap = p.spacing || 0;
+    var dir = p.direction || "ltr";
+    var snake = /snake$/.test(dir), rtl = dir.indexOf("rtl") === 0;
+    var width = p.itemWidth || (snake ? 50 : null);
+    e.classList.add("oc-list-grid");
+    if (width == null) {
+      e.style.flexFlow = (rtl ? "row-reverse" : "row") + " wrap";
+      cells.forEach(function (c) {
+        if (p.maxColumns) c.style.minWidth = "calc((100% - " + (p.maxColumns - 1) * gap + "px) / " + p.maxColumns + ")";
+        if (p.minColumns) c.style.maxWidth = "calc((100% - " + (p.minColumns - 1) * gap + "px) / " + p.minColumns + ")";
+      });
+      return;
+    }
+    e.style.display = "grid";
+    e.ocPlace = function () {
+      var n = Math.floor((e.clientWidth + gap) / (width + gap));
+      n = Math.max(p.minColumns || 1, Math.min(p.maxColumns || n, n), 1);
+      e.style.gridTemplateColumns = "repeat(" + n + ", minmax(0, 1fr))";
+      cells.forEach(function (c, i) {
+        var line = Math.floor(i / n), col = i % n;
+        var reversed = rtl !== (snake && line % 2 === 1);
+        c.style.gridRow = String(line + 1);
+        c.style.gridColumn = String((reversed ? n - 1 - col : col) + 1);
+      });
+    };
+    if (gridObserver) gridObserver.observe(e); else setTimeout(e.ocPlace);
+  }
+
+  /// Grilles à colonnes calculées : replacées quand leur largeur change.
+  var gridObserver = window.ResizeObserver ? new ResizeObserver(function (entries) {
+    entries.forEach(function (entry) { if (entry.target.ocPlace) entry.target.ocPlace(); });
+  }) : null;
 
   function input(node, p, ctx) {
     var multiline = p.kind === "multiline";
@@ -389,6 +442,11 @@
     return changed;
   }
 
+  // Thème `auto` : les surcharges `styles.dark`/`styles.light` suivent le système.
+  if (darkQuery && darkQuery.addEventListener) darkQuery.addEventListener("change", function () {
+    if (root && (tree.window || {}).theme !== "dark" && (tree.window || {}).theme !== "light") render();
+  });
+
   window.addEventListener("resize", function () {
     if (root && chooseVariant()) {
       render();
@@ -405,6 +463,7 @@
 
   function render() {
     mounted = {};
+    if (gridObserver) gridObserver.disconnect();
     var screen = tree.screens[current];
     var root = document.getElementById("oc-root");
     root.textContent = "";

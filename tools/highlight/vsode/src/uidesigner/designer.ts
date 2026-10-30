@@ -274,7 +274,13 @@ function allStyles(rootFile: string, except: string, seen = new Set<string>()): 
     try { model = parse(fs.readFileSync(file, 'utf8')).doc.toJS(); } catch { return {}; }
     const out: Record<string, unknown> = file === path.resolve(except) ? {} : { ...(model?.styles ?? {}) };
     for (const inc of Array.isArray(model?.screens?.includes) ? model.screens.includes : []) {
-        if (typeof inc === 'string') { Object.assign(out, allStyles(path.resolve(path.dirname(file), inc), except, seen)); }
+        if (typeof inc !== 'string') { continue; }
+        const included = allStyles(path.resolve(path.dirname(file), inc), except, seen);
+        // Surcharges par thème (`dark`, `light`) : fusionnées fichier par fichier.
+        for (const theme of ['dark', 'light']) {
+            if (included[theme] || out[theme]) { included[theme] = { ...(out[theme] as object ?? {}), ...(included[theme] as object ?? {}) }; }
+        }
+        Object.assign(out, included);
     }
     return out;
 }

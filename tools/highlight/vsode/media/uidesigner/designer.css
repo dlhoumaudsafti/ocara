@@ -155,6 +155,7 @@ textarea.d-input { width: 100%; min-height: 54px; resize: vertical; font-family:
 .d-label { padding-top: 4px; font-size: 12px; color: var(--vscode-descriptionForeground); overflow: hidden; text-overflow: ellipsis; }
 .d-label.d-set { color: var(--vscode-foreground); font-weight: 600; }
 .d-required { color: var(--vscode-errorForeground); }
+.d-invalid-field .d-input { border-color: var(--vscode-inputValidation-errorBorder, #e51400); outline: 1px solid var(--vscode-inputValidation-errorBorder, #e51400); }
 .d-missing .d-input { border-color: var(--vscode-inputValidation-warningBorder, #b89500); }
 .d-field select, .d-field > .d-input { width: 100%; }
 .d-inline { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }

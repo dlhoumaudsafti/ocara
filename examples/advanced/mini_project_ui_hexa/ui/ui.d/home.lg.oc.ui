@@ -95,8 +95,11 @@ screens:
               children:
                 - { type: heading, level: 2, value: "${cars_title}", style: section_title }
                 - { type: text, id: cars_empty, value: "${cars_empty}", style: muted, visible: false }
+                # Grande fenêtre : les voitures à la suite, ligne après ligne
+                # (largeur naturelle des cartes, de gauche à droite).
                 - type: list
                   id: cars
+                  display: grid
                   spacing: 8
                   onSelect: open_car
                   item:

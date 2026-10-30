@@ -111,8 +111,17 @@ const IMAGE: &[(&str, Ty)] = &[
 ];
 const ICON: &[(&str, Ty)] = &[("name", Ty::Icon)];
 const PROGRESS: &[(&str, Ty)] = &[("value", Ty::Number(0.0, 1.0))];
+/// Ordre des cases d'une liste en grille : de gauche à droite (défaut), de
+/// droite à gauche, ou en serpentin (chaque ligne repart du côté où la
+/// précédente s'arrête).
+pub const LIST_DIRECTIONS: &[&str] = &["ltr", "rtl", "ltr-snake", "rtl-snake"];
 const LIST: &[(&str, Ty)] = &[
     ("item", Ty::Node),
+    ("display", Ty::Enum(&["list", "grid"])),
+    ("itemWidth", Ty::Number(1.0, 10_000.0)),
+    ("minColumns", Ty::Int(1, 64)),
+    ("maxColumns", Ty::Int(1, 64)),
+    ("direction", Ty::Enum(LIST_DIRECTIONS)),
     ("spacing", Ty::Number(0.0, 10_000.0)),
     ("onSelect", Ty::Action),
 ];
@@ -283,6 +292,10 @@ pub const MENU_PROPS: &[(&str, Ty)] = &[
     ("separator", Ty::Bool),
     ("items", Ty::Menu),
 ];
+
+/// Clés de `styles:` qui ne sont pas des styles : surcharges par thème
+/// (`dark: { nom: { … } }`), appliquées par-dessus le style de même nom.
+pub const THEME_OVERRIDES: &[&str] = &["dark", "light"];
 
 /// Clés à la racine du fichier.
 pub const ROOT_KEYS: &[&str] = &["window", "styles", "start", "screens", "layout", "menu"];

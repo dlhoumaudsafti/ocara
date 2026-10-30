@@ -114,6 +114,22 @@ impl Checker {
                 self.fail::<()>(node, format!("'webview' : une seule source parmi 'url', 'file', 'html' (ici : {})", sources.join(", ")));
             }
         }
+        if ty == "list" {
+            // Options de grille : seulement avec `display: grid`.
+            if props.get("display").and_then(Json::as_str) != Some("grid") {
+                for key in ["itemWidth", "minColumns", "maxColumns", "direction"] {
+                    if written.contains(&key) {
+                        self.fail::<()>(node, format!("'list' : '{key}' n'a de sens qu'avec 'display: grid'"));
+                    }
+                }
+            }
+            let bound = |k: &str| props.get(k).and_then(Json::as_i64);
+            if let (Some(min), Some(max)) = (bound("minColumns"), bound("maxColumns")) {
+                if min > max {
+                    self.fail::<()>(node, format!("'list' : 'minColumns' ({min}) doit être inférieur ou égal à 'maxColumns' ({max})"));
+                }
+            }
+        }
         if ty == "slider" {
             let bound = |k: &str| props.get(k).and_then(Json::as_f64);
             if let (Some(min), Some(max)) = (bound("min"), bound("max")) {

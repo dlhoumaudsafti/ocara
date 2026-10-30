@@ -190,8 +190,11 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
   document (annulation Ctrl+Z, enregistrement Ctrl+S, commentaires et mise en forme du YAML gardés,
   seules les lignes modifiées changent) :
   - **aperçu** de l'écran avec l'apparence du moteur desktop (`engine.css` copié à la compilation),
-    largeur réglable sur les classes de taille (`xs` à `xl`), desktop ou Android (surcharges
-    `tauri:`/`android:` appliquées), thème clair ou sombre ; double-clic sur un texte, un titre ou un
+    largeur réglable sur les classes de taille (`xxs` à `xxl`, celle de la variante ouverte par
+    défaut : `x.lg.oc.ui` s'ouvre en `lg`), desktop ou Android (surcharges `tauri:`/`android:`
+    appliquées), thème auto (`window.theme`, sinon celui de VS Code), clair ou sombre forcé, avec
+    les surcharges de styles `styles.dark`/`styles.light` ; listes en grille (`display: grid`)
+    disposées comme dans l'application ; double-clic sur un texte, un titre ou un
     bouton pour le modifier sur place ;
   - **palette** des composants (tirée du schéma du compilateur) à glisser dans l'aperçu ou dans la
     **structure** ; les nœuds se déplacent de même, entre conteneurs, dans le gabarit `item` d'une
@@ -201,8 +204,10 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
   - **propriétés** : toutes celles du type sélectionné, par rubrique (propriétés, événements avec
     complétion des actions, disposition, présentation avec les valeurs héritées du style,
     accessibilité, `binds` dans un gabarit de liste, menu contextuel, surcharges desktop et
-    Android), changement de type ; onglets **Fenêtre** (`window`, `start`), **Styles** (création,
-    renommage avec mise à jour des nœuds, suppression) et **Menu** (entrées, sous-menus,
+    Android), changement de type ; options de grille d'une liste montrées avec `display: grid`
+    (`itemWidth` posé à 50 au choix d'un serpentin, encadré en rouge s'il est vidé) ; onglets
+    **Fenêtre** (`window`, `start`), **Styles** (création, renommage avec mise à jour des nœuds,
+    suppression, surcharges des thèmes sombre et clair) et **Menu** (entrées, sous-menus,
     séparateurs) ;
   - **écrans** : ajout, renommage, écran de démarrage ; écrans inclus (`screens.includes`) et
     **variantes de taille** (`x.md.oc.ui`) ouverts en un clic, variante manquante créée par copie ;

@@ -14,11 +14,11 @@ import { contextMenu, installKeys } from './actions.js';
 import { ask } from './dialog.js';
 
 /** Largeurs de l'aperçu : seuils des classes de taille (docs/oc-ui.md). */
-const SIZES = [['xs', 360], ['sm', 600], ['md', 840], ['lg', 1200], ['xl', 1600]];
+const SIZES = [['xxs', 320], ['xs', 360], ['sm', 600], ['md', 840], ['lg', 1200], ['xl', 1600], ['xxl', 1920]];
 const $ = id => document.getElementById(id);
 
 function save() {
-    vscode.setState({ screen: S.screen, width: S.width, platform: S.platform, theme: S.theme, collapsed: S.collapsed });
+    vscode.setState({ variant: S.appliedVariant, screen: S.screen, width: S.width, platform: S.platform, theme: S.theme, collapsed: S.collapsed });
 }
 
 // ── barre d'outils ─────────────────────────────────────────────────────────
@@ -191,6 +191,13 @@ window.addEventListener('message', ({ data }) => {
         return;
     }
     if (data.type !== 'model') { return; }
+    // Variante de taille ouverte (`x.lg.oc.ui`) : l'aperçu prend sa largeur
+    // (le fichier par défaut, celle d'un téléphone).
+    const variant = (data.variants || []).find(v => v.current);
+    if (variant && variant.file !== S.appliedVariant) {
+        S.appliedVariant = variant.file;
+        if (!S.restored || S.restored !== variant.file) { S.width = (SIZES.find(s => s[0] === variant.size) || ['', 360])[1]; }
+    }
     Object.assign(S, { file: data.file, includes: data.includes, variants: data.variants, problems: data.problems, error: data.error, context: data.context || null, shared: data.shared || {} });
     if (data.model) { S.model = data.model; }
     // Fichier sans écran : le premier composant déposé crée `screens.main`.
@@ -216,8 +223,10 @@ onChange(() => {
 const saved = vscode.getState() || {};
 S.screen = saved.screen || '';
 S.width = saved.width || 360;
+// Largeur choisie à la main avant un rechargement de la vue : gardée pour ce fichier.
+S.restored = saved.variant;
 S.platform = saved.platform || 'tauri';
-S.theme = saved.theme || (document.body.classList.contains('vscode-dark') ? 'dark' : 'light');
+S.theme = saved.theme || 'auto';
 S.collapsed = saved.collapsed || {};
 installToolbar();
 installCanvas();

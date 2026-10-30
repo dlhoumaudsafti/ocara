@@ -6074,6 +6074,20 @@
                     },
                     "type": "array"
                   },
+                  "direction": {
+                    "enum": [
+                      "ltr",
+                      "rtl",
+                      "ltr-snake",
+                      "rtl-snake"
+                    ]
+                  },
+                  "display": {
+                    "enum": [
+                      "list",
+                      "grid"
+                    ]
+                  },
                   "elevation": {
                     "maximum": 100.0,
                     "minimum": 0.0,
@@ -6104,6 +6118,11 @@
                   "italic": {
                     "type": "boolean"
                   },
+                  "itemWidth": {
+                    "maximum": 10000.0,
+                    "minimum": 1.0,
+                    "type": "number"
+                  },
                   "label": {
                     "type": [
                       "string",
@@ -6127,6 +6146,16 @@
                         "type": "array"
                       }
                     ]
+                  },
+                  "maxColumns": {
+                    "maximum": 64,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "minColumns": {
+                    "maximum": 64,
+                    "minimum": 1,
+                    "type": "integer"
                   },
                   "onSelect": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
@@ -6221,6 +6250,20 @@
                 },
                 "type": "array"
               },
+              "direction": {
+                "enum": [
+                  "ltr",
+                  "rtl",
+                  "ltr-snake",
+                  "rtl-snake"
+                ]
+              },
+              "display": {
+                "enum": [
+                  "list",
+                  "grid"
+                ]
+              },
               "elevation": {
                 "maximum": 100.0,
                 "minimum": 0.0,
@@ -6258,6 +6301,11 @@
               "item": {
                 "$ref": "#/definitions/node"
               },
+              "itemWidth": {
+                "maximum": 10000.0,
+                "minimum": 1.0,
+                "type": "number"
+              },
               "label": {
                 "type": [
                   "string",
@@ -6281,6 +6329,16 @@
                     "type": "array"
                   }
                 ]
+              },
+              "maxColumns": {
+                "maximum": 64,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "minColumns": {
+                "maximum": 64,
+                "minimum": 1,
+                "type": "integer"
               },
               "onSelect": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
@@ -6354,6 +6412,20 @@
                     },
                     "type": "array"
                   },
+                  "direction": {
+                    "enum": [
+                      "ltr",
+                      "rtl",
+                      "ltr-snake",
+                      "rtl-snake"
+                    ]
+                  },
+                  "display": {
+                    "enum": [
+                      "list",
+                      "grid"
+                    ]
+                  },
                   "elevation": {
                     "maximum": 100.0,
                     "minimum": 0.0,
@@ -6384,6 +6456,11 @@
                   "italic": {
                     "type": "boolean"
                   },
+                  "itemWidth": {
+                    "maximum": 10000.0,
+                    "minimum": 1.0,
+                    "type": "number"
+                  },
                   "label": {
                     "type": [
                       "string",
@@ -6407,6 +6484,16 @@
                         "type": "array"
                       }
                     ]
+                  },
+                  "maxColumns": {
+                    "maximum": 64,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "minColumns": {
+                    "maximum": 64,
+                    "minimum": 1,
+                    "type": "integer"
                   },
                   "onSelect": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
@@ -14345,6 +14432,160 @@
           }
         },
         "type": "object"
+      },
+      "properties": {
+        "dark": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "background": {
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "type": "string"
+              },
+              "bold": {
+                "type": "boolean"
+              },
+              "border": {
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "type": "string"
+              },
+              "color": {
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "type": "string"
+              },
+              "elevation": {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              "fontSize": {
+                "maximum": 400.0,
+                "minimum": 1.0,
+                "type": "number"
+              },
+              "italic": {
+                "type": "boolean"
+              },
+              "margin": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "items": {
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    "maxItems": 4,
+                    "minItems": 2,
+                    "type": "array"
+                  }
+                ]
+              },
+              "padding": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "items": {
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    "maxItems": 4,
+                    "minItems": 2,
+                    "type": "array"
+                  }
+                ]
+              },
+              "radius": {
+                "maximum": 10000.0,
+                "minimum": 0.0,
+                "type": "number"
+              }
+            },
+            "type": "object"
+          },
+          "type": "object"
+        },
+        "light": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "background": {
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "type": "string"
+              },
+              "bold": {
+                "type": "boolean"
+              },
+              "border": {
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "type": "string"
+              },
+              "color": {
+                "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "type": "string"
+              },
+              "elevation": {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              "fontSize": {
+                "maximum": 400.0,
+                "minimum": 1.0,
+                "type": "number"
+              },
+              "italic": {
+                "type": "boolean"
+              },
+              "margin": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "items": {
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    "maxItems": 4,
+                    "minItems": 2,
+                    "type": "array"
+                  }
+                ]
+              },
+              "padding": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "items": {
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    "maxItems": 4,
+                    "minItems": 2,
+                    "type": "array"
+                  }
+                ]
+              },
+              "radius": {
+                "maximum": 10000.0,
+                "minimum": 0.0,
+                "type": "number"
+              }
+            },
+            "type": "object"
+          },
+          "type": "object"
+        }
       },
       "type": "object"
     },

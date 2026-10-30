@@ -54,7 +54,25 @@ export function allProps(type) {
 // ── fichier racine (écrans inclus) ─────────────────────────────────────────
 
 /** Styles visibles : ceux du fichier racine, puis ceux du fichier. */
-export function styles() { return { ...(S.shared || {}), ...(S.model?.styles || {}) }; }
+const THEMES = ['dark', 'light'];
+/** Styles nommés visibles (sans les surcharges `dark`/`light`). */
+export function styles() {
+    const all = { ...(S.shared || {}), ...(S.model?.styles || {}) };
+    THEMES.forEach(t => delete all[t]);
+    return all;
+}
+/** Surcharges de styles du thème `theme` (`styles.dark`, `styles.light`). */
+export function themeStyles(theme) {
+    return { ...(S.shared?.[theme] || {}), ...(S.model?.styles?.[theme] || {}) };
+}
+/** Thème de l'aperçu : choix de la barre d'outils ; `auto` suit `window.theme`,
+ *  sinon le thème de VS Code (le système, dans l'application). */
+export function effectiveTheme() {
+    if (S.theme === 'dark' || S.theme === 'light') { return S.theme; }
+    const win = windowProps().theme;
+    if (win === 'dark' || win === 'light') { return win; }
+    return document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast') ? 'dark' : 'light';
+}
 export function windowProps() { return S.model?.window || S.context?.window || {}; }
 
 // ── écrans ─────────────────────────────────────────────────────────────────

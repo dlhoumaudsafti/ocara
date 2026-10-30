@@ -87,9 +87,21 @@
   OcaraUI.reload(TREE);
   check("retour à l'arbre de base", q("h1.oc-heading").textContent === "Inscription");
 
+  // Surcharge de style du thème affiché (`styles.dark`).
+  var dark = JSON.parse(JSON.stringify(TREE));
+  dark.window.theme = "dark";
+  OcaraUI.reload(dark);
+  check("style du thème sombre", q(".oc-text").style.color === "rgb(128, 203, 196)" && q(".oc-text").style.fontWeight === "bold");
+  OcaraUI.reload(TREE);
+
   // Vue web : rectangle envoyé après le rendu (setTimeout).
   OcaraUI.navigate("list");
+  OcaraUI.set("tiles", "items", [1, 2, 3, 4, 5].map(function (n) { return { name: "t" + n }; }));
   setTimeout(function () {
+    // Serpentin sur 3 colonnes : t4 et t5 repartent de droite.
+    var tiles = node("tiles").querySelectorAll(".oc-list-item");
+    var cols = Array.prototype.map.call(tiles, function (t) { return t.style.gridColumn + "/" + t.style.gridRow; }).join(" ");
+    check("grille de liste en serpentin (" + cols + ")", cols === "1/1 2/1 3/1 3/2 2/2");
     var shown = placements(true)[0] || {};
     check("webview placée", shown.width > 0 && Math.round(shown.height) === 140);
     OcaraUI.back();

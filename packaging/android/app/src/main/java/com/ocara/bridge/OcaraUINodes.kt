@@ -93,7 +93,7 @@ import org.json.JSONObject
 import kotlin.math.roundToInt
 
 /** Contexte d'un nœud : élément de liste (`bind`) et parent défilant. */
-internal data class Ctx(val tree: JSONObject, val item: JSONObject? = null, val scrolling: Boolean = false, val index: Int? = null)
+internal data class Ctx(val tree: JSONObject, val item: JSONObject? = null, val scrolling: Boolean = false, val index: Int? = null, val dark: Boolean = false)
 
 /** Types qui prennent la largeur d'une colonne (règle commune avec engine.css). */
 private val FILL_IN_COLUMN = setOf(
@@ -160,7 +160,7 @@ private fun Screen(tree: JSONObject) {
         val current = stack.lastOrNull()?.takeIf { screens.has(it) } ?: tree.getString("start")
         val screen = screens.getJSONObject(current)
         val layout = screen.getJSONObject("layout")
-        val ctx = Ctx(tree)
+        val ctx = Ctx(tree, dark = dark)
         val material = MaterialNodes(layout)
         // Écran affiché (départ, navigation, retour, nouvel arbre) : `onShow`.
         LaunchedEffect(current, tree) {
@@ -201,14 +201,18 @@ private fun Screen(tree: JSONObject) {
 private const val BACK_PATH = "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"
 private const val MENU_PATH = "M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"
 
-/** Propriétés effectives : style nommé, nœud, surcharge `android`, état, `binds`. */
+/** Propriétés effectives : style nommé et sa surcharge du thème affiché
+ *  (`styles.dark`/`styles.light`), nœud, surcharge `android`, état, `binds`. */
 internal fun props(node: JSONObject, ctx: Ctx): Map<String, Any?> {
     val out = HashMap<String, Any?>()
     fun merge(layer: JSONObject?) {
         layer ?: return
         for (key in layer.keys()) if (key != "tauri" && key != "android") out[key] = layer.get(key)
     }
-    node.optString("style").takeIf { it.isNotEmpty() }?.let { merge(ctx.tree.optJSONObject("styles")?.optJSONObject(it)) }
+    node.optString("style").takeIf { it.isNotEmpty() }?.let {
+        merge(ctx.tree.optJSONObject("styles")?.optJSONObject(it))
+        merge(ctx.tree.optJSONObject("themeStyles")?.optJSONObject(if (ctx.dark) "dark" else "light")?.optJSONObject(it))
+    }
     merge(node)
     merge(node.optJSONObject("android"))
     node.optString("id").takeIf { it.isNotEmpty() && ctx.item == null }?.let { id ->
@@ -476,13 +480,18 @@ private fun Container(node: JSONObject, type: String, p: Map<String, Any?>, id: 
             if (click != null) Card(onClick = click, modifier = m, colors = colors, content = body)
             else Card(m, colors = colors, content = body)
         }
-        "list" -> Column(m, Arrangement.spacedBy(gap)) {
+        "list" -> {
             val template = node.getJSONObject("item")
-            OcaraUIEngine.items(p["items"]).forEachIndexed { index, row ->
+            val rows = OcaraUIEngine.items(p["items"])
+            val cell: @Composable (Int, JSONObject, Modifier) -> Unit = { index, row, size ->
                 val select = Modifier.clickable(enabled = p["onSelect"] != null) {
                     OcaraUIEngine.fire(p, "onSelect", id, row, index)
                 }
-                Node(template, inner.copy(item = row, index = index), select.fillMaxWidth().padding(8.dp))
+                Node(template, inner.copy(item = row, index = index), size.then(select).padding(8.dp))
+            }
+            if (p.text("display") == "grid") ListGrid(p, rows, gap, m, cell)
+            else Column(m, Arrangement.spacedBy(gap)) {
+                rows.forEachIndexed { index, row -> cell(index, row, Modifier.fillMaxWidth()) }
             }
         }
         else -> Column(m, Arrangement.spacedBy(gap), horizontalAlignment = horizontal(p.text("align"))) {
