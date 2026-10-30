@@ -209,7 +209,9 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
   - **vérification** par le compilateur (`ocara x.oc.ui`) à l'ouverture et à chaque
     enregistrement : erreurs listées sous l'aperçu et posées sur les nœuds concernés. Un fichier
     inclus (`screens.includes`) est vérifié à travers le fichier racine qui l'inclut, cherché dans
-    l'espace de travail : ses styles, sa fenêtre et son menu servent aussi à l'aperçu.
+    l'espace de travail : sa fenêtre, son menu et les styles de toute l'interface (racine et autres
+    fichiers inclus) servent aussi à l'aperçu et au choix du style ; un fichier inclus peut
+    déclarer ses propres styles (onglet Styles).
 
 ## Réglages
 

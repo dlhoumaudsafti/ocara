@@ -225,11 +225,20 @@ function rootNotice(owner) {
     const open = h('button', 'd-mini', `Ouvrir ${S.context.root}`);
     open.addEventListener('click', () => vscode.postMessage({ type: 'open', file: S.context.root, designer: true }));
     const names = owner === 'styles' ? Object.keys(S.context.styles || {}).join(', ') : '';
-    const tools = h('div', 'd-pad');
+    const tools = h('div', 'd-pad d-inline');
     tools.appendChild(open);
+    if (owner === 'styles') {
+        // Un fichier inclus peut déclarer les styles de ses écrans.
+        const add = h('button', 'd-mini', '＋ Style dans ce fichier');
+        add.addEventListener('click', async () => {
+            const name = await ask('Nom du style', '');
+            if (name && /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) && !styles()[name]) { edit([{ op: 'set', path: ['styles', name], value: {} }]); }
+        });
+        tools.appendChild(add);
+    }
     return [
         header(owner === 'window' ? 'Fenêtre' : owner === 'styles' ? 'Styles' : 'Menu', owner),
-        h('p', 'd-muted d-pad', `Ce fichier est inclus par ${S.context.root} : ${owner} y est déclaré.${names ? ` Styles disponibles : ${names}.` : ''}`),
+        h('p', 'd-muted d-pad', `Ce fichier est inclus par ${S.context.root} : ${owner === 'styles' ? 'les styles de l\'interface y sont déclarés, ou dans ses autres fichiers' : `${owner} y est déclaré`}.${names ? ` Styles disponibles : ${names}.` : ''}`),
         tools,
     ];
 }

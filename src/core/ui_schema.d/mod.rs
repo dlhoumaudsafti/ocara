@@ -22,6 +22,7 @@ pub mod json_schema;
 mod nodes;
 pub mod preview;
 pub mod schema;
+mod styles;
 mod variants;
 pub use variants::check_interface;
 mod values;
@@ -78,8 +79,11 @@ pub fn check_source(file: &Path, source: &str) -> Result<UiSpec, Vec<Diagnostic>
         actions: BTreeSet::new(),
         icons: BTreeSet::new(),
         styles: BTreeSet::new(),
+        style_decls: HashMap::new(),
+        included_styles: Map::new(),
         in_item: 0,
     };
+    checker.declare_styles(&root);
     let tree = checker.root(&root);
     if !checker.errors.is_empty() {
         checker.errors.sort_by(|a, b| (&a.file, a.line, a.col).cmp(&(&b.file, b.line, b.col)));
@@ -120,8 +124,12 @@ pub(super) struct Checker {
     actions: BTreeSet<String>,
     /// Icônes nommées, copiées dans l'arbre (`icons`).
     icons: BTreeSet<String>,
-    /// Noms déclarés sous `styles:`, connus avant les nœuds.
+    /// Noms déclarés sous `styles:` (fichiers inclus compris), connus avant les nœuds.
     styles: BTreeSet<String>,
+    /// Style → fichier et ligne de sa déclaration, pour signaler un doublon entre fichiers.
+    style_decls: HashMap<String, (PathBuf, usize)>,
+    /// Styles déclarés dans les fichiers inclus, ajoutés à ceux de la racine.
+    included_styles: Map<String, Json>,
     /// Profondeur dans un gabarit `item:` de liste (`bind` permis).
     in_item: usize,
 }
@@ -179,6 +187,15 @@ impl Checker {
             (None, Some((_, layout))) => self.node(layout).map(|node| vec![("main".to_string(), json!({ "layout": node }), root.line)]),
             (None, None) => self.fail(root, "aucun écran : 'layout' (un écran) ou 'screens' (plusieurs) attendu".to_string()),
         };
+        // Styles des fichiers inclus (lus avec leurs écrans) : avec ceux de la racine.
+        if !self.included_styles.is_empty() {
+            let included = std::mem::take(&mut self.included_styles);
+            if let Some(Json::Object(styles)) = out.get_mut("styles") {
+                styles.extend(included);
+            } else {
+                out.insert("styles".into(), Json::Object(included));
+            }
+        }
         if let Some(screens) = screens {
             self.start(root, get("start").map(|(_, v)| v), &screens, &mut out);
             let screens: Map<String, Json> = screens.into_iter().map(|(name, screen, _)| (name, screen)).collect();
@@ -190,24 +207,6 @@ impl Checker {
             }
         }
         Some(out)
-    }
-
-    fn styles(&mut self, node: &Node) -> Map<String, Json> {
-        let entries = self.entries(node, "styles").unwrap_or_default();
-        for &(key, name, _) in &entries {
-            if is_ident(name) {
-                self.styles.insert(name.to_string());
-            } else {
-                self.fail::<()>(key, format!("nom de style '{name}' invalide (lettres, chiffres, '_')"));
-            }
-        }
-        let mut out = Map::new();
-        for (_, name, value) in entries {
-            if let Some(style) = self.table(value, &format!("styles.{name}"), schema::STYLE_PROPS) {
-                out.insert(name.to_string(), Json::Object(style));
-            }
-        }
-        out
     }
 
     fn window(&mut self, node: &Node) -> Map<String, Json> {
@@ -267,7 +266,7 @@ impl Checker {
     }
 
     /// `screens.includes` : fichiers `.oc.ui` (relatifs au fichier courant)
-    /// qui ne contiennent que `screens:`, includes imbriqués compris.
+    /// qui ne contiennent que `screens:` et `styles:`, includes imbriqués compris.
     fn includes(&mut self, node: &Node) -> Vec<(String, Json, usize)> {
         let Kind::Seq(items) = &node.kind else {
             self.fail::<()>(node, "'screens.includes' : liste de fichiers .oc.ui attendue".to_string());
@@ -300,7 +299,8 @@ impl Checker {
         out
     }
 
-    /// Écrans d'un fichier inclus (fichier courant : celui-ci).
+    /// Écrans d'un fichier inclus (fichier courant : celui-ci) ; ses styles
+    /// vont dans `included_styles`.
     fn included_screens(&mut self, source: &str) -> Vec<(String, Json, usize)> {
         let root = match yaml::load(source) {
             Ok(Some(root)) => root,
@@ -316,10 +316,15 @@ impl Checker {
         let Some(entries) = self.entries(&root, "racine") else { return Vec::new() };
         let mut out = Vec::new();
         for (key, name, value) in entries {
-            if name == "screens" {
-                out.extend(self.screens(value).unwrap_or_default());
-            } else {
-                self.fail::<()>(key, format!("clé '{name}' inconnue dans un fichier inclus (seule 'screens' est permise)"));
+            match name {
+                "screens" => out.extend(self.screens(value).unwrap_or_default()),
+                "styles" => {
+                    let styles = self.styles(value);
+                    self.included_styles.extend(styles);
+                }
+                _ => {
+                    self.fail::<()>(key, format!("clé '{name}' inconnue dans un fichier inclus (seules 'screens' et 'styles' sont permises)"));
+                }
             }
         }
         out

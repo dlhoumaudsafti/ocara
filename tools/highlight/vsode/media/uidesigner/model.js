@@ -11,6 +11,8 @@ export const S = {
     tab: 'props', clipboard: null, collapsed: {},
     /** Fichier inclus : fichier racine qui l'inclut (`root`), ses `styles`, `window`, `menu`. */
     context: null,
+    /** Styles déclarés dans les autres fichiers de l'interface (racine, fichiers inclus). */
+    shared: {},
 };
 
 const listeners = [];
@@ -52,7 +54,7 @@ export function allProps(type) {
 // ── fichier racine (écrans inclus) ─────────────────────────────────────────
 
 /** Styles visibles : ceux du fichier racine, puis ceux du fichier. */
-export function styles() { return { ...(S.context?.styles || {}), ...(S.model?.styles || {}) }; }
+export function styles() { return { ...(S.shared || {}), ...(S.model?.styles || {}) }; }
 export function windowProps() { return S.model?.window || S.context?.window || {}; }
 
 // ── écrans ─────────────────────────────────────────────────────────────────

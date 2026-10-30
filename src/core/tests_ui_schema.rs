@@ -324,6 +324,32 @@ fn includes_add_screens_and_locate_errors() {
 }
 
 #[test]
+fn included_files_declare_their_styles() {
+    use crate::core::ui_schema::check_file;
+    // `a` utilise un style de `b`, inclus après lui : les noms sont connus d'avance.
+    let main = "styles:\n  base: { bold: true }\nstart: a\nscreens:\n  includes:\n    - ui.d/a.oc.ui\n    - ui.d/b.oc.ui\n";
+    let a = "styles:\n  a_title: { fontSize: 22 }\nscreens:\n  a:\n    layout: { type: column, children: [{ type: text, style: b_note }, { type: text, style: base }] }\n";
+    let b = "styles:\n  b_note: { italic: true }\nscreens:\n  b:\n    layout: { type: column, children: [{ type: text, style: a_title }] }\n";
+    let dir = files("inc_styles", &[("main.oc.ui", main), ("ui.d/a.oc.ui", a), ("ui.d/b.oc.ui", b)]);
+    let spec = check_file(&dir.join("main.oc.ui")).expect("arbre attendu");
+    for name in ["base", "a_title", "b_note"] {
+        assert!(spec.tree["styles"][name].is_object(), "style {name} absent : {}", spec.tree["styles"]);
+    }
+    assert_eq!(spec.tree["styles"]["a_title"]["fontSize"], 22.0);
+
+    let dup = "styles:\n  base: { italic: true }\nscreens:\n  b:\n    layout: { type: column, children: [] }\n";
+    let dir = files("inc_styles_dup", &[("main.oc.ui", main), ("ui.d/a.oc.ui", a), ("ui.d/b.oc.ui", dup)]);
+    let errors = check_file(&dir.join("main.oc.ui")).unwrap_err();
+    assert!(errors.iter().any(|e| e.file.ends_with("ui.d/b.oc.ui") && e.line == 2 && e.message.contains("style 'base' déjà déclaré")), "{:?}", errors);
+
+    let unknown = "window: { title: x }\nscreens:\n  b:\n    layout: { type: column, children: [] }\n";
+    let dir = files("inc_styles_key", &[("main.oc.ui", main), ("ui.d/a.oc.ui", a), ("ui.d/b.oc.ui", unknown)]);
+    let errors = check_file(&dir.join("main.oc.ui")).unwrap_err();
+    std::fs::remove_dir_all(&dir).ok();
+    assert!(errors.iter().any(|e| e.message.contains("seules 'screens' et 'styles'")), "{:?}", errors);
+}
+
+#[test]
 fn variables_in_texts() {
     let spec = ok(&screen("    - { type: text, value: \"${title} (${count})\", tooltip: \"$${pas_une}\" }\n"));
     let vars: Vec<&str> = spec.vars.iter().map(String::as_str).collect();

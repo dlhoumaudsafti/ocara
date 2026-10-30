@@ -101,7 +101,7 @@ screens:
 | Clé | Contenu |
 |-----|---------|
 | `window` | fenêtre principale (ci-dessous) |
-| `styles` | styles nommés : `nom: { propriétés de présentation }` |
+| `styles` | styles nommés : `nom: { propriétés de présentation }` (aussi dans les fichiers inclus, voir « Écrans inclus ») |
 | `screens` | écrans nommés : `nom: { title, layout, onShow }` (`onShow` : action lancée à chaque affichage de l'écran, valeur : son nom) |
 | `start` | écran affiché au lancement ; facultatif s'il n'y a qu'un écran |
 | `layout` | à la place de `screens` : un seul écran, nommé `main` |
@@ -261,10 +261,13 @@ plateforme seulement :
 ## Écrans inclus
 
 `screens:` peut lister d'autres fichiers sous la clé `includes` (chemins
-relatifs au fichier qui les inclut) ; chacun ne contient que `screens:`, et
-peut lui-même en inclure d'autres :
+relatifs au fichier qui les inclut) ; chacun contient `screens:` et, s'il
+le faut, les `styles:` de ses écrans, et peut lui-même en inclure d'autres :
 
 ```yaml
+# garage.oc.ui
+styles:
+  muted: { color: "#757575" }
 screens:
   form:
     title: "Formulaire"
@@ -274,8 +277,24 @@ screens:
     - ui.d/other.oc.ui
 ```
 
-Les écrans inclus partagent les styles, les `id` (uniques dans toute
-l'interface) et les actions du fichier principal. Une erreur est située
+```yaml
+# ui.d/list.oc.ui : les écrans et leurs styles ensemble
+styles:
+  row_title: { fontSize: 16, bold: true }
+screens:
+  list:
+    layout:
+      type: column
+      children:
+        - { type: text, value: "Voitures", style: row_title }
+        - { type: text, value: "aucune", style: muted }
+```
+
+Les écrans inclus partagent les `id` (uniques dans toute l'interface) et
+les actions du fichier principal. Les styles forment un seul espace de
+noms : un style déclaré dans un fichier (principal ou inclus) sert dans
+tous les écrans, quel que soit l'ordre des inclusions, et un style déclaré
+deux fois, même dans deux fichiers, est une erreur. Une erreur est située
 dans le fichier inclus ; un écran déclaré deux fois, ou un fichier inclus
 deux fois (inclusion circulaire comprise), est une erreur.
 

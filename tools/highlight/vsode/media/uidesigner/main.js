@@ -191,7 +191,7 @@ window.addEventListener('message', ({ data }) => {
         return;
     }
     if (data.type !== 'model') { return; }
-    Object.assign(S, { file: data.file, includes: data.includes, variants: data.variants, problems: data.problems, error: data.error, context: data.context || null });
+    Object.assign(S, { file: data.file, includes: data.includes, variants: data.variants, problems: data.problems, error: data.error, context: data.context || null, shared: data.shared || {} });
     if (data.model) { S.model = data.model; }
     // Fichier sans écran : le premier composant déposé crée `screens.main`.
     if (!screens().includes(S.screen)) { S.screen = S.model?.start && screens().includes(S.model.start) ? S.model.start : screens()[0] || 'main'; }

@@ -78,7 +78,9 @@ export class UiDesigner implements vscode.CustomTextEditorProvider {
                 includes: this.includes(document, doc.toJS()),
                 variants: this.variants(document),
                 problems,
-                context: root && { root: path.relative(folder.fsPath, root.file), styles: root.model?.styles, window: root.model?.window, menu: root.model?.menu },
+                context: root && { root: path.relative(folder.fsPath, root.file), styles: allStyles(root.file, document.uri.fsPath), window: root.model?.window, menu: root.model?.menu },
+                // Styles des autres fichiers de l'interface (racine et inclus), utilisables ici.
+                shared: allStyles(root?.file ?? document.uri.fsPath, document.uri.fsPath),
             });
         };
         const check = async () => {
@@ -259,6 +261,22 @@ async function findRoot(file: string): Promise<RootContext | undefined> {
         current = parents.get(current.file);
     }
     return current;
+}
+
+/** Styles de l'interface de racine `rootFile` : ceux de la racine et des
+ *  fichiers qu'elle inclut (un seul espace de noms), sauf ceux de `except`
+ *  (le fichier affiché, dont les styles sont dans son propre modèle). */
+function allStyles(rootFile: string, except: string, seen = new Set<string>()): Record<string, unknown> {
+    const file = path.resolve(rootFile);
+    if (seen.has(file)) { return {}; }
+    seen.add(file);
+    let model: any;
+    try { model = parse(fs.readFileSync(file, 'utf8')).doc.toJS(); } catch { return {}; }
+    const out: Record<string, unknown> = file === path.resolve(except) ? {} : { ...(model?.styles ?? {}) };
+    for (const inc of Array.isArray(model?.screens?.includes) ? model.screens.includes : []) {
+        if (typeof inc === 'string') { Object.assign(out, allStyles(path.resolve(path.dirname(file), inc), except, seen)); }
+    }
+    return out;
 }
 
 function activeUri(): vscode.Uri | undefined {

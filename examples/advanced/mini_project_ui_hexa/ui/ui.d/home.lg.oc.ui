@@ -1,5 +1,12 @@
 # Tableau de bord des écrans larges : statistiques et ajout à gauche, flotte
 # à droite. Mêmes id et actions que ui.d/home.oc.ui.
+
+# Chiffres du tableau de bord (repris par la fiche voiture : les styles
+# forment un seul espace de noms).
+styles:
+  stat_label: { fontSize: 12, color: "#757575" }
+  stat_value: { fontSize: 20, bold: true, color: "#1565c0" }
+
 screens:
   home:
     title: "${app_title}"

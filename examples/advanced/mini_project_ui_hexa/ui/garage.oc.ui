@@ -17,11 +17,10 @@ window:
   primary: "#1565c0"
   android: { systemBars: dark }
 
+# Styles communs ; ceux d'un écran sont déclarés dans son fichier (ui.d/…).
 styles:
   page_title: { fontSize: 24, bold: true }
   section_title: { fontSize: 18, bold: true }
-  stat_label: { fontSize: 12, color: "#757575" }
-  stat_value: { fontSize: 20, bold: true, color: "#1565c0" }
   card_ref: { fontSize: 16, bold: true }
   muted: { color: "#757575" }
   highlight: { bold: true, color: "#2e7d32" }
