@@ -18,7 +18,7 @@ pour l'état complet.
 
 Tout ici est câblé à la main (nom de classe JNI figé, port du serveur figé
 dans `MainActivity.kt`), pas encore une abstraction du compilateur Ocara :
-voir [`ocara.UI`](../../docs/roadmap.d/langage-builtin-ui-multiplateforme.md),
+voir [`ocara.UI`](../../docs/builtins/UI.md),
 dont la vue web est un composant.
 
 ## Structure

@@ -1,6 +1,6 @@
-// Tables du schéma `.oc.ui` (docs/roadmap.d/langage-builtin-ui-multiplateforme.md,
-// §3 et §4) : types de nœuds et propriétés permises, avec le type de chaque
-// valeur. Ajouter un composant = une entrée de `node_props`.
+// Tables du schéma `.oc.ui` (docs/oc-ui.md) : types de nœuds et propriétés
+// permises, avec le type de chaque valeur. Ajouter un
+// composant = une entrée de `node_props`.
 
 /// Type attendu d'une valeur.
 #[derive(Debug, Clone, Copy)]

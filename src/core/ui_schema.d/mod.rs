@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Schéma des fichiers `.oc.ui` (interface décrite en YAML, builtin `ocara.UI`,
-// docs/roadmap.d/langage-builtin-ui-multiplateforme.md §4).
+// docs/oc-ui.md).
 //
 // Le fichier est lu à la compilation : toute erreur (YAML invalide, type de
 // nœud, propriété ou valeur inconnue, `id` en double, style non déclaré…)

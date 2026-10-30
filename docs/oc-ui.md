@@ -575,6 +575,6 @@ partie de `make regression`.
 
 ## Voir aussi
 
-- [Fiche `ocara.UI`](roadmap.d/langage-builtin-ui-multiplateforme.md) : principe, inventaire, API Ocara
+- [Fiche `ocara.UI`](roadmap.d/langage-builtin-ui-multiplateforme.md) : ce qui reste à faire
 - [Tauri](builtins/Tauri.md), [AndroidUI](builtins/AndroidUI.md) : spécificités de chaque plateforme
 - Code : `src/core/ui_schema.d/` (lecteur YAML positionné, tables du schéma, icônes, validation, aperçu)

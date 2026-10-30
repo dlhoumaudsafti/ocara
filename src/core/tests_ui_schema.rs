@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::core::ui_schema::{check_source, UiSpec};
 
-/// Exemple de la fiche (docs/roadmap.d/langage-builtin-ui-multiplateforme.md §4).
+/// Exemple Garage du format `.oc.ui` (docs/oc-ui.md).
 const GARAGE: &str = r#"window:
   title: "Garage"
   width: 900
