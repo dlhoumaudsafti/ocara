@@ -146,9 +146,11 @@ Un nœud est une table dont `type` est l'un des types ci-dessous.
 | `button` | `text`, `icon`, `variant` (`primary`, `secondary`, `text`), `onClick`, `submit`, `onInvalid` | |
 | `iconButton` | `icon`, `onClick`, `submit`, `onInvalid` | `icon`, `label` |
 | `link` | `text`, `onClick` ; état `visited` après le premier clic (voir « Styles d'état et effets ») | `text` |
-| `android.fab` | `icon`, `text` (bouton étendu), `onClick` | `icon`, `label` |
-| `android.bottomSheet` | `children`, `spacing`, `open`, `onDismiss` | `id` |
-| `android.drawer` | `children`, `spacing`, `open`, `onDismiss` | `id` |
+| `fab` | `icon`, `text` (bouton étendu), `position` (voir « Composants d'écran »), `onClick` | `icon`, `label` |
+| `bottomSheet` | `children`, `spacing`, `open`, `onDismiss` | `id` |
+| `drawer` | `children`, `spacing`, `open`, `side` (`start`, `end`), `permanentFrom` (classe de taille), `onDismiss` | `id` |
+| `floating` | `children`, `spacing`, `position` (`fixed`, `absolute`), `anchor`, `x`, `y` | |
+| `spinner` | `kind` (`circle`, `dots`, `bars`, `pulse`, `ring`, `orbit`) ou `src` (image animée), `size` (4 à 1000) | |
 
 Propriétés communes à tous les nœuds :
 
@@ -161,6 +163,7 @@ Propriétés communes à tous les nœuds :
 | `width`, `height` | nombre, `fill` ou `wrap` |
 | `weight` | nombre (part de l'espace libre) |
 | `align` | `start`, `center`, `end`, `stretch` |
+| `z` | entier de -1000 à 1000 : ordre d'empilement (le plus grand devant) |
 | `label` | texte lu par l'accessibilité |
 | `tooltip` | texte |
 | `contextMenu` | entrées de menu (clic droit, appui long) |
@@ -169,23 +172,60 @@ Propriétés communes à tous les nœuds :
 | présentation | `fontSize`, `bold`, `italic`, `color`, `background`, `padding`, `margin`, `radius`, `border`, `elevation`, `opacity`, `blur`, `backdropBlur`, `shadow`, `transition`, `states` (tables d'état `hover`, `focus`, `active`, `disabled`, `invalid`, `checked`, `visited`) — aussi permises dans `styles`, voir « Styles d'état et effets » |
 | `animation`, `onAnimationEnd` | animation du nœud et action lancée à sa fin (voir « Animations ») |
 
-### Composants propres à Android
+### Composants d'écran
 
-Les types préfixés `android.` sont des composants Material sans
-équivalent desktop ; ils sont validés partout et **ignorés sur desktop**.
-Déclarés n'importe où dans la disposition d'un écran, ils sont placés là
-où Material les attend :
+`fab`, `drawer`, `bottomSheet` et `floating` fixe sont rendus pareil sur
+desktop et sur Android. Déclarés n'importe où dans la disposition d'un
+écran, ils sont placés dans une couche au-dessus de lui (rien à leur place
+dans l'arbre) :
 
-- `android.fab` : bouton flottant de l'écran (le premier compte) ; avec
-  `text`, bouton étendu (icône et texte) ;
-- `android.drawer` : tiroir de navigation de l'écran (le premier compte),
-  ouvert par l'icône de menu de la barre de titre ou par
-  `ui.set(id, "open", true)` ;
-- `android.bottomSheet` : panneau inférieur, ouvert par
+- `fab` : bouton flottant de l'écran (le premier compte), à 16 px du bord ;
+  avec `text`, bouton étendu (icône et texte). `position` : `bottomEnd`
+  (défaut), `bottomCenter`, `bottomStart`, `topEnd`, `topCenter`,
+  `topStart`, `startCenter`, `endCenter` ;
+- `drawer` : tiroir de navigation de l'écran (le premier compte), glissant
+  depuis le bord `side` (`start` par défaut), ouvert par l'icône de menu de
+  la barre de titre ou par `ui.set(id, "open", true)`. Avec
+  `permanentFrom: lg`, il reste affiché à côté du contenu à partir de cette
+  classe de taille (voir « Tailles d'écran »), sans voile ni icône de
+  menu ;
+- `bottomSheet` : panneau montant du bas, ouvert par
   `ui.set(id, "open", true)`.
 
-Fermé par l'utilisateur (geste, toucher à côté), un tiroir ou un panneau
-repasse à `open: false` (lu par `ui.get`) et déclenche `onDismiss`.
+Fermé par l'utilisateur (voile, `Échap` sur desktop ; geste, toucher à
+côté sur Android), un tiroir ou un panneau repasse à `open: false` (lu par
+`ui.get`) et déclenche `onDismiss`.
+
+`floating` est un conteneur (colonne) posé par-dessus les autres :
+
+```yaml
+- type: floating
+  anchor: topEnd       # point de référence de x, y
+  x: 16                # décalage vers l'intérieur, en pixels
+  y: 16
+  z: 10
+  children:
+    - { type: card, children: [ { type: text, value: "3 nouveaux" } ] }
+```
+
+- `position: fixed` (défaut) : par rapport à l'écran, immobile au
+  défilement ; `absolute` : par rapport au conteneur parent ;
+- `anchor` : `topStart` (défaut), `topCenter`, `topEnd`, `startCenter`,
+  `center`, `endCenter`, `bottomStart`, `bottomCenter`, `bottomEnd` ; `x`
+  et `y` décalent vers l'intérieur (depuis un centre : vers la droite et le
+  bas) ;
+- déplaçable depuis Ocara : `ui.set(id, "x", 120)` (et `y`, `z`).
+
+`spinner` est un indicateur d'attente : un modèle proposé (`kind`, de
+couleur `color`, principale par défaut) ou une image animée personnelle
+(`src` : GIF, WEBP ou SVG animé, embarquée comme les autres images ; sur
+Android, animée à partir d'Android 9). `kind` et `src` s'excluent ; `size`
+(32 par défaut) fixe sa largeur et sa hauteur.
+
+```yaml
+- { type: spinner, kind: dots, size: 32, color: "#1565c0", label: Chargement }
+- { type: spinner, src: images/loader.webp, size: 48 }
+```
 
 ### Tailles par défaut
 

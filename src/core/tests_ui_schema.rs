@@ -531,8 +531,15 @@ fn size_variants_are_embedded() {
 }
 
 #[test]
-fn android_material_nodes() {
-    ok(&screen("    - { type: android.fab, icon: add, label: Ajouter, text: Ajouter, onClick: add }\n    - { type: android.drawer, id: menu, children: [{ type: text, value: Menu }] }\n    - { type: android.bottomSheet, id: sheet, open: false, onDismiss: closed, children: [] }\n"));
-    single_error(&screen("    - { type: android.fab, icon: add }\n"), 4, "'android.fab' : propriété 'label' obligatoire");
-    single_error(&screen("    - { type: android.drawer, children: [] }\n"), 4, "'android.drawer' : propriété 'id' obligatoire");
+fn screen_components() {
+    ok(&screen("    - { type: fab, icon: add, label: Ajouter, text: Ajouter, position: bottomCenter, onClick: add }\n    - { type: drawer, id: menu, side: end, permanentFrom: lg, children: [{ type: text, value: Menu }] }\n    - { type: bottomSheet, id: sheet, open: false, onDismiss: closed, children: [] }\n    - { type: floating, anchor: topEnd, x: 8, y: 8, z: 5, children: [{ type: text, value: \"3\" }] }\n    - { type: floating, position: absolute, anchor: center, children: [] }\n    - { type: spinner, kind: dots, size: 48, color: \"#c62828\" }\n"));
+    single_error(&screen("    - { type: fab, icon: add }\n"), 4, "'fab' : propriété 'label' obligatoire");
+    single_error(&screen("    - { type: drawer, children: [] }\n"), 4, "'drawer' : propriété 'id' obligatoire");
+    single_error(&screen("    - { type: fab, icon: add, label: A, position: middle }\n"), 4, "valeur 'middle' inconnue");
+    single_error(&screen("    - { type: spinner, kind: wheel }\n"), 4, "valeur 'wheel' inconnue");
+    single_error(&screen("    - { type: floating, anchor: left, children: [] }\n"), 4, "valeur 'left' inconnue");
+    // L'ancien préfixe `android.` n'existe plus.
+    single_error(&screen("    - { type: android.fab, icon: add, label: A }\n"), 4, "'android.fab' inconnu");
+    let found = errors(&screen("    - { type: spinner, kind: dots, src: anim.gif }\n"));
+    assert!(found.iter().any(|(_, m)| m.contains("'kind' (modèle proposé) ou 'src' (image animée), pas les deux")), "{found:?}");
 }

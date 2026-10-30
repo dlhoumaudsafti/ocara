@@ -98,11 +98,13 @@ textarea.d-input { width: 100%; min-height: 54px; resize: vertical; font-family:
 .d-invalid { color: #c62828; border: 1px dashed #c62828; padding: 4px; font-size: 12px; }
 .d-error { outline: 2px solid #e53935 !important; outline-offset: 1px; }
 /* composants Android (aperçu Android) : posés sur le cadre, pas dans le flux */
-.d-fab { position: absolute; right: 16px; bottom: 16px; z-index: 2; border-radius: 16px; padding: 16px; box-shadow: 0 3px 8px rgba(0,0,0,.3); }
+.d-fab { z-index: 2; border-radius: 16px; padding: 16px; box-shadow: 0 3px 8px rgba(0,0,0,.3); }
 .d-drawer, .d-sheet { position: absolute; z-index: 3; background: var(--oc-surface); padding: 16px; box-shadow: 0 0 0 100vmax rgba(0,0,0,.32); }
 .d-drawer { left: 0; top: 0; bottom: 0; width: min(80%, 360px); border-radius: 0 16px 16px 0; overflow: auto; }
 .d-sheet { left: 0; right: 0; bottom: 0; max-height: 60%; border-radius: 16px 16px 0 0; overflow: auto; }
-.d-android-title { font-size: 11px; color: var(--oc-muted); }
+.d-drawer-end { left: auto; right: 0; border-radius: 16px 0 0 16px; }
+.d-floating { z-index: 2; }
+.d-panel-title { font-size: 11px; color: var(--oc-muted); }
 
 /* calques de l'aperçu */
 .d-hover, .d-select, .d-drop { position: absolute; pointer-events: none; z-index: 5; }

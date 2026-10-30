@@ -109,8 +109,8 @@ screens:
                           - { type: cardFact, label: "${card_purchase}", value: { bind: purchase } }
                           - { type: cardFact, label: "${card_estimated}", value: { bind: estimated }, tone: highlight }
                           - { type: cardFact, label: "${card_maintenance}", value: { bind: maintenance } }
-        - { type: android.fab, icon: search, label: "${nav_search}", onClick: go_search }
-        - type: android.drawer
+        - { type: fab, icon: search, label: "${nav_search}", onClick: go_search }
+        - type: drawer
           id: home_drawer
           children:
             - { type: heading, level: 3, value: "${app_title}" }

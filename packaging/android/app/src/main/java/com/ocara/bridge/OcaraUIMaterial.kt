@@ -2,6 +2,7 @@ package com.ocara.bridge
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -10,13 +11,19 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.PermanentDrawerSheet
+import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -24,11 +31,11 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 /**
- * Composants Material propres à Android d'un écran (`.oc.ui`, préfixe
- * `android.`) : bouton flottant (`android.fab`), tiroir de navigation
- * (`android.drawer`) et panneaux inférieurs (`android.bottomSheet`). Ils
- * sont déclarés n'importe où dans la disposition de l'écran et placés là où
- * Material les attend ; le premier bouton flottant et le premier tiroir
+ * Composants d'écran (`.oc.ui`, docs/oc-ui.md « Composants d'écran ») :
+ * bouton flottant (`fab`), tiroir de navigation (`drawer`), panneaux
+ * inférieurs (`bottomSheet`) et conteneurs flottants fixes (`floating`).
+ * Ils sont déclarés n'importe où dans la disposition de l'écran et placés
+ * au-dessus d'elle ; le premier bouton flottant et le premier tiroir
  * comptent. Tiroir et panneau s'ouvrent par `ui.set(id, "open", true)` (le
  * tiroir aussi par l'icône de menu de la barre de titre).
  */
@@ -36,6 +43,7 @@ internal class MaterialNodes(layout: JSONObject) {
     var fab: JSONObject? = null
     var drawer: JSONObject? = null
     val sheets = ArrayList<JSONObject>()
+    val floatings = ArrayList<JSONObject>()
 
     init {
         collect(layout)
@@ -43,9 +51,10 @@ internal class MaterialNodes(layout: JSONObject) {
 
     private fun collect(node: JSONObject) {
         when (node.optString("type")) {
-            "android.fab" -> if (fab == null) fab = node
-            "android.drawer" -> if (drawer == null) drawer = node
-            "android.bottomSheet" -> sheets.add(node)
+            "fab" -> if (fab == null) fab = node
+            "drawer" -> if (drawer == null) drawer = node
+            "bottomSheet" -> sheets.add(node)
+            "floating" -> if (node.optString("position") != "absolute") floatings.add(node)
         }
         val children = node.optJSONArray("children") ?: return
         for (i in 0 until children.length()) children.optJSONObject(i)?.let { collect(it) }
@@ -75,13 +84,56 @@ internal fun Fab(node: JSONObject, ctx: Ctx) {
     else FloatingActionButton(onClick = click, modifier = modifier) { icon() }
 }
 
+/** Point de référence (`position` d'un `fab`, `anchor` d'un `floating`). */
+internal fun alignmentOf(name: String?): Alignment = when (name) {
+    "topStart" -> Alignment.TopStart
+    "topCenter" -> Alignment.TopCenter
+    "topEnd" -> Alignment.TopEnd
+    "startCenter" -> Alignment.CenterStart
+    "center" -> Alignment.Center
+    "endCenter" -> Alignment.CenterEnd
+    "bottomStart" -> Alignment.BottomStart
+    "bottomCenter" -> Alignment.BottomCenter
+    else -> Alignment.BottomEnd
+}
+
+/** Décalage `x`/`y` (dp) vers l'intérieur depuis le point de référence `anchor`. */
+internal fun Modifier.inward(anchor: String?, x: Float, y: Float): Modifier {
+    val dx = if (anchor?.contains("End") == true || anchor == "endCenter") -x else x
+    val dy = if (anchor?.startsWith("bottom") == true) -y else y
+    return offset(dx.dp, dy.dp)
+}
+
+/** Ordre des classes de taille (variants.rs), pour `permanentFrom`. */
+private val SIZE_ORDER = listOf("xxs", "xs", "sm", "md", "lg", "xl", "xxl")
+
 /**
  * Écran entouré du tiroir `drawer` s'il y en a un ; `content` reçoit l'action
- * d'ouverture (icône de menu), `null` sans tiroir.
+ * d'ouverture (icône de menu), `null` sans tiroir ou s'il est permanent
+ * (`permanentFrom` atteint par la classe de taille `sizeClass`). Côté
+ * `end` : sens de lecture inversé autour du tiroir seulement.
  */
 @Composable
-internal fun WithDrawer(drawer: JSONObject?, ctx: Ctx, content: @Composable (open: (() -> Unit)?) -> Unit) {
+internal fun WithDrawer(drawer: JSONObject?, ctx: Ctx, sizeClass: String, content: @Composable (open: (() -> Unit)?) -> Unit) {
     if (drawer == null) return content(null)
+    val p = props(drawer, ctx)
+    val direction = LocalLayoutDirection.current
+    val flipped = if (direction == LayoutDirection.Ltr) LayoutDirection.Rtl else LayoutDirection.Ltr
+    val side = if (p["side"] == "end") flipped else direction
+    val permanent = (p["permanentFrom"] as? String)?.let { SIZE_ORDER.indexOf(sizeClass) >= SIZE_ORDER.indexOf(it) } == true
+    val sheet: @Composable () -> Unit = { CompositionLocalProvider(LocalLayoutDirection provides direction) { Panel(drawer, ctx) } }
+    val body: @Composable (open: (() -> Unit)?) -> Unit = { open -> CompositionLocalProvider(LocalLayoutDirection provides direction) { content(open) } }
+    if (permanent) {
+        CompositionLocalProvider(LocalLayoutDirection provides side) {
+            PermanentNavigationDrawer(drawerContent = { PermanentDrawerSheet { sheet() } }) { body(null) }
+        }
+        return
+    }
+    CompositionLocalProvider(LocalLayoutDirection provides side) { ModalDrawer(drawer, ctx, sheet, body) }
+}
+
+@Composable
+private fun ModalDrawer(drawer: JSONObject, ctx: Ctx, sheet: @Composable () -> Unit, content: @Composable (open: (() -> Unit)?) -> Unit) {
     val state = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val id = drawer.optString("id")
@@ -95,7 +147,7 @@ internal fun WithDrawer(drawer: JSONObject?, ctx: Ctx, content: @Composable (ope
     }
     ModalNavigationDrawer(
         drawerState = state,
-        drawerContent = { ModalDrawerSheet { Panel(drawer, ctx) } },
+        drawerContent = { ModalDrawerSheet { sheet() } },
     ) {
         content { scope.launch { OcaraUIEngine.changed(id, "open", true) } }
     }

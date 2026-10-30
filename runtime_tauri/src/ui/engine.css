@@ -120,3 +120,64 @@ textarea.oc-input { min-height: 80px; resize: vertical; }
     transition-duration: 0s !important;
   }
 }
+
+/* ── Composants d'écran (layers.js) ───────────────────────────────────── */
+/* Repère des `floating` en `position: absolute`. */
+.oc-column, .oc-row, .oc-stack, .oc-grid, .oc-card { position: relative; }
+.oc-floating { z-index: 20; }
+
+/* Tiroir et panneau inférieur : voile et boîte glissante. */
+.oc-panel { position: fixed; inset: 0; z-index: 40; pointer-events: none; }
+.oc-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, .32); opacity: 0; transition: opacity .2s; }
+.oc-panel-box {
+  position: absolute; display: flex; flex-direction: column; overflow: auto;
+  background: var(--oc-surface); color: var(--oc-text, inherit); box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+  transition: transform .25s ease;
+}
+.oc-panel.oc-open { pointer-events: auto; }
+.oc-panel.oc-open .oc-scrim { opacity: 1; }
+.oc-drawer .oc-panel-box { top: 0; bottom: 0; width: min(300px, 85vw); padding: 12px; }
+.oc-drawer.oc-side-start .oc-panel-box { left: 0; transform: translateX(-105%); border-radius: 0 16px 16px 0; }
+.oc-drawer.oc-side-end .oc-panel-box { right: 0; transform: translateX(105%); border-radius: 16px 0 0 16px; }
+.oc-bottomSheet .oc-panel-box { left: 0; right: 0; bottom: 0; max-height: 70vh; padding: 16px; transform: translateY(105%); border-radius: 16px 16px 0 0; }
+.oc-panel.oc-open .oc-panel-box { transform: none; }
+/* Tiroir permanent (`permanentFrom`) : toujours visible, le contenu à côté. */
+.oc-drawer.oc-permanent { position: fixed; inset: 0 auto 0 0; width: 280px; pointer-events: auto; }
+.oc-drawer.oc-permanent.oc-side-end { inset: 0 0 0 auto; }
+.oc-drawer.oc-permanent .oc-scrim { display: none; }
+.oc-drawer.oc-permanent .oc-panel-box { position: static; height: 100%; width: auto; transform: none; border-radius: 0; box-shadow: 1px 0 0 rgba(0, 0, 0, .12); }
+#oc-root.oc-drawer-permanent.oc-drawer-start { padding-left: 280px; }
+#oc-root.oc-drawer-permanent.oc-drawer-end { padding-right: 280px; }
+
+/* Bouton flottant (`fab`), placé par `position`. */
+.oc-fab {
+  z-index: 30; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-width: 56px; height: 56px; padding: 0 16px; border: 0; border-radius: 16px; cursor: pointer;
+  background: var(--oc-primary); color: #fff; font: inherit; font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .3);
+}
+.oc-fab:not(.oc-fab-extended) { width: 56px; padding: 0; }
+.oc-fab:hover { filter: brightness(1.08); }
+
+/* Indicateurs d'attente (`spinner`) : couleur du texte (`color`). */
+.oc-spinner { display: inline-block; position: relative; flex: none; color: var(--oc-primary); }
+@keyframes oc-spin { to { transform: rotate(360deg); } }
+@keyframes oc-bounce { 0%, 80%, 100% { transform: scale(.4); opacity: .4; } 40% { transform: scale(1); opacity: 1; } }
+@keyframes oc-bar { 0%, 40%, 100% { transform: scaleY(.35); } 20% { transform: scaleY(1); } }
+@keyframes oc-pulse { 0% { transform: scale(.2); opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
+.oc-spin-circle { border: calc(var(--oc-spin-size) / 8) solid currentColor; border-right-color: transparent; border-radius: 50%; animation: oc-spin .8s linear infinite; }
+.oc-spin-ring::before, .oc-spin-ring::after { content: ""; position: absolute; inset: 0; border-radius: 50%; border: calc(var(--oc-spin-size) / 10) solid currentColor; }
+.oc-spin-ring::before { opacity: .2; }
+.oc-spin-ring::after { border-color: currentColor transparent transparent transparent; animation: oc-spin 1s cubic-bezier(.5, .1, .5, .9) infinite; }
+.oc-spin-dots { display: inline-flex; align-items: center; justify-content: space-between; }
+.oc-spin-dots i { width: 28%; height: 28%; border-radius: 50%; background: currentColor; animation: oc-bounce 1.2s infinite ease-in-out both; }
+.oc-spin-dots i:nth-child(2) { animation-delay: .16s; }
+.oc-spin-dots i:nth-child(3) { animation-delay: .32s; }
+.oc-spin-bars { display: inline-flex; align-items: center; justify-content: space-between; }
+.oc-spin-bars i { width: 18%; height: 100%; border-radius: 2px; background: currentColor; animation: oc-bar 1s infinite ease-in-out; }
+.oc-spin-bars i:nth-child(2) { animation-delay: .1s; }
+.oc-spin-bars i:nth-child(3) { animation-delay: .2s; }
+.oc-spin-bars i:nth-child(4) { animation-delay: .3s; }
+.oc-spin-pulse { border-radius: 50%; background: currentColor; animation: oc-pulse 1.1s infinite ease-out; }
+.oc-spin-orbit { border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .25); animation: oc-spin 1.2s linear infinite; }
+.oc-spin-orbit i { position: absolute; top: 0; left: 50%; width: 22%; height: 22%; margin-left: -11%; border-radius: 50%; background: currentColor; }

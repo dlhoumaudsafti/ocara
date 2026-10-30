@@ -59,7 +59,7 @@ screens:
               - { type: text, bind: description, width: fill }
               - { type: text, bind: car_reference, style: muted }
               - { type: text, bind: cost, bold: true }
-        - type: android.drawer
+        - type: drawer
           id: search_drawer
           children:
             - { type: heading, level: 3, value: "${app_title}" }

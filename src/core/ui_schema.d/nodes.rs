@@ -104,8 +104,8 @@ impl Checker {
         }
         let written: Vec<&str> = entries.iter().map(|&(_, name, _)| name).collect();
         self.node_rules(node, ty, &written, &out);
-        if ty == "image" {
-            self.embed_image(node, &mut out);
+        if ty == "image" || ty == "spinner" {
+            self.embed_image(node, ty, &mut out);
         }
         Some(Json::Object(out))
     }
@@ -145,6 +145,9 @@ impl Checker {
         }
         if written.contains(&"onInvalid") && props.get("submit") != Some(&Json::Bool(true)) {
             self.fail::<()>(node, format!("'{ty}' : 'onInvalid' n'a de sens qu'avec 'submit: true'"));
+        }
+        if ty == "spinner" && written.contains(&"kind") && written.contains(&"src") {
+            self.fail::<()>(node, "'spinner' : 'kind' (modèle proposé) ou 'src' (image animée), pas les deux".to_string());
         }
         if ty == "slider" {
             let bound = |k: &str| props.get(k).and_then(Json::as_f64);

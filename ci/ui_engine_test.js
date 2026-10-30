@@ -63,6 +63,26 @@
   check("lien → onClick", last().action === "more");
   check("lien visité", node("more").classList.contains("oc-visited") && OcaraUI.get("more", "visited") === true);
 
+  // Composants d'écran (layers.js) : dans la couche, rien à leur place.
+  check("couche de l'écran", !q(".oc-screen .oc-panel") && q(".oc-layer .oc-drawer") && q(".oc-layer .oc-bottomSheet"));
+  var fab = q(".oc-layer .oc-fab");
+  check("fab centré en bas", fab && fab.style.left.indexOf("calc(50%") === 0 && fab.style.bottom === "16px");
+  fab.click();
+  check("fab → onClick", last().action === "add_item");
+  q(".oc-menu-button").click();
+  check("menu → tiroir ouvert", node("nav").classList.contains("oc-open") && last().id === "nav" && last().value === true);
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+  check("Échap → tiroir fermé, onDismiss", !node("nav").classList.contains("oc-open") && last().action === "nav_closed");
+  OcaraUI.set("sheet", "open", true);
+  check("panneau ouvert par set", node("sheet").classList.contains("oc-open"));
+  node("sheet").querySelector(".oc-scrim").click();
+  check("voile → panneau fermé", !node("sheet").classList.contains("oc-open") && last().action === "sheet_closed");
+  check("floating fixe", node("badge").style.position === "fixed" && node("badge").style.right === "8px" && node("badge").style.zIndex === "5");
+  OcaraUI.set("badge", "x", 40);
+  check("floating déplacé par set", node("badge").style.right === "40px" && q(".oc-layer [data-id=\"badge\"]") !== null);
+  check("spinners", node("sp_circle").classList.contains("oc-spin-circle") && q(".oc-spin-dots").children.length === 3 && q(".oc-spin-bars").children.length === 4);
+  check("couleur du spinner", q(".oc-spin-orbit").style.color === "rgb(198, 40, 40)");
+
   // Événements communs : survol, focus, double clic, balayage.
   var zone = node("zone");
   zone.dispatchEvent(new PointerEvent("pointerenter"));

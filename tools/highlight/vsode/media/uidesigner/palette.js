@@ -12,7 +12,7 @@ const GROUPS = [
     ['Affichage', ['text', 'heading', 'image', 'icon', 'progress', 'divider', 'spacer', 'webview']],
     ['Saisie', ['input', 'checkbox', 'switch', 'radio', 'select', 'slider', 'date', 'time']],
     ['Actions', ['button', 'iconButton']],
-    ['Android', ['android.fab', 'android.bottomSheet', 'android.drawer']],
+    ['Écran', ['fab', 'bottomSheet', 'drawer', 'floating', 'spinner']],
 ];
 
 /** Glyphe court de chaque type (palette, structure). */
@@ -20,7 +20,8 @@ export const GLYPH = {
     column: '▤', row: '▥', stack: '◫', grid: '▦', card: '▢', list: '☰',
     text: 'T', heading: 'H', image: '🖼', icon: '★', progress: '▬', divider: '―', spacer: '↔', webview: '🌐',
     input: '⌨', checkbox: '☑', switch: '⏻', radio: '◉', select: '▾', slider: '⎯', date: '📅', time: '🕒',
-    button: '⏺', iconButton: '◎', 'android.fab': '⊕', 'android.bottomSheet': '⬓', 'android.drawer': '◧',
+    button: '⏺', iconButton: '◎', 'fab': '⊕', 'bottomSheet': '⬓', 'drawer': '◧',
+    floating: '⧉', spinner: '◌',
 };
 
 export const LABEL = {
@@ -28,7 +29,8 @@ export const LABEL = {
     text: 'Texte', heading: 'Titre', image: 'Image', icon: 'Icône', progress: 'Progression', divider: 'Séparateur',
     spacer: 'Espace', webview: 'Vue web', input: 'Champ', checkbox: 'Case', switch: 'Interrupteur', radio: 'Radio',
     select: 'Liste déroulante', slider: 'Curseur', date: 'Date', time: 'Heure', button: 'Bouton', iconButton: 'Bouton icône',
-    'android.fab': 'Bouton flottant', 'android.bottomSheet': 'Panneau inférieur', 'android.drawer': 'Tiroir',
+    'fab': 'Bouton flottant', 'bottomSheet': 'Panneau inférieur', 'drawer': 'Tiroir',
+    floating: 'Flottant', spinner: 'Attente',
 };
 
 /** Ajoute un composant près de la sélection. */

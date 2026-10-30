@@ -1,6 +1,6 @@
 // Backend desktop d'`ocara.UI` : un objet `UI` est une fenêtre Tauri (même
 // état, même finaliseur, mêmes boîtes de dialogue que `ocara.Tauri`) dont la
-// page est le moteur de rendu (effects.js, engine.js) affichant l'arbre du `.oc.ui`.
+// page est le moteur de rendu (effects.js, layers.js, engine.js) affichant l'arbre du `.oc.ui`.
 // État, actions et thread des gestionnaires : crate `runtime_ui`.
 
 use serde_json::{json, Value};
@@ -26,7 +26,7 @@ pub(crate) const PAGE: &str = "__ocara_ui.html";
 /// Commande IPC des messages du moteur.
 pub(crate) const EVENT_COMMAND: &str = "__ocara_ui_event";
 
-const ENGINE_JS: &str = concat!(include_str!("effects.js"), include_str!("engine.js"));
+const ENGINE_JS: &str = concat!(include_str!("effects.js"), include_str!("layers.js"), include_str!("engine.js"));
 const ENGINE_CSS: &str = include_str!("engine.css");
 
 pub(crate) fn page() -> String {

@@ -277,14 +277,15 @@ contient une vue web ne se redimensionne plus par ses bords ; sur Android,
 pour une `url`, `window.ocara` est disponible dès le début du chargement
 (un script de la page exécuté plus tôt peut appeler `ocaraNative.post`).
 
-## Composants Android
+## Composants d'écran
 
-`android.fab`, `android.drawer` et `android.bottomSheet` (bouton
-flottant, tiroir de navigation, panneau inférieur) sont décrits dans le
-`.oc.ui` et ignorés sur desktop ; tiroir et panneau s'ouvrent par
+`fab`, `drawer` et `bottomSheet` (bouton flottant, tiroir de navigation,
+panneau inférieur), `floating` (conteneur posé en `x`/`y`/`z`) et
+`spinner` (indicateur d'attente) sont décrits dans le `.oc.ui` et rendus
+sur les deux plateformes ; tiroir et panneau s'ouvrent par
 `ui.set(id, "open", true)`, se ferment par `ui.set(id, "open", false)` ou
-par l'utilisateur (action `onDismiss`). Voir [docs/oc-ui.md](../oc-ui.md),
-« Composants propres à Android ».
+par l'utilisateur (action `onDismiss`) ; `ui.set(id, "x", 120)` déplace un
+`floating`. Voir [docs/oc-ui.md](../oc-ui.md), « Composants d'écran ».
 
 ## Spécificités de plateforme
 

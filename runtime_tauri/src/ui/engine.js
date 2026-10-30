@@ -1,7 +1,8 @@
 // Moteur de rendu desktop d'`ocara.UI` : construit le DOM de l'arbre
 // normalisé d'un `.oc.ui` (src/core/ui_schema.d, docs/oc-ui.md) dans la vue
 // de la fenêtre Tauri, sans framework. Styles d'état, effets et animations :
-// effects.js, chargé avant.
+// effects.js ; composants d'écran (tiroir, panneau, boutons et conteneurs
+// flottants, spinner) : layers.js — chargés avant.
 //
 //   OcaraUI.start(tree, { platform, send })  affiche l'écran `start`
 //   OcaraUI.set(id, prop, value)             état d'un nœud (réaffiche ce nœud)
@@ -100,6 +101,15 @@
 
   /// Flèche de la barre de titre : présente même si le `.oc.ui` n'utilise
   /// pas l'icône `back`.
+  /// Fonctions du moteur passées aux composants d'écran (layers.js).
+  var layerApi = {
+    el: el,
+    container: function (node, p, ctx, axis) { return container(node, p, ctx, axis); },
+    icon: function (name) { return icon(name); },
+    fire: function (p, event, id, value) { fire(p, event, id, value); },
+    changed: function (id, prop, value) { changed(id, prop, value); },
+  };
+
   var BACK_PATH = "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z";
 
   function icon(name) {
@@ -146,6 +156,7 @@
       } else if (typeof v === "number") s[dim] = px(v);
     });
     if (p.weight) { s.flex = p.weight + " 1 0"; s.minWidth = "0"; }
+    if (p.z != null) { s.zIndex = p.z; if (!s.position) s.position = "relative"; }
     if (p.tooltip) e.title = p.tooltip;
     if (p.label) e.setAttribute("aria-label", p.label);
     if (p.visible === false) e.hidden = true;
@@ -431,9 +442,14 @@
       case "slider": e = slider(node, p); break;
       case "button": case "iconButton": e = button(node, p, ctx); break;
       case "link": e = link(node, p, ctx); break;
-      case "android.fab": case "android.bottomSheet": case "android.drawer":
-        // Composants propres à Android : rien sur desktop.
-        e = el("span"); e.hidden = true; break;
+      case "fab": case "drawer": case "bottomSheet": case "floating":
+        // Couche de l'écran (layers.js) : à sa place dans l'arbre, rien.
+        if (OcaraLayers.layered(node) && !ctx.layer) { e = el("span"); e.hidden = true; return e; }
+        if (node.type === "fab") e = OcaraLayers.fab(node, p, layerApi);
+        else if (node.type === "floating") e = OcaraLayers.floating(node, p, ctx, layerApi, !!ctx.layer);
+        else e = OcaraLayers.panel(node, p, ctx, layerApi, sizeClass);
+        break;
+      case "spinner": e = OcaraLayers.spinner(node, p, layerApi); break;
       case "webview":
         // Vraie vue web isolée, posée par l'hôte au rectangle de ce nœud
         // (`placeWebviews`) : ici, seulement la place réservée.
@@ -442,9 +458,11 @@
         break;
       default: e = el("div");
     }
-    decorate(e, p, axis, ["column", "row", "stack", "grid", "card", "list"].indexOf(node.type) >= 0);
-    OcaraEffects.apply(e, p, tree.animations || {});
-    events(e, node, p, ctx);
+    // Tiroir, panneau : la décoration porte sur la boîte, pas sur le voile.
+    var box = e.ocBox || e;
+    decorate(box, p, axis, ["column", "row", "stack", "grid", "card", "list", "floating", "drawer", "bottomSheet"].indexOf(node.type) >= 0);
+    OcaraEffects.apply(box, p, tree.animations || {});
+    events(box, node, p, ctx);
     if (p.invalid) e.classList.add("oc-invalid");
     if (p.visited) e.classList.add("oc-visited");
     if (p.required) {
@@ -545,11 +563,22 @@
     if (root && (tree.window || {}).theme !== "dark" && (tree.window || {}).theme !== "light") render();
   });
 
+  /// L'écran a-t-il un tiroir permanent à partir d'une taille ? Il change
+  /// alors de forme avec la classe de taille.
+  var hasPermanentDrawer = false;
+
   window.addEventListener("resize", function () {
-    if (root && chooseVariant()) {
+    if (!root) return;
+    var before = sizeClass;
+    if (chooseVariant() || (hasPermanentDrawer && before !== sizeClass)) {
       render();
       shown();
     }
+  });
+
+  // Échap : ferme le dernier tiroir ou panneau ouvert.
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" && OcaraLayers.closeTop()) ev.preventDefault();
   });
 
   /// Écran affiché (départ, navigation, retour, nouvel arbre) : son action
@@ -566,8 +595,20 @@
     var screen = tree.screens[current];
     var root = document.getElementById("oc-root");
     root.textContent = "";
-    if (screen.title || history.length) {
+    // Composants d'écran (tiroir, panneau, bouton et conteneurs flottants).
+    var layer = el("div", "oc-layer");
+    var drawer = null;
+    OcaraLayers.collect(screen.layout).forEach(function (n) {
+      var e = build(n, { layer: true }, "column");
+      layer.appendChild(e);
+      if (n.type === "drawer" && !drawer) drawer = { node: n, el: e };
+    });
+    var permanent = drawer && drawer.el.classList.contains("oc-permanent");
+    root.className = permanent ? "oc-drawer-permanent oc-drawer-" + (props(drawer.node, {}).side || "start") : "";
+    hasPermanentDrawer = !!(drawer && props(drawer.node, {}).permanentFrom);
+    if (screen.title || history.length || (drawer && !permanent)) {
       var bar = el("header", "oc-bar");
+      if (drawer && !permanent) bar.appendChild(OcaraLayers.menuButton(drawer.el, drawer.node, layerApi));
       if (history.length) {
         var back = button({ type: "iconButton" }, { icon: "back", onClick: "back" });
         back.setAttribute("aria-label", "Retour");
@@ -581,6 +622,7 @@
     var body = el("main", "oc-screen");
     body.appendChild(build(screen.layout, {}, "column"));
     root.appendChild(body);
+    root.appendChild(layer);
     if (layoutObserver) {
       layoutObserver.disconnect();
       layoutObserver.observe(body);
@@ -609,6 +651,11 @@
       }
       (state[id] = state[id] || {})[prop] = value;
       if (!m) return;
+      // Tiroir, panneau : ouverture animée, sans reconstruire.
+      if (prop === "open" && m.el.classList.contains("oc-panel")) {
+        m.el.classList.toggle("oc-open", !!value);
+        return;
+      }
       // Sans reconstruire : le champ en cours de saisie garde le focus.
       if (prop === "invalid") {
         m.el.classList.toggle("oc-invalid", !!value);

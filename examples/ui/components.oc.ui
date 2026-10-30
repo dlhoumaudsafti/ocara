@@ -82,6 +82,35 @@ screens:
           children:
             - { type: text, value: "Survol, double clic, appui long, balayage" }
         - { type: link, id: more, text: "En savoir plus", onClick: more }
+        # Composants d'écran : rendus dans une couche au-dessus de l'écran.
+        - { type: fab, id: add, icon: add, label: "Ajouter", position: bottomCenter, onClick: add_item }
+        - type: drawer
+          id: nav
+          onDismiss: nav_closed
+          children:
+            - { type: text, value: "Menu" }
+        - type: bottomSheet
+          id: sheet
+          onDismiss: sheet_closed
+          children:
+            - { type: text, value: "Panneau" }
+        - type: floating
+          id: badge
+          anchor: topEnd
+          x: 8
+          y: 8
+          z: 5
+          children:
+            - { type: text, value: "Bêta" }
+        - type: row
+          spacing: 12
+          children:
+            - { type: spinner, id: sp_circle }
+            - { type: spinner, kind: dots, size: 24 }
+            - { type: spinner, kind: bars, size: 24 }
+            - { type: spinner, kind: pulse, size: 24 }
+            - { type: spinner, kind: ring, size: 24 }
+            - { type: spinner, kind: orbit, size: 24, color: "#c62828" }
         - { type: progress, id: upload, value: 0.4 }
         - { type: progress }
         - { type: divider }

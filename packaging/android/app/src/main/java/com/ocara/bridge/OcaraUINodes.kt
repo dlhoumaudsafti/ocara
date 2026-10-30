@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -69,6 +70,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -94,7 +96,8 @@ import org.json.JSONObject
 import kotlin.math.roundToInt
 
 /** Contexte d'un nœud : élément de liste (`bind`) et parent défilant. */
-internal data class Ctx(val tree: JSONObject, val item: JSONObject? = null, val scrolling: Boolean = false, val index: Int? = null, val dark: Boolean = false)
+/** `layer` : nœud rendu dans la couche de l'écran (`fab`, `floating` fixe), pas à sa place. */
+internal data class Ctx(val tree: JSONObject, val item: JSONObject? = null, val scrolling: Boolean = false, val index: Int? = null, val dark: Boolean = false, val layer: Boolean = false)
 
 /** Types qui prennent la largeur d'une colonne (règle commune avec engine.css). */
 private val FILL_IN_COLUMN = setOf(
@@ -105,7 +108,7 @@ private val FILL_IN_COLUMN = setOf(
 /** Types de taille fixe dans une ligne (jamais réduits). */
 private val FIXED_IN_ROW = setOf("icon", "iconButton", "button", "spacer", "divider", "image")
 
-private val CONTAINERS = setOf("column", "row", "stack", "grid", "card", "list")
+private val CONTAINERS = setOf("column", "row", "stack", "grid", "card", "list", "floating")
 
 /**
  * Écran courant de l'arbre, avec sa barre de titre, le retour système et les
@@ -119,7 +122,7 @@ fun OcaraInterface(root: JSONObject) {
         val size = sizeOf(root, maxWidth.value.toInt())
         LaunchedEffect(size.first) { OcaraUIEngine.reportSize(size.first) }
         val tree = size.second?.let { root.optJSONObject("variants")?.optJSONObject(it) } ?: root
-        Screen(tree)
+        Screen(tree, size.first)
     }
 }
 
@@ -140,7 +143,7 @@ private fun sizeOf(root: JSONObject, width: Int): Pair<String, String?> {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun Screen(tree: JSONObject) {
+private fun Screen(tree: JSONObject, sizeClass: String) {
     val window = tree.optJSONObject("window") ?: JSONObject()
     val dark = when (window.optString("theme", "auto")) {
         "dark" -> true
@@ -168,7 +171,7 @@ private fun Screen(tree: JSONObject) {
             screen.optString("onShow").takeIf { it.isNotEmpty() }?.let { OcaraUIEngine.shown(it, current) }
         }
         BackHandler(enabled = stack.size > 1) { OcaraUIEngine.back() }
-        WithDrawer(material.drawer, ctx) { openDrawer ->
+        WithDrawer(material.drawer, ctx, sizeClass) { openDrawer ->
             Scaffold(
                 topBar = {
                     val title = screen.optString("title", window.optString("title"))
@@ -188,10 +191,15 @@ private fun Screen(tree: JSONObject) {
                         )
                     }
                 },
-                floatingActionButton = { material.fab?.let { Fab(it, ctx) } },
             ) { padding ->
                 Box(Modifier.padding(padding).fillMaxSize()) {
                     Node(layout, ctx, Modifier.fillMaxSize())
+                    // Couche de l'écran : bouton flottant (`position`), conteneurs flottants fixes.
+                    material.fab?.let { fab ->
+                        val position = props(fab, ctx)["position"] as? String
+                        Box(Modifier.align(alignmentOf(position)).padding(16.dp)) { Fab(fab, ctx) }
+                    }
+                    for (floating in material.floatings) Placed(floating, ctx.copy(layer = true))
                 }
             }
         }
@@ -305,6 +313,7 @@ private fun decorate(modifier: Modifier, p: Map<String, Any?>, faded: Modifier =
     parseColor(p["border"])?.let { m = m.border(BorderStroke(1.dp, it), shape) }
     spacing(p["padding"])?.let { m = m.padding(it) }
     p.text("label")?.let { label -> m = m.semantics { contentDescription = label } }
+    p.num("z")?.let { m = m.zIndex(it.toFloat()) }
     // Champ obligatoire vide après une soumission (même rouge que engine.css).
     if (p["invalid"] == true && p["type"] != "input") m = m.border(BorderStroke(2.dp, INVALID), shape)
     return m
@@ -383,6 +392,8 @@ internal fun Node(node: JSONObject, ctx: Ctx, modifier: Modifier) {
     val p = frame.background?.let { shown + ("background" to it) } ?: shown
     val enabled = p.flag("enabled", true)
     val type = node.getString("type")
+    // `floating` fixe : rendu dans la couche de l'écran (OcaraUIMaterial.kt).
+    if (type == "floating" && base["position"] != "absolute" && !ctx.layer) return
     // Une carte peint son fond elle-même (surface Material, forme de `radius`) et
     // porte sa marge intérieure : une seule couche, de la taille de son ombre.
     val decorated = if (type == "card") p - "background" - "padding" else p
@@ -478,26 +489,48 @@ internal fun Node(node: JSONObject, ctx: Ctx, modifier: Modifier) {
             NamedIcon(ctx, p.text("icon"), p.text("label"), Modifier, null)
         }
         // Placés par l'écran (OcaraUIMaterial.kt), pas à leur rang.
-        "android.fab", "android.bottomSheet", "android.drawer" -> {}
+        "fab", "bottomSheet", "drawer" -> {}
         "webview" -> OcaraWebNode(id, p, if (p["height"] == null) m.height(240.dp) else m)
+        "spinner" -> Spinner(p, m)
     }
 }
 
 @Composable
 private fun bodyStyle(): TextStyle = MaterialTheme.typography.bodyLarge
 
+/** `floating` placé par son ancre (`anchor`, `x`, `y`) dans la boîte qui l'entoure. */
+@Composable
+internal fun BoxScope.Placed(node: JSONObject, ctx: Ctx) {
+    val p = props(node, ctx)
+    val anchor = p.text("anchor") ?: "topStart"
+    val place = Modifier.align(alignmentOf(anchor)).inward(anchor, p.num("x")?.toFloat() ?: 0f, p.num("y")?.toFloat() ?: 0f)
+    Box(place.zIndex(p.num("z")?.toFloat() ?: 0f)) { Node(node, ctx, Modifier) }
+}
+
+/** Conteneur ; ses `floating` en `position: absolute` sont posés par-dessus lui. */
 @Composable
 private fun Container(node: JSONObject, type: String, p: Map<String, Any?>, id: String?, ctx: Ctx, modifier: Modifier) {
+    val (floatings, flow) = children(p).partition { it.optString("type") == "floating" && it.optString("position") == "absolute" }
+    if (floatings.isEmpty()) return ContainerBody(node, type, p, id, ctx, modifier, flow)
+    // La boîte suit la taille du conteneur, qui garde sa décoration.
+    Box {
+        ContainerBody(node, type, p, id, ctx, modifier, flow)
+        for (floating in floatings) Placed(floating, ctx)
+    }
+}
+
+@Composable
+private fun ContainerBody(node: JSONObject, type: String, p: Map<String, Any?>, id: String?, ctx: Ctx, modifier: Modifier, kids: List<JSONObject>) {
     val gap = (p.num("spacing") ?: 0.0).toFloat().dp
     val scroll = p["scroll"] == true
     val m = if (scroll) modifier.verticalScroll(rememberScrollState()) else modifier
     val inner = ctx.copy(scrolling = scroll)
     when (type) {
         "row" -> Row(m, Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically) {
-            for (child in children(p)) Node(child, inner, childModifier(child, inner))
+            for (child in kids) Node(child, inner, childModifier(child, inner))
         }
         "stack" -> Box(m) {
-            for (child in children(p)) {
+            for (child in kids) {
                 val align = when (props(child, inner).text("align")) {
                     "center" -> Alignment.Center
                     "end" -> Alignment.BottomEnd
@@ -508,7 +541,7 @@ private fun Container(node: JSONObject, type: String, p: Map<String, Any?>, id: 
         }
         "grid" -> Column(m, Arrangement.spacedBy(gap)) {
             val columns = (p.num("columns") ?: 2.0).toInt()
-            for (line in children(p).chunked(columns)) {
+            for (line in kids.chunked(columns)) {
                 Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(gap)) {
                     for (child in line) Node(child, inner, Modifier.weight(1f))
                     repeat(columns - line.size) { Spacer(Modifier.weight(1f)) }
@@ -519,7 +552,7 @@ private fun Container(node: JSONObject, type: String, p: Map<String, Any?>, id: 
             val click = p["onClick"]?.let { { itemClick(p, id, ctx) } }
             val body: @Composable ColumnScope.() -> Unit = {
                 Column(Modifier.padding(spacing(p["padding"]) ?: PaddingValues(12.dp)), Arrangement.spacedBy(gap)) {
-                    for (child in children(p)) Node(child, inner, childModifier(child, inner))
+                    for (child in kids) Node(child, inner, childModifier(child, inner))
                 }
             }
             // Fond et forme de la carte elle-même (seule à les peindre, voir `Node`).
@@ -543,7 +576,7 @@ private fun Container(node: JSONObject, type: String, p: Map<String, Any?>, id: 
             }
         }
         else -> Column(m, Arrangement.spacedBy(gap), horizontalAlignment = horizontal(p.text("align"))) {
-            for (child in children(p)) Node(child, inner, childModifier(child, inner))
+            for (child in kids) Node(child, inner, childModifier(child, inner))
         }
     }
 }

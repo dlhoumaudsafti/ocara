@@ -36,13 +36,13 @@ screens:
               - { type: text, bind: model }
         - { type: button, text: "${switch_lang}", variant: text, onClick: switch_lang }
         # Android seulement : bouton flottant, tiroir et panneau.
-        - { type: android.fab, icon: info, label: "${about}", onClick: about }
-        - type: android.drawer
+        - { type: fab, icon: info, label: "${about}", onClick: about }
+        - type: drawer
           id: menu
           children:
             - { type: heading, value: "${app_title}", level: 3 }
             - { type: button, text: "${switch_lang}", variant: text, onClick: switch_lang }
-        - type: android.bottomSheet
+        - type: bottomSheet
           id: about_sheet
           children:
             - { type: heading, value: "${about}", level: 3 }

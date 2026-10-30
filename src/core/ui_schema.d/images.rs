@@ -44,7 +44,8 @@ fn base64(bytes: &[u8]) -> String {
 
 impl Checker {
     /// Remplace le `src` local de l'image `props` par son contenu.
-    pub(super) fn embed_image(&mut self, node: &Node, props: &mut Map<String, Json>) {
+    /// `ty` : type du nœud (`image`, `spinner`), pour les messages.
+    pub(super) fn embed_image(&mut self, node: &Node, ty: &str, props: &mut Map<String, Json>) {
         let Some(src) = props.get("src").and_then(Json::as_str).map(str::to_string) else { return };
         // Vide : posé plus tard par `ui.set(id, "src", …)`.
         if src.is_empty() || src.starts_with("http://") || src.starts_with("https://") || src.starts_with("data:") {
@@ -52,18 +53,18 @@ impl Checker {
         }
         let path = self.file.parent().unwrap_or(Path::new("")).join(&src);
         let Some(mime) = mime(&path) else {
-            self.fail::<()>(node, format!("'image' : format de '{src}' non reconnu (png, jpg, gif, webp, svg)"));
+            self.fail::<()>(node, format!("'{ty}' : format de '{src}' non reconnu (png, jpg, gif, webp, svg)"));
             return;
         };
         match std::fs::read(&path) {
             Ok(bytes) if bytes.len() > MAX_BYTES => {
-                self.fail::<()>(node, format!("'image' : '{src}' dépasse 4 Mo ({} octets)", bytes.len()));
+                self.fail::<()>(node, format!("'{ty}' : '{src}' dépasse 4 Mo ({} octets)", bytes.len()));
             }
             Ok(bytes) => {
                 props.insert("src".into(), Json::String(format!("data:{mime};base64,{}", base64(&bytes))));
             }
             Err(e) => {
-                self.fail::<()>(node, format!("'image' : lecture de '{}' impossible : {e}", path.display()));
+                self.fail::<()>(node, format!("'{ty}' : lecture de '{}' impossible : {e}", path.display()));
             }
         }
     }

@@ -172,28 +172,60 @@ function field(node, p) {
 
 const normalize = o => (o == null ? o : typeof o === 'object' ? { value: String(o.value), text: String(o.text ?? o.value) } : { value: String(o), text: String(o) });
 
-/** Composants Material d'Android : masqués en aperçu desktop (comme le
- *  moteur, sélectionnables dans la structure) ; en aperçu Android, bouton
- *  flottant en bas à droite, tiroir et panneau affichés ouverts quand ils
- *  sont sélectionnés (ou `open: true`). */
-function android(node, p, path) {
-    if (S.platform !== 'android') {
-        const e = el('span');
-        e.hidden = true;
-        return e;
-    }
-    if (node.type === 'android.fab') {
-        const e = el('button', 'oc-button oc-variant-primary d-fab');
+/** Ancre (`anchor` d'un `floating`, `position` d'un `fab`) → (vertical, horizontal). */
+const ANCHORS = {
+    topStart: ['top', 'start'], topCenter: ['top', 'center'], topEnd: ['top', 'end'],
+    startCenter: ['center', 'start'], center: ['center', 'center'], endCenter: ['center', 'end'],
+    bottomStart: ['bottom', 'start'], bottomCenter: ['bottom', 'center'], bottomEnd: ['bottom', 'end'],
+};
+
+/** Place `e` dans la boîte qui l'entoure (l'écran, ou le parent d'un
+ *  `floating` en `position: absolute`), comme layers.js du moteur. */
+function place(e, anchor, x, y) {
+    const s = e.style, a = ANCHORS[anchor] || ANCHORS.topStart;
+    const dx = `${x || 0}px`, dy = `${y || 0}px`;
+    s.position = 'absolute';
+    if (a[1] === 'start') { s.left = dx; } else if (a[1] === 'end') { s.right = dx; } else { s.left = `calc(50% + ${dx})`; }
+    if (a[0] === 'top') { s.top = dy; } else if (a[0] === 'bottom') { s.bottom = dy; } else { s.top = `calc(50% + ${dy})`; }
+    s.translate = `${a[1] === 'center' ? '-50%' : '0'} ${a[0] === 'center' ? '-50%' : '0'}`;
+}
+
+/** Composants d'écran : bouton flottant à sa position, `floating` à son
+ *  ancre ; tiroir et panneau affichés ouverts quand ils sont sélectionnés
+ *  (ou `open: true`). */
+function screenNode(node, p, path) {
+    if (node.type === 'fab') {
+        const e = el('button', 'oc-button oc-variant-primary d-fab d-layer');
         if (p.icon) { e.appendChild(icon(p.icon)); }
         if (p.text != null) { e.appendChild(document.createTextNode(String(p.text))); }
+        place(e, p.position || 'bottomEnd', 16, 16);
         return e;
     }
     const e = container(node, p, path);
-    const drawer = node.type === 'android.drawer';
-    e.classList.add(drawer ? 'd-drawer' : 'd-sheet');
-    e.prepend(el('div', 'd-android-title', `${drawer ? 'Tiroir' : 'Panneau inférieur'} · ${node.id ?? ''}`));
+    if (node.type === 'floating') {
+        e.classList.add('d-floating');
+        if (p.position !== 'absolute') { e.classList.add('d-layer'); }
+        place(e, p.anchor, p.x, p.y);
+        return e;
+    }
+    const drawer = node.type === 'drawer';
+    e.classList.add(drawer ? 'd-drawer' : 'd-sheet', 'd-layer');
+    if (drawer && p.side === 'end') { e.classList.add('d-drawer-end'); }
+    e.prepend(el('div', 'd-panel-title', `${drawer ? 'Tiroir' : 'Panneau inférieur'} · ${node.id ?? ''}`));
     const selected = path && S.selection && startsWith(S.selection, path);
     if (!selected && p.open !== true) { e.hidden = true; }
+    return e;
+}
+
+/** Indicateur d'attente : modèle d'engine.css ou image animée. */
+function spinner(p) {
+    const size = `${p.size || 32}px`;
+    const e = p.src ? el('img', 'oc-spinner') : el('span', `oc-spinner oc-spin-${p.kind || 'circle'}`);
+    if (p.src) { e.src = String(p.src); }
+    e.style.width = e.style.height = size;
+    e.style.setProperty('--oc-spin-size', size);
+    const parts = { dots: 3, bars: 4, orbit: 1 }[p.kind] || 0;
+    for (let i = 0; i < parts; i++) { e.appendChild(el('i')); }
     return e;
 }
 
@@ -264,7 +296,8 @@ function build(node, path, axis) {
             e = el('div', 'oc-webview');
             e.dataset.src = p.url || p.file || (p.html != null ? 'html' : '');
             break;
-        case 'android.fab': case 'android.bottomSheet': case 'android.drawer': e = android(node, p, path); break;
+        case 'fab': case 'bottomSheet': case 'drawer': case 'floating': e = screenNode(node, p, path); break;
+        case 'spinner': e = spinner(p); break;
         default: e = el('div', 'd-invalid', `type inconnu : ${node.type}`);
     }
     decorate(e, p, axis, isContainer(node) || node.type === 'list');
@@ -326,6 +359,10 @@ export function renderCanvas() {
         body.appendChild(slot);
     }
     canvas.appendChild(body);
+    // Couche de l'écran (comme le moteur) : bouton flottant, tiroir, panneau
+    // et `floating` fixe placés dans le cadre, pas dans leur parent ; les
+    // copies fantômes des éléments de liste n'en ont pas.
+    for (const e of body.querySelectorAll('.d-layer')) { if (e.dataset.path) { canvas.appendChild(e); } else { e.remove(); } }
     grids.forEach(g => g.ocPlace());
     for (const [path, top, left] of scrolled) {
         const e = path === 'screen' ? body : [...canvas.querySelectorAll('[data-path]')].find(x => x.dataset.path === path);

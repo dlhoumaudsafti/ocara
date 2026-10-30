@@ -107,6 +107,8 @@ pub const COMMON_PROPS: &[(&str, Ty)] = &[
     ("onSwipe", Ty::Action),
     ("animation", Ty::Animation),
     ("onAnimationEnd", Ty::Action),
+    // Ordre d'empilement (nœuds d'un `stack`, `floating`).
+    ("z", Ty::Int(-1000, 1000)),
     ("tauri", Ty::Override),
     ("android", Ty::Override),
     ("binds", Ty::Binds),
@@ -214,16 +216,53 @@ const BUTTON: &[(&str, Ty)] = &[
 const LINK: &[(&str, Ty)] = &[("text", Ty::Text), ("onClick", Ty::Action)];
 const ICON_BUTTON: &[(&str, Ty)] = &[("icon", Ty::Icon), ("onClick", Ty::Action), ("submit", Ty::Bool), ("onInvalid", Ty::Action)];
 
-// Composants Material propres à Android (préfixe `android.`), ignorés sur
-// desktop : bouton flottant de l'écran, panneau inférieur et tiroir de
-// navigation, ouverts par `ui.set(id, "open", true)`.
-const ANDROID_FAB: &[(&str, Ty)] = &[("icon", Ty::Icon), ("text", Ty::Text), ("onClick", Ty::Action)];
-const ANDROID_PANEL: &[(&str, Ty)] = &[
+// Composants d'écran (desktop et Android) : bouton flottant, tiroir de
+// navigation, panneau inférieur, ouverts par `ui.set(id, "open", true)`.
+const FAB: &[(&str, Ty)] = &[
+    ("icon", Ty::Icon),
+    ("text", Ty::Text),
+    ("position", Ty::Enum(&["bottomEnd", "bottomCenter", "bottomStart", "topEnd", "topCenter", "topStart", "startCenter", "endCenter"])),
+    ("onClick", Ty::Action),
+];
+const DRAWER: &[(&str, Ty)] = &[
+    ("children", Ty::Children),
+    ("spacing", Ty::Number(0.0, 10_000.0)),
+    ("open", Ty::Bool),
+    ("side", Ty::Enum(&["start", "end"])),
+    // À partir de cette classe de taille, le tiroir est toujours visible, à côté du contenu.
+    ("permanentFrom", Ty::Enum(SIZE_CLASS_NAMES)),
+    ("onDismiss", Ty::Action),
+];
+const SHEET: &[(&str, Ty)] = &[
     ("children", Ty::Children),
     ("spacing", Ty::Number(0.0, 10_000.0)),
     ("open", Ty::Bool),
     ("onDismiss", Ty::Action),
 ];
+/// Indicateur d'attente : un modèle (`kind`) ou une image animée (`src`).
+pub const SPINNER_KINDS: &[&str] = &["circle", "dots", "bars", "pulse", "ring", "orbit"];
+const SPINNER: &[(&str, Ty)] = &[
+    ("kind", Ty::Enum(SPINNER_KINDS)),
+    ("src", Ty::Text),
+    ("size", Ty::Number(4.0, 1000.0)),
+];
+/// Conteneur placé en `x`/`y` : par rapport à la fenêtre (`fixed`) ou au
+/// conteneur parent (`absolute`), depuis le coin `anchor`.
+const FLOATING: &[(&str, Ty)] = &[
+    ("children", Ty::Children),
+    ("spacing", Ty::Number(0.0, 10_000.0)),
+    ("position", Ty::Enum(&["fixed", "absolute"])),
+    ("anchor", Ty::Enum(ANCHORS)),
+    ("x", Ty::Number(-100_000.0, 100_000.0)),
+    ("y", Ty::Number(-100_000.0, 100_000.0)),
+];
+
+/// Point de référence d'un `floating` : coins, milieux des bords, centre.
+const ANCHORS: &[&str] = &["topStart", "topCenter", "topEnd", "startCenter", "center", "endCenter", "bottomStart", "bottomCenter", "bottomEnd"];
+
+/// Classes de taille (variants.rs), pour `permanentFrom`.
+const SIZE_CLASS_NAMES: &[&str] = &["xxs", "xs", "sm", "md", "lg", "xl", "xxl"];
+
 
 /// Types de nœuds, dans l'ordre des tableaux du §3.
 pub const NODE_TYPES: &[&str] = &[
@@ -231,7 +270,7 @@ pub const NODE_TYPES: &[&str] = &[
     "text", "heading", "image", "icon", "progress", "list", "webview",
     "input", "checkbox", "switch", "radio", "select", "slider", "date", "time",
     "button", "iconButton", "link",
-    "android.fab", "android.bottomSheet", "android.drawer",
+    "fab", "bottomSheet", "drawer", "spinner", "floating",
 ];
 
 /// Propriétés propres au type `ty` ; `None` pour un type inconnu.
@@ -256,8 +295,11 @@ pub fn node_props(ty: &str) -> Option<&'static [(&'static str, Ty)]> {
         "button" => BUTTON,
         "iconButton" => ICON_BUTTON,
         "link" => LINK,
-        "android.fab" => ANDROID_FAB,
-        "android.bottomSheet" | "android.drawer" => ANDROID_PANEL,
+        "fab" => FAB,
+        "drawer" => DRAWER,
+        "bottomSheet" => SHEET,
+        "spinner" => SPINNER,
+        "floating" => FLOATING,
         _ => return None,
     })
 }
@@ -273,8 +315,8 @@ pub fn required_props(ty: &str) -> &'static [&'static str] {
         "radio" | "select" => &["options"],
         // L'hôte désigne la vue web par son `id` (ui.postMessage, ui.eval…).
         "webview" => &["id"],
-        "android.fab" => &["icon", "label"],
-        "android.bottomSheet" | "android.drawer" => &["id"],
+        "fab" => &["icon", "label"],
+        "bottomSheet" | "drawer" => &["id"],
         _ => &[],
     }
 }

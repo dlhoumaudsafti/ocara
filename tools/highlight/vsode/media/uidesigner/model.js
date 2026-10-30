@@ -167,9 +167,11 @@ export function template(type) {
         case 'date': case 'time': return { type, id: id(type) };
         case 'button': return { type, text: 'Bouton', variant: 'primary' };
         case 'iconButton': return { type, icon: 'add', label: 'Ajouter' };
-        case 'android.fab': return { type, icon: 'add', label: 'Ajouter' };
-        case 'android.bottomSheet': return { type, id: id('sheet'), children: [] };
-        case 'android.drawer': return { type, id: id('drawer'), children: [] };
+        case 'fab': return { type, icon: 'add', label: 'Ajouter' };
+        case 'bottomSheet': return { type, id: id('sheet'), children: [] };
+        case 'drawer': return { type, id: id('drawer'), children: [] };
+        case 'floating': return { type, anchor: 'topEnd', x: 16, y: 16, children: [] };
+        case 'spinner': return { type, kind: 'circle' };
         default: return { type };
     }
 }

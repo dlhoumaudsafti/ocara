@@ -9,6 +9,7 @@ use super::UiSpec;
 
 const ENGINE_JS: &str = concat!(
     include_str!("../../../runtime_tauri/src/ui/effects.js"),
+    include_str!("../../../runtime_tauri/src/ui/layers.js"),
     include_str!("../../../runtime_tauri/src/ui/engine.js"),
 );
 const ENGINE_CSS: &str = include_str!("../../../runtime_tauri/src/ui/engine.css");
