@@ -5,6 +5,7 @@
 
 use std::{io::IsTerminal, path::Path};
 
+use crate::cond::long_conds;
 use crate::config::Config;
 use crate::decls::declarations;
 use crate::text::{comment_pos, indent_rule, leading_ws, line_states};
@@ -179,6 +180,14 @@ fn findings(path: &Path, content: &str, cfg: &Config) -> Vec<(usize, usize, Stri
             } else {
                 blanks = 0;
             }
+        }
+
+        // ── R22 : branche `then`/`else` trop longue sur une ligne ────────
+        for (cond, longest) in long_conds(line, *state, cfg.cond_branch_max_length) {
+            warn(lnum, cond.then_at + 1, &format!(
+                "branche de 'then' trop longue : {} caractères (max {}) — passer 'then' et 'else' à la ligne, indentés sous la condition",
+                longest, cfg.cond_branch_max_length,
+            ));
         }
 
         // ── R10 : espace après '//' ───────────────────────────────────────

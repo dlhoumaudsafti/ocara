@@ -53,16 +53,16 @@ class Test109MapIterationModes extends UnitTest {
 
     public method borrowedKeyOutlivesTheLoopTest(): int {
         var m:map<string, string> = {"a": "x", "b": "y"}
-        var lastKey:string = ""
-        var lastValue:string = ""
+        var last_key:string = ""
+        var last_value:string = ""
         for k has v in m {
-            lastKey = k
-            lastValue = v
+            last_key = k
+            last_value = v
         }
         Map::remove(m, "b")
         m["a"] = "z"
-        self::assertEquals("b", lastKey)
-        self::assertEquals("y", lastValue)
+        self::assertEquals("b", last_key)
+        self::assertEquals("y", last_value)
         return 0
     }
 

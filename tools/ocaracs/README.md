@@ -61,6 +61,7 @@ Corrige les fichiers sur place, puis les réanalyse : seuls les avertissements r
 | R10 | Espace ajouté après `//` |
 | R11 | Newline ajoutée en fin de fichier |
 | R21 | Lignes vides entre une clause `when` et sa déclaration retirées |
+| R22 | Expression `then` à branche trop longue passée à la ligne (`then`/`else` indentés sous la condition), au niveau de l'instruction (`var x = …`, affectation, `return`) ou dans une parenthèse qui ne contient qu'elle ; un ternaire d'une branche découpée est réexaminé. Ailleurs (argument d'appel, condition d'`if`, maillon d'une chaîne, ligne avec un commentaire), l'avertissement reste |
 | R07/R08/R09/R12/R13 | Déclaration renommée au style attendu (`is_adult` → `isAdult`), **avec tous ses usages dans tout le projet** |
 | R05 | **Non corrigée** : une ligne trop longue reste à reformuler à la main |
 
@@ -179,6 +180,10 @@ indentation_gap     = 0
 
 # R21 — clause `when` collée à sa déclaration (aucune ligne vide entre les deux)
 when_attached       = true
+
+# R22 — longueur max d'une branche `then`/`else` écrite sur la ligne de sa
+# condition (0 pour désactiver)
+cond_branch_max_length = 20
 ```
 
 Une valeur invalide (`naming_var_is = kebab`, `indentation = flase`, `max_line_length = 80x`) est signalée au chargement avec son numéro de ligne (`ocaracs: .ocaracs:3: …`) et la valeur par défaut est conservée ; une clé inconnue ou une ligne sans `=` est signalée et ignorée.
@@ -388,6 +393,25 @@ when System::OS is 'windows'      // ✗ ligne vide signalée
 function home(): string { return 'C:\\Users' }
 ```
 
+### R22 — Branche `then`/`else` trop longue
+
+Une expression conditionnelle (`docs/EBNF.md` §11.3) écrite sur une ligne reste lisible tant que ses branches sont courtes. Au-delà de `cond_branch_max_length` caractères (20 par défaut) pour une branche — mesurée sans son mot-clé, chaîne comprise —, `then` et `else` passent à la ligne, indentés sous la condition. Entre parenthèses, la `)` revient seule sur sa ligne. La valeur par défaut de la forme courte (`empty`, `zero`, `null`) n'est pas une branche, et chaque maillon d'une chaîne `x then a else y then b else c` est mesuré à part.
+
+```ocara
+var s:string = age greater 17 then "majeur" else "mineur"     // ✓ branches courtes
+
+var f:Function<int(int)> = k greater 2                        // ✓ après --fix
+    then nameless(x:int): int { return x + k }
+    else nameless(x:int): int { return x }
+
+var palier:int = (age greater 10                              // ✓ après --fix
+    then (age greater 30 then 3 else 2)
+    else 1
+) * 100
+```
+
+Le ternaire intérieur reste sur une ligne tant que ses propres branches sont courtes.
+
 ---
 
 ## Intégration Makefile
@@ -421,6 +445,7 @@ naming_variable     = true
 naming_const_embed  = true
 indentation_type    = space
 indentation_gap     = 4
+cond_branch_max_length = 20
 ```
 
 ### Permissif (style libre)
@@ -439,4 +464,5 @@ naming_const        = false
 comment_spacing     = false
 file_ends_newline   = true
 naming_variable     = false
+cond_branch_max_length = 0
 ```

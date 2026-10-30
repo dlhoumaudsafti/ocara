@@ -12,6 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 mod check;
+mod cond;
 mod config;
 mod decls;
 mod fix;
@@ -219,7 +220,8 @@ fn print_help() {
     eprintln!();
     eprintln!("--fix corrige : indentation, lignes vides, espaces autour de '=' et en fin");
     eprintln!("de ligne, espace après '//', newline finale, nommage (déclaration et usages");
-    eprintln!("dans tout le projet). Les lignes trop longues restent à corriger à la main.");
+    eprintln!("dans tout le projet), expressions 'then' aux branches longues passées à la");
+    eprintln!("ligne. Les lignes trop longues restent à corriger à la main.");
     eprintln!();
     eprintln!("Configuration:");
     eprintln!("  Fichier .ocaracs à la racine du projet (détecté automatiquement).");

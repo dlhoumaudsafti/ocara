@@ -1710,6 +1710,26 @@ var realzero:int = zero equal 0 then zero zero   // 0 : condition fausse
 Avec `else`, on écrit la valeur (`else ""`, `else 0`) : `else empty` lit la
 variable `empty`.
 
+**Mise en forme** : des branches courtes restent sur la ligne de la condition ;
+des branches longues passent à la ligne, `then` et `else` indentés sous la
+condition. Entre parenthèses, la `)` revient seule sur sa ligne :
+
+```ocara
+var s:string = age greater 17 then "majeur" else "mineur"
+
+var f:Function<int(int)> = k greater 2
+    then nameless(x:int): int { return x + k }
+    else nameless(x:int): int { return x }
+
+var palier:int = (age greater 10
+    then (age greater 30 then 3 else 2)
+    else 1
+) * 100
+```
+
+`ocaracs` le vérifie (règle R22, `cond_branch_max_length`, 20 caractères par
+branche par défaut) et `ocaracs --fix` applique cette forme.
+
 ---
 
 ## 12. Instructions

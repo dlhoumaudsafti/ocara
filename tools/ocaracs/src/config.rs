@@ -60,6 +60,8 @@ pub struct Config {
     pub indent_gap:        usize,
     /// R21 — clause `when` collée à sa déclaration (aucune ligne vide)
     pub when_attached:     bool,
+    /// R22 — longueur max d'une branche `then`/`else` sur une ligne (0 = désactivé)
+    pub cond_branch_max_length: usize,
 }
 
 impl Default for Config {
@@ -86,6 +88,7 @@ impl Default for Config {
             indent_type:        IndentType::Auto,
             indent_gap:         0,
             when_attached:      true,
+            cond_branch_max_length: 20,
         }
     }
 }
@@ -139,6 +142,7 @@ fn set_rule(cfg: &mut Config, key: &str, val: &str) -> Result<(), String> {
         "naming_variable"       => set_bool(&mut cfg.naming_variable, key, val),
         "naming_const_embed"    => set_bool(&mut cfg.naming_const_embed, key, val),
         "when_attached"         => set_bool(&mut cfg.when_attached, key, val),
+        "cond_branch_max_length" => set_usize(&mut cfg.cond_branch_max_length, key, val, "un entier, 0 = désactivé"),
         "naming_const_embed_is" => {
             cfg.const_embed_style = Some(Style::parse(val).ok_or_else(|| invalid(key, val, STYLES))?);
             Ok(())

@@ -1,10 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// `--fix` : mise en forme d'un fichier (R01, R02, R03, R04, R06, R10, R11, R21).
+// `--fix` : mise en forme d'un fichier (R01, R02, R03, R04, R06, R10, R11, R21, R22).
 // Le contenu des chaînes backtick multilignes n'est jamais modifié. R05
 // (ligne trop longue) n'est pas corrigeable automatiquement.
 // ─────────────────────────────────────────────────────────────────────────────
 
 use crate::check::{decl_assign_pos, detached_when_blanks};
+use crate::cond::split;
 use crate::config::Config;
 use crate::text::{comment_pos, indent_rule, leading_ws, line_states, masked_code, scan_code, LineState};
 
@@ -18,7 +19,41 @@ fn split_lines(content: &str) -> (Vec<&str>, Vec<&str>) {
     }).unzip()
 }
 
+/// Tours de R22 au plus : chacun découpe un niveau de ternaires imbriqués.
+const MAX_SPLIT_PASSES: usize = 32;
+
+/// R22 : branches `then`/`else` trop longues passées à la ligne, jusqu'à ce
+/// qu'il n'y ait plus rien à découper — un ternaire d'une branche découpée
+/// est réexaminé au tour suivant.
+fn split_long_conds(content: &str, cfg: &Config) -> String {
+    let mut content = content.to_string();
+    if cfg.cond_branch_max_length == 0 { return content; }
+    let eol = if content.contains("\r\n") { "\r\n" } else { "\n" };
+    for _ in 0..MAX_SPLIT_PASSES {
+        let next = {
+            let (lines, endings) = split_lines(&content);
+            let states = line_states(&lines);
+            let unit = indent_unit(&lines, &states, cfg);
+            let mut changed = false;
+            let next: String = lines.iter().zip(&endings).zip(&states).map(|((line, end), state)| {
+                match split(line, *state, cfg.cond_branch_max_length, &unit) {
+                    Some(parts) => { changed = true; format!("{}{}", parts.join(eol), end) }
+                    None => format!("{}{}", line, end),
+                }
+            }).collect();
+            changed.then_some(next)
+        };
+        match next {
+            Some(next) => content = next,
+            None => break,
+        }
+    }
+    content
+}
+
 pub fn fix_layout(content: &str, cfg: &Config) -> String {
+    let content = split_long_conds(content, cfg);
+    let content = content.as_str();
     let (lines, endings) = split_lines(content);
     let states = line_states(&lines);
     let mut out: Vec<String> = lines.iter().zip(&states)
@@ -224,6 +259,13 @@ mod tests {
     fn conditional_branches_are_continuations_outside_parentheses() {
         let src = "function f(): void {\nvar t:string = k equal 2\nthen \"a\"\nempty\nvar u:int = (k equal 2\nthen 1\nelse 2\n) + 1\nif a {\nx = 1\n}\nelse {\nx = 2\n}\n}\n";
         let want = "function f(): void {\n    var t:string = k equal 2\n        then \"a\"\n        empty\n    var u:int = (k equal 2\n        then 1\n        else 2\n    ) + 1\n    if a {\n        x = 1\n    }\n    else {\n        x = 2\n    }\n}\n";
+        assert_eq!(fix(src), want);
+    }
+
+    #[test]
+    fn long_branches_are_split_into_the_indented_form() {
+        let src = "function f(): void {\n    var f:F = k greater 2 then nameless(x:int): int { return x + k } else nameless(x:int): int { return x }\n    var p:int = (age greater 10 then (age greater 30 then aVeryLongValueNumberOne else 2) else 1) * 100\n    var s:string = ok then \"court\" else \"bref\"\n}\n";
+        let want = "function f(): void {\n    var f:F = k greater 2\n        then nameless(x:int): int { return x + k }\n        else nameless(x:int): int { return x }\n    var p:int = (age greater 10\n        then (age greater 30\n            then aVeryLongValueNumberOne\n            else 2\n        )\n        else 1\n    ) * 100\n    var s:string = ok then \"court\" else \"bref\"\n}\n";
         assert_eq!(fix(src), want);
     }
 
