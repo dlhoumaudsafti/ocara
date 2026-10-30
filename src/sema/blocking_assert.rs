@@ -184,6 +184,13 @@ impl<'p> BlockingAnalysis<'p> {
             }),
             Expr::Match { subject, arms, .. } => arms.iter()
                 .fold(self.expr(subject, ctx), |acc, a| strongest(acc, self.expr(&a.body, ctx))),
+            Expr::Cond { cond, then_expr, else_expr, .. } => {
+                let found = strongest(self.expr(cond, ctx), self.expr(then_expr, ctx));
+                match else_expr.value() {
+                    Some(e) => strongest(found, self.expr(e, ctx)),
+                    None => found,
+                }
+            }
         }
     }
 

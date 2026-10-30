@@ -12,7 +12,7 @@
 /// compris, voir `crate::sema::generic_check`) : un argument nommé sans
 /// résolution enregistrée est une erreur plutôt que passé au lowering.
 
-use crate::parsing::ast::{BinOp, Block, ClassMember, Expr, ImportDecl, Literal, Param, Program, Stmt, TemplatePartExpr};
+use crate::parsing::ast::{BinOp, Block, ClassMember, CondElse, Expr, ImportDecl, Literal, Param, Program, Stmt, TemplatePartExpr};
 use crate::parsing::token::Span;
 use crate::sema::named_args::{site_key, AstRewrites};
 
@@ -234,6 +234,19 @@ impl Rewriter<'_> {
             Expr::Match { subject, arms, .. } => {
                 self.expr(subject)?;
                 arms.iter_mut().try_for_each(|arm| self.expr(&mut arm.body))
+            }
+            Expr::Cond { cond, then_expr, else_expr, .. } => {
+                self.expr(cond)?;
+                self.expr(then_expr)?;
+                // `empty`/`zero`/`null` : littéral choisi par la sema (voir
+                // `crate::sema::cond_expr`).
+                if let CondElse::Default(default, span) = else_expr {
+                    let Some(value) = self.rewrites.cond_defaults.get(&site_key(span)) else {
+                        return Err((span.clone(), format!("valeur par défaut '{}' non résolue par l'analyse sémantique", default.keyword())));
+                    };
+                    *else_expr = CondElse::Value(Box::new(value.clone()));
+                }
+                else_expr.value_mut().map_or(Ok(()), |e| self.expr(e))
             }
             Expr::Nameless { params, body, .. } => {
                 self.params(params)?;

@@ -290,6 +290,7 @@ fn expr_ir_type_uncached(builder: &LowerBuilder, expr: &Expr) -> IrType {
                 IrType::I64
             }
         }
+        Expr::Cond { then_expr, else_expr, .. } => super::cond::result_ir_type(builder, then_expr, else_expr),
         // Accès tableau : utilise elem_types si disponible
         Expr::Index { object, .. } => {
             if let Expr::Ident(name, _) = object.as_ref() {

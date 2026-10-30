@@ -218,6 +218,13 @@ pub enum SemaError {
     MapDotInvalidKey { field: String, span: Span },
     /// `x.A` dans un `generic` où `x` est de type `T`, instancié en map (E71).
     MapDotOnTypeParam { field: String, span: Span },
+    /// `c then v empty|zero` : le type de `v` n'a pas cette valeur par
+    /// défaut (`zero` sur un `string`, union, `mixed`, classe) — voir
+    /// `crate::sema::cond_expr` (E72).
+    CondDefaultType { keyword: String, type_name: String, span: Span },
+    /// `c then v empty|zero` dans un `generic` où le type de `v` dépend d'un
+    /// paramètre de type : le littéral changerait selon l'instanciation (E73).
+    CondDefaultOnTypeParam { keyword: String, span: Span },
 }
 
 impl SemaError {
@@ -268,6 +275,8 @@ impl SemaError {
             SemaError::MapDotKeyType      { span, .. } => span,
             SemaError::MapDotInvalidKey   { span, .. } => span,
             SemaError::MapDotOnTypeParam  { span, .. } => span,
+            SemaError::CondDefaultType    { span, .. } => span,
+            SemaError::CondDefaultOnTypeParam { span, .. } => span,
             SemaError::InterfaceNoWiring   { span, .. } => span,
             SemaError::ResolveOnNonResolvable { span, .. } => span,
             SemaError::AsyncReturnsResolvable { span, .. } => span,
@@ -387,6 +396,15 @@ impl SemaError {
                 format!("'{}' cannot be written after a dot — only ASCII letters, digits and '_' are allowed: write '[\"{}\"]'", field, field),
             SemaError::MapDotOnTypeParam { field, .. } =>
                 format!("'.{}' reads a map key only when the receiver's static type is a map — here it depends on a type parameter: write '[\"{}\"]'", field, field),
+            SemaError::CondDefaultType { keyword, type_name, .. } => {
+                let has = match keyword.as_str() {
+                    "empty" => "'empty' exists only for 'string', 'array<T>' and 'map<K, V>'",
+                    _ => "'zero' exists only for 'int' and 'float'",
+                };
+                format!("the 'then' branch has type '{}', which has no '{}' value — {}: write 'else <value>' or 'null'", type_name, keyword, has)
+            }
+            SemaError::CondDefaultOnTypeParam { keyword, .. } =>
+                format!("'{}' depends on a type parameter here: the shared 'generic' body cannot hold a different value per instantiation — write 'else <value>'", keyword),
             SemaError::AccessOnNonContainer { type_name, field, .. } => match field {
                 Some(field) => format!("cannot read field '{}' — the value's type is '{}', which has no fields", field, type_name),
                 None => format!("cannot index a value of type '{}' — only arrays and maps can be indexed (use the String::* functions on a string)", type_name),

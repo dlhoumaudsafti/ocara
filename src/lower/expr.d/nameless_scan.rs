@@ -61,6 +61,8 @@ pub fn expr_has_nameless(expr: &Expr) -> bool {
         Expr::Index { object, index, .. } => expr_has_nameless(object) || expr_has_nameless(index),
         Expr::Range { start, end, .. } => expr_has_nameless(start) || expr_has_nameless(end),
         Expr::Match { subject, arms, .. } => expr_has_nameless(subject) || arms.iter().any(|a| expr_has_nameless(&a.body)),
+        Expr::Cond { cond, then_expr, else_expr, .. } =>
+            expr_has_nameless(cond) || expr_has_nameless(then_expr) || else_expr.value().is_some_and(expr_has_nameless),
         Expr::Resolve { expr, .. } | Expr::IsCheck { expr, .. } => expr_has_nameless(expr),
         Expr::IncDec { target, .. } => expr_has_nameless(target),
         Expr::NamedArg { value, .. } => expr_has_nameless(value),

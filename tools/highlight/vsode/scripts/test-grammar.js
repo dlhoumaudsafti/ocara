@@ -26,6 +26,9 @@ const CASES = [
     ['http.method("DELETE")', 'DELETE', '!meta.embedded.sql'],
     ['var h:string = `<div>${x}</div>`', 'div', 'entity.name.tag.html'],
     ['var h:string = `<div>${x}</div>`', 'div', '!meta.embedded.sql'],
+    ['var s:string = c then "a" else "b"', 'then', 'keyword.control.ocara'],
+    ['var n:int = c then (a + 1) zero', 'then', 'keyword.control.ocara'],
+    ['var n:int = m.zero()', 'zero', '!keyword.control.ocara'],
 ];
 
 async function main() {

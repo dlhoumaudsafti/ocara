@@ -1121,7 +1121,7 @@ impl<'a> TypeChecker<'a> {
 
     // ── Raffinement de type (narrowing) ───────────────────────────────────────
 
-    fn condition_narrowings(&self, condition: &Expr) -> crate::sema::narrowing::Narrowings {
+    pub(crate) fn condition_narrowings(&self, condition: &Expr) -> crate::sema::narrowing::Narrowings {
         crate::sema::narrowing::of_condition(condition, &|name| self.declared_type(name))
     }
 
@@ -1175,6 +1175,19 @@ impl<'a> TypeChecker<'a> {
         }
     }
 
+    /// Type de `expr` évaluée avec les variables `narrowed` raffinées (bras
+    /// de `match`, branche d'un `then`).
+    pub(crate) fn infer_narrowed(&mut self, expr: &Expr, narrowed: &[(String, Type)]) -> Type {
+        self.scopes.push();
+        for (name, ty) in narrowed {
+            self.scopes.narrow(name.clone(), ty.clone());
+        }
+        let ty = self.infer_expr(expr);
+        let popped = self.scopes.pop_scope(&self.resource_classes);
+        self.flush_warnings(popped);
+        ty
+    }
+
     /// `match` : union des types de ses bras ; sans `default` ni test `is`
     /// couvrant toutes les variantes du sujet, aucun bras peut ne
     /// correspondre et la valeur vaut `null`. Dans un bras `is T`, un sujet
@@ -1191,13 +1204,7 @@ impl<'a> TypeChecker<'a> {
                 ).then,
                 _ => Vec::new(),
             };
-            self.scopes.push();
-            for (name, ty) in narrowed {
-                self.scopes.narrow(name, ty);
-            }
-            arm_types.push(self.infer_expr(&arm.body));
-            let popped = self.scopes.pop_scope(&self.resource_classes);
-            self.flush_warnings(popped);
+            arm_types.push(self.infer_narrowed(&arm.body, &narrowed));
             if let Some(MatchPattern::IsType(ty)) = &arm.pattern {
                 remaining = without_variant(&remaining, ty);
             }
@@ -2589,6 +2596,8 @@ impl<'a> TypeChecker<'a> {
             }
 
             Expr::Match { subject, arms, .. } => self.infer_match(subject, arms),
+
+            Expr::Cond { cond, then_expr, else_expr, .. } => self.infer_cond(cond, then_expr, else_expr, hint),
 
             Expr::Map { entries, .. } => {
                 if entries.is_empty() {

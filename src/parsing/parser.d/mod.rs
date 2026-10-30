@@ -11,6 +11,7 @@ mod property_init;
 mod statements;
 mod compound_assign;
 mod expressions;
+mod cond;
 mod runtime;
 mod recovery;
 mod when;
@@ -22,5 +23,7 @@ mod tests;
 mod tests_when;
 #[cfg(test)]
 mod tests_depth;
+#[cfg(test)]
+mod tests_cond;
 
 pub use types::Parser;

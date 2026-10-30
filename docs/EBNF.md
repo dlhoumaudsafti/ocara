@@ -1443,8 +1443,10 @@ Les règles de visibilité s'appliquent normalement (`public` accessible depuis 
 ## 10. Expressions
 
 ```ebnf
-Expression ::= OrExpr
+Expression ::= CondExpr
 
+CondExpr     ::= OrExpr ( "then" CondExpr ( "else" CondExpr | CondDefault ) )?
+CondDefault  ::= "empty" | "zero" | "null"             (* mots-clés contextuels, §11.3 *)
 OrExpr       ::= AndExpr ( "or" AndExpr )*
 AndExpr      ::= ComparisonExpr ( "and" ComparisonExpr )*
 ComparisonExpr ::= IsCheckExpr ( ComparisonOp IsCheckExpr )*
@@ -1510,6 +1512,7 @@ Du plus faible au plus fort :
 
 | Niveau | Opérateurs               | Associativité | Notes |
 |--------|--------------------------|---------------|-------|
+| 0      | `then` `else` / `empty` `zero` `null` | Droite | Expression conditionnelle (§11.3) : seule la branche choisie est évaluée |
 | 1      | `or`                     | Gauche        | Court-circuit : l'opérande droit n'est évalué que si le gauche est faux |
 | 2      | `and`                    | Gauche        | Court-circuit : l'opérande droit n'est évalué que si le gauche est vrai |
 | 3      | `equal` `not equal` `smaller` `greater` `smaller or equal` `greater or equal` | Gauche | Comparaisons, toutes typées à la compilation |
@@ -1631,6 +1634,81 @@ valeur `mixed` n'étant pas connu à la compilation, `string + mixed` échappe �
 cette vérification statique et est délégué à un rendu au runtime — même
 compromis délibéré que pour `equal`/`smaller`/etc., pas une échappatoire
 générale au typage strict de `+`.
+
+### 11.3 Expression conditionnelle `then`
+
+`<condition> then <valeur> else <valeur>` vaut la première valeur si la
+condition est vraie, la seconde sinon. **Seule la branche choisie est
+évaluée.**
+
+```ocara
+var s:string = age greater 17 then "majeur" else "mineur"
+var total:int = (remise then 10 else 0) + prix
+```
+
+- **Précédence** : la plus faible (niveau 0), sous `or`. `a then b else c + d`
+  se lit `a then b else (c + d)` ; pour combiner le résultat, le parenthéser :
+  `(a then b else c) + d`.
+- **Associativité à droite** : `x then a else y then b else c` se lit
+  `x then a else (y then b else c)`. Une branche `then` peut elle-même être
+  un ternaire ; les parenthèses restent recommandées.
+- **Plusieurs lignes** : `then` et `else` peuvent commencer une ligne.
+
+```ocara
+var s:int = (a greater 3
+    then (a greater 4
+        then 100
+        else 50
+    )
+    else 0
+) + 1
+```
+
+- **Condition** : mêmes règles qu'un `if` — un `bool`, ou un `mixed` évalué sur
+  sa valeur (`false`, `0`, `null` sont faux). Un autre type est une erreur.
+- **Raffinement** : comme un `if`, la condition raffine les types dans les
+  branches : `x is string then x.len() else 0`,
+  `u not equal null then u.name else ""`.
+- **Type** : l'union des types des deux branches, comme `match` (§26) :
+  `c then "a" else null` est un `string|null`, `c then 1 else 2.0` un
+  `int|float` (refusé là où un `int` est attendu).
+
+**Forme courte** : un mot remplace `else <valeur>` et donne la valeur par
+défaut du **type de la branche `then`** (pas celui de la variable déclarée :
+la forme vaut aussi en argument, en `return`, dans une interpolation).
+
+| Mot | Type de la branche `then` | Valeur | Type du résultat |
+|-----|---------------------------|--------|------------------|
+| `empty` | `string`, `array<T>`, `map<K, V>` | `""`, `[]`, `{}` | celui de la branche |
+| `zero` | `int`, `float` | `0`, `0.0` | celui de la branche |
+| `null` | tout type | `null` | `T\|null` |
+
+```ocara
+var s:string = trouve then nom empty              // ""
+var i:int = trouve then score zero                // 0
+var f:float = trouve then moyenne zero            // 0.0
+var a:array<int> = trouve then notes empty        // []
+var u:User|null = trouve then user null           // null
+```
+
+`empty` ou `zero` sur un type qui n'a pas cette valeur (`zero` sur un
+`string`, `empty` sur un `int`, une classe, une union, `mixed`) est une erreur
+([E72](diagnostics.md#e72--valeur-par-défaut-impossible)) ; dans un `generic`,
+sur une valeur de type `T`, aussi ([E73](diagnostics.md#e73--valeur-par-défaut-dun-paramètre-de-type)).
+
+**Mots-clés contextuels** : `empty` et `zero` ne sont des mots-clés **que juste
+après l'expression complète de la branche `then`**, là où un identifiant ne
+peut pas suivre une expression. Partout ailleurs ce sont des identifiants
+ordinaires (variable, paramètre, nom de méthode : `String::empty(s)`,
+`m.zero()`) :
+
+```ocara
+var zero:int = 1
+var realzero:int = zero equal 0 then zero zero   // 0 : condition fausse
+```
+
+Avec `else`, on écrit la valeur (`else ""`, `else 0`) : `else empty` lit la
+variable `empty`.
 
 ---
 
@@ -4249,7 +4327,9 @@ WhileStmt   ::= "while" Expression Block
 
 (* ── Expressions (hiérarchie de précédence) ─────────────────────── *)
 
-Expression  ::= OrExpr
+Expression  ::= CondExpr
+CondExpr    ::= OrExpr ( "then" CondExpr ( "else" CondExpr | CondDefault ) )?
+CondDefault ::= "empty" | "zero" | "null"               (* mots-clés contextuels, §11.3 *)
 OrExpr      ::= AndExpr ( "or" AndExpr )*
 AndExpr     ::= ComparisonExpr ( "and" ComparisonExpr )*
 ComparisonExpr ::= IsCheckExpr ( ComparisonOp IsCheckExpr )*

@@ -97,10 +97,25 @@ fn indent_unit(lines: &[&str], states: &[LineState], cfg: &Config) -> String {
 const CONTINUATION_STARTS: [&str; 9] = [".", "+ ", "- ", "* ", "/ ", "&& ", "|| ", "and ", "or "];
 const CONTINUATION_ENDS: [&str; 7] = ["=", "+", "-", "*", "/", "&&", "||"];
 
+/// Ligne d'une expression `then` au niveau d'une instruction : `then …`,
+/// `else …` (pas le `else {` d'un `if`), ou la valeur par défaut seule.
+/// Entre parenthèses, la parenthèse donne déjà le niveau.
+fn is_cond_line(trimmed: &str) -> bool {
+    let word = trimmed.split_whitespace().next().unwrap_or("");
+    match word {
+        "then" => true,
+        "else" => !trimmed.trim_end().ends_with('{'),
+        "empty" | "zero" | "null" => trimmed.split("//").next().is_some_and(|code| code.trim() == word),
+        _ => false,
+    }
+}
+
 /// Ligne prolongeant l'instruction précédente (`.chain()`, opérateur en
-/// tête, ou ligne précédente terminée par un opérateur) : un niveau de plus.
-fn is_continuation(trimmed: &str, prev_code: Option<&str>) -> bool {
-    let starts = CONTINUATION_STARTS.iter().any(|p| trimmed.starts_with(p)) && !trimmed.starts_with("..");
+/// tête, ligne précédente terminée par un opérateur, ou branche d'un `then`
+/// hors parenthèses) : un niveau de plus.
+fn is_continuation(trimmed: &str, prev_code: Option<&str>, in_parens: bool) -> bool {
+    let starts = CONTINUATION_STARTS.iter().any(|p| trimmed.starts_with(p)) && !trimmed.starts_with("..")
+        || !in_parens && is_cond_line(trimmed);
     let ends = prev_code.is_some_and(|p| {
         CONTINUATION_ENDS.iter().any(|e| p.ends_with(e))
             && !["++", "--", "==", ".*"].iter().any(|e| p.ends_with(e))
@@ -113,7 +128,8 @@ fn is_continuation(trimmed: &str, prev_code: Option<&str>) -> bool {
 /// `route("/", "GET", nameless(...) {`, ne comptent qu'un niveau) ; les
 /// fermants en tête de ligne sont retirés avant de mesurer.
 fn reindent(lines: &[&str], states: &[LineState], unit: &str) -> Vec<String> {
-    let mut stack: Vec<usize> = Vec::new();
+    // Ligne de chaque ouvrant encore ouvert, et s'il s'agit d'une accolade.
+    let mut stack: Vec<(usize, bool)> = Vec::new();
     let mut in_bt = false;
     let mut prev_code: Option<String> = None;
     lines.iter().zip(states).enumerate().map(|(i, (line, state))| {
@@ -123,14 +139,15 @@ fn reindent(lines: &[&str], states: &[LineState], unit: &str) -> Vec<String> {
             trimmed.chars().take_while(|c| matches!(c, '}' | ')' | ']')).count()
         } else { 0 };
         for _ in 0..lead_closers { stack.pop(); }
-        let mut level = stack.windows(2).filter(|w| w[0] != w[1]).count() + usize::from(!stack.is_empty());
+        let mut level = stack.windows(2).filter(|w| w[0].0 != w[1].0).count() + usize::from(!stack.is_empty());
+        let in_parens = stack.last().is_some_and(|&(_, brace)| !brace);
         // Code de la ligne, le texte des chaînes masqué : un `*` final dans
         // un SQL backtick n'est pas un opérateur.
         let code = masked_code(line, &mut in_bt.clone());
         scan_code(line, &mut in_bt, |pos, c| {
             if code_line && pos < leading_ws(line).len() + lead_closers { return; }
             match c {
-                '{' | '(' | '[' => stack.push(i),
+                '{' | '(' | '[' => stack.push((i, c == '{')),
                 '}' | ')' | ']' => { stack.pop(); }
                 _ => {}
             }
@@ -138,7 +155,7 @@ fn reindent(lines: &[&str], states: &[LineState], unit: &str) -> Vec<String> {
         let previous = prev_code.clone();
         if !code.trim().is_empty() { prev_code = Some(code.trim().to_string()); }
         if !code_line || trimmed.is_empty() { return line.to_string(); }
-        if lead_closers == 0 && is_continuation(trimmed, previous.as_deref()) { level += 1; }
+        if lead_closers == 0 && is_continuation(trimmed, previous.as_deref(), in_parens) { level += 1; }
         format!("{}{}", unit.repeat(level), trimmed)
     }).collect()
 }
@@ -201,6 +218,13 @@ mod tests {
     fn string_or_wildcard_ending_with_star_is_not_a_continuation() {
         let src = "import ocara.*\nimport lib.A\nvar q:string = `SELECT *\nFROM t`\nvar n:int = 1\nvar m:string = \"a *\"\nvar k:int = 2\n";
         assert_eq!(fix(src), src);
+    }
+
+    #[test]
+    fn conditional_branches_are_continuations_outside_parentheses() {
+        let src = "function f(): void {\nvar t:string = k equal 2\nthen \"a\"\nempty\nvar u:int = (k equal 2\nthen 1\nelse 2\n) + 1\nif a {\nx = 1\n}\nelse {\nx = 2\n}\n}\n";
+        let want = "function f(): void {\n    var t:string = k equal 2\n        then \"a\"\n        empty\n    var u:int = (k equal 2\n        then 1\n        else 2\n    ) + 1\n    if a {\n        x = 1\n    }\n    else {\n        x = 2\n    }\n}\n";
+        assert_eq!(fix(src), want);
     }
 
     #[test]

@@ -32,3 +32,4 @@ mod mixed_access;
 mod runtime_block_closure;
 mod sql_injection;
 mod blocking_assert;
+mod cond_expr;

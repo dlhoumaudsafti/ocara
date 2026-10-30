@@ -30,6 +30,9 @@ pub struct Program {
     /// `implements`, `modules`, filtres `is`) et leur position — pour le
     /// serveur de langage ; jamais fusionnés depuis les imports.
     pub type_refs:  Vec<(String, crate::parsing::token::Span)>,
+    /// `empty`/`zero`/`null` lus comme valeur par défaut d'un `then` dans CE
+    /// fichier — colorés comme des mots-clés par le serveur de langage.
+    pub cond_keywords: Vec<crate::parsing::token::Span>,
     /// `architecture hexagonal { … }` / `architecture permissive` — seule
     /// celle du fichier d'entrée compte (core::architecture).
     pub architecture: Option<ArchitectureDecl>,
@@ -50,6 +53,7 @@ impl Program {
             interfaces: Vec::new(),
             functions:  Vec::new(),
             type_refs:  Vec::new(),
+            cond_keywords: Vec::new(),
             architecture: None,
         }
     }

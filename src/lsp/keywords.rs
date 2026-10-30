@@ -64,6 +64,7 @@ const KEYWORDS: &[(&str, &str, &str)] = &[
     ("if", "24", "Condition : `if cond { ... } elseif cond { ... } else { ... }`."),
     ("elseif", "24", "Branche alternative conditionnelle d'un `if`."),
     ("else", "24", "Branche par défaut d'un `if`."),
+    ("then", "11.3", "Expression conditionnelle : `cond then a else b`, ou forme courte `cond then a empty|zero|null` (valeur par défaut du type de `a`)."),
     ("switch", "25", "Branchement multiple sur une valeur."),
     ("default", "25", "Cas par défaut d'un `switch`/`match`."),
     ("match", "26", "Expression de filtrage, un bras par ligne : `1 => ...`, `is string => ...`, `default => ...`."),

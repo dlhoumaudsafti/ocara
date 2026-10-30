@@ -1,0 +1,153 @@
+architecture permissive
+
+import ocara.UnitTest
+
+// Expression conditionnelle `then`/`else` et sa forme courte
+// `empty`/`zero`/`null` — voir docs/EBNF.md §11.3.
+class CondUser {
+    public property name:string
+    init(name:string) { self.name = name }
+}
+
+generic CondBox<T> {
+    private property v:T
+    init(v:T) { self.v = v }
+    public method orNull(ok:bool): T|null {
+        return ok then self.v null
+    }
+}
+
+class CondCounter {
+    public property calls:int = 0
+    public method next(): string {
+        self.calls = self.calls + 1
+        return `appel ${self.calls}`
+    }
+}
+
+class ConditionalExpressionTest extends UnitTest {
+
+    public method chosenBranchTest(): int {
+        var n:int = 4
+        self::assertEquals("pair", n % 2 equal 0 then "pair" else "impair")
+        self::assertEquals("impair", n % 2 equal 1 then "pair" else "impair")
+        return 0
+    }
+
+    public method onlyTheChosenBranchIsEvaluatedTest(): int {
+        const c:CondCounter = use CondCounter()
+        var s:string = true then "court" else c.next()
+        var t:string = false then c.next() else c.next()
+        self::assertEquals("court", s)
+        self::assertEquals("appel 1", t)
+        self::assertEquals(1, c.calls)
+        return 0
+    }
+
+    public method precedenceAndNestingTest(): int {
+        var a:int = 5
+        self::assertEquals(12, (a greater 3 then 10 else 0) + 2)
+        self::assertEquals(2, a greater 9 then 1 else a greater 3 then 2 else 3)
+        var multi:int = (a greater 3
+            then (a greater 4
+                then 100
+                else 50
+            )
+            else 0
+        ) + 1
+        self::assertEquals(101, multi)
+        return 0
+    }
+
+    public method shortFormDefaultsTest(): int {
+        var ok:bool = false
+        var s:string = ok then "x" empty
+        var i:int = ok then 7 zero
+        var f:float = ok then 7.5 zero
+        var arr:array<int> = ok then [1, 2] empty
+        var m:map<string, int> = ok then {"a": 1} empty
+        var u:CondUser|null = ok then use CondUser("Ana") null
+        self::assertEquals("", s)
+        self::assertEquals(0, i)
+        self::assertEquals(0.0, f)
+        self::assertEquals(0, arr.len())
+        self::assertEquals(0, m.size())
+        self::assertNull(u)
+        return 0
+    }
+
+    public method zeroIsStillAnIdentifierTest(): int {
+        var zero:int = 1
+        var empty:string = "plein"
+        self::assertEquals(0, zero equal 0 then zero zero)
+        self::assertEquals(1, zero equal 1 then zero zero)
+        self::assertEquals("plein", zero equal 1 then empty empty)
+        return 0
+    }
+
+    public method narrowingTest(): int {
+        var u:CondUser|null = use CondUser("Ana")
+        self::assertEquals("Ana", u not equal null then u.name else "anonyme")
+        var x:mixed = "abc"
+        self::assertEquals(3, x is string then x.len() else 0)
+        return 0
+    }
+
+    public method mixedConditionAndTemplateTest(): int {
+        var m:mixed = 0
+        self::assertEquals("faux", m then "vrai" else "faux")
+        var k:int = 2
+        self::assertEquals("k=deux|", `k=${k equal 2 then "deux" empty}|${k equal 3 then "trois" empty}`)
+        return 0
+    }
+
+    public method mixedBranchTypesTest(): int {
+        var ok:bool = true
+        var v:int|null = ok then 42 null
+        self::assertEquals(42, v)
+        var w:int|string = ok then 3 else "trois"
+        self::assertEquals(3, w)
+        return 0
+    }
+
+    public method ownedValuesInALoopTest(): int {
+        var last:string = ""
+        var count:int = 0
+        for i in 0 until 500 {
+            var s:string = i % 2 equal 0 then `p${i}` else `i${i}`
+            var arr:array<string> = i % 3 equal 0 then [s, "b"] empty
+            var u:CondUser = i % 2 equal 0
+                then use CondUser(s)
+                else use CondUser("y")
+            count = count + arr.len()
+            last = u.name
+        }
+        self::assertEquals("y", last)
+        self::assertEquals(334, count)
+        return 0
+    }
+
+    public method closureInABranchTest(): int {
+        var k:int = 3
+        var f:Function<int(int)> = k greater 2
+            then nameless(x:int): int { return x + k }
+            else nameless(x:int): int { return x }
+        k = 10
+        self::assertEquals(11, f(1))
+        return 0
+    }
+
+    public method matchArmAndGenericTest(): int {
+        var k:int = 1
+        var r:string|null = match k {
+            1 => k equal 2 then "deux" null
+            null => "nul"
+            default => "autre"
+        }
+        self::assertNull(r)
+        var b:CondBox<int> = use CondBox<int>(4)
+        self::assertEquals(4, b.orNull(true))
+        self::assertNull(b.orNull(false))
+        return 0
+    }
+}

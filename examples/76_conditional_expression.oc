@@ -1,0 +1,70 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Exemple 76 — expression conditionnelle `then`/`else`
+//
+// Voir docs/EBNF.md §11.3.
+//
+// Illustre :
+//   - `<condition> then <valeur> else <valeur>` : seule la branche choisie
+//     est évaluée
+//   - imbrication, parenthèses pour combiner le résultat, plusieurs lignes
+//   - forme courte : `empty`, `zero`, `null` donnent la valeur par défaut du
+//     type de la branche `then`
+//   - `empty`/`zero` restent des identifiants ailleurs
+//   - raffinement de la condition dans les branches, comme `if`
+// ─────────────────────────────────────────────────────────────────────────────
+
+architecture permissive
+
+import ocara.IO
+
+class User {
+    public property name:string
+    init(name:string) {
+        self.name = name
+    }
+}
+
+function sign(n:int): string {
+    return n greater 0 then "positif" else n equal 0 then "nul" else "négatif"
+}
+
+function label(u:User|null): string {
+    return u not equal null then u.name else "anonyme"
+}
+
+function main(): int {
+    var age:int = 20
+    IO::writeln(age greater 17 then "majeur" else "mineur")          // majeur
+
+    var total:int = (age greater 17 then 10 else 0) + 5
+    IO::writeln(total)                                                // 15
+
+    var palier:int = (age greater 10
+        then (age greater 30
+            then 3
+            else 2
+        )
+        else 1
+    ) * 100
+    IO::writeln(palier)                                               // 200
+
+    IO::writeln(`${sign(4)} ${sign(0)} ${sign(-4)}`)                  // positif nul négatif
+    IO::writeln(`${label(use User("Ana"))} ${label(null)}`)          // Ana anonyme
+
+    // Forme courte : valeur par défaut du type de la branche `then`
+    var trouve:bool = false
+    var nom:string = trouve then "Ana" empty
+    var score:int = trouve then 12 zero
+    var moyenne:float = trouve then 12.5 zero
+    var notes:array<int> = trouve then [12, 15] empty
+    var options:map<string, int> = trouve then {"a": 1} empty
+    var user:User|null = trouve then use User("Ana") null
+    IO::writeln(`[${nom}] ${score} ${moyenne} ${notes.len()} ${options.size()}`)  // [] 0 0.0 0 0
+    IO::writeln(user is null)                                         // true
+
+    // `zero` : variable, branche `then`, puis valeur par défaut
+    var zero:int = 1
+    var realzero:int = zero equal 0 then zero zero
+    IO::writeln(realzero)                                             // 0
+    return 0
+}

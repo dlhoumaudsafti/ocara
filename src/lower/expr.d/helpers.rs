@@ -168,7 +168,7 @@ pub fn box_arg_for_mixed_param(builder: &mut LowerBuilder, param_ty: Option<IrTy
     boxed
 }
 
-fn box_scalar_arg(builder: &mut LowerBuilder, arg_ty: &IrType, val: Value) -> Value {
+pub(crate) fn box_scalar_arg(builder: &mut LowerBuilder, arg_ty: &IrType, val: Value) -> Value {
     match arg_ty {
         IrType::F64 => {
             let d = builder.new_value();

@@ -316,6 +316,15 @@ pub fn update_program_spans_with_file(program: &mut ast::Program, file_path: &st
                     update_expr_spans(&mut arm.body, file);
                 }
             }
+            Expr::Cond { cond, then_expr, else_expr, span } => {
+                update_span(span, file);
+                update_expr_spans(cond, file);
+                update_expr_spans(then_expr, file);
+                match else_expr {
+                    crate::parsing::ast::CondElse::Value(e) => update_expr_spans(e, file),
+                    crate::parsing::ast::CondElse::Default(_, span) => update_span(span, file),
+                }
+            }
             Expr::Template { parts, span } => {
                 update_span(span, file);
                 // Les expressions interpolées (`${...}`) ont leur PROPRE

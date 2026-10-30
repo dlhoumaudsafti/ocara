@@ -362,6 +362,13 @@ fn resolve_expr(expr: &mut Expr, first_wiring: &impl Fn(&str) -> Option<String>)
                 resolve_expr(&mut arm.body, first_wiring);
             }
         }
+        Expr::Cond { cond, then_expr, else_expr, .. } => {
+            resolve_expr(cond, first_wiring);
+            resolve_expr(then_expr, first_wiring);
+            if let Some(e) = else_expr.value_mut() {
+                resolve_expr(e, first_wiring);
+            }
+        }
         Expr::Nameless { body, .. } => resolve_block(body, first_wiring),
         Expr::Resolve { expr, .. } | Expr::IsCheck { expr, .. } => resolve_expr(expr, first_wiring),
         Expr::IncDec { target, .. } | Expr::NamedArg { value: target, .. } => resolve_expr(target, first_wiring),

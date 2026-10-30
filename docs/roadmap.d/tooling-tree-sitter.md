@@ -54,7 +54,9 @@ Conséquences :
 - `grammar.js` dérivée de [docs/EBNF.md](../EBNF.md) : déclarations, types
   génériques (`array<T>`, `map<K,V>`, `message<T>`), `var`/`scoped`/
   `consumed`/`const`, gabarits `${…}`, comparaisons en toutes lettres,
-  `nameless`, `emit`, `try`/`on`, blocs runtime.
+  `nameless`, `emit`, `try`/`on`, blocs runtime, expression conditionnelle
+  `then`/`else` et sa forme courte (`empty`/`zero`/`null`, mots-clés
+  seulement après la branche `then`, EBNF §11.3).
 - `queries/highlights.scm` alignée sur les couleurs de l'extension VS Code
   (même distinction des mots-clés, et le moment venu la couleur dédiée
   aux conditions `when`, voir

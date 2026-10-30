@@ -1830,6 +1830,8 @@ fn lower_expr_value(builder: &mut LowerBuilder, expr: &Expr) -> Value {
             dest
         }
 
+        Expr::Cond { cond, then_expr, else_expr, .. } => super::cond::lower_cond(builder, cond, then_expr, else_expr),
+
         // ── Chaîne template `${expr}` ─────────────────────────────────────
         // Gabarit : formaté en une seule allocation par `__str_build`.
         Expr::Template { parts, .. } => {

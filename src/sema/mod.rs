@@ -7,6 +7,7 @@
 pub mod error;
 pub mod arg_types;
 pub mod blocking_assert;
+pub mod cond_expr;
 pub mod convert_sugar;
 pub mod duplicates;
 pub mod escape;

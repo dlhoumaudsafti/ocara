@@ -307,6 +307,11 @@ fn taint_of_expr(expr: &Expr, taint: &HashMap<String, HashSet<usize>>) -> HashSe
             for arm in arms { out.extend(taint_of_expr(&arm.body, taint)); }
             out
         }
+        Expr::Cond { then_expr, else_expr, .. } => {
+            let mut out = taint_of_expr(then_expr, taint);
+            if let Some(e) = else_expr.value() { out.extend(taint_of_expr(e, taint)); }
+            out
+        }
         _ => HashSet::new(),
     }
 }
@@ -385,6 +390,11 @@ fn walk_expr_for_calls(
         Expr::Match { subject, arms, .. } => {
             walk_expr_for_calls(class_members, subject, self_class, known, taint, escaped, strict);
             for arm in arms { walk_expr_for_calls(class_members, &arm.body, self_class, known, taint, escaped, strict); }
+        }
+        Expr::Cond { cond, then_expr, else_expr, .. } => {
+            walk_expr_for_calls(class_members, cond, self_class, known, taint, escaped, strict);
+            walk_expr_for_calls(class_members, then_expr, self_class, known, taint, escaped, strict);
+            if let Some(e) = else_expr.value() { walk_expr_for_calls(class_members, e, self_class, known, taint, escaped, strict); }
         }
         Expr::IsCheck { expr, .. } => walk_expr_for_calls(class_members, expr, self_class, known, taint, escaped, strict),
         Expr::Resolve { expr, .. } => walk_expr_for_calls(class_members, expr, self_class, known, taint, escaped, strict),
@@ -528,6 +538,11 @@ fn collect_ident_refs_expr(expr: &Expr, out: &mut HashSet<String>) {
         Expr::Match { subject, arms, .. } => {
             collect_ident_refs_expr(subject, out);
             for arm in arms { collect_ident_refs_expr(&arm.body, out); }
+        }
+        Expr::Cond { cond, then_expr, else_expr, .. } => {
+            collect_ident_refs_expr(cond, out);
+            collect_ident_refs_expr(then_expr, out);
+            if let Some(e) = else_expr.value() { collect_ident_refs_expr(e, out); }
         }
         Expr::IsCheck { expr, .. } => collect_ident_refs_expr(expr, out),
         Expr::Resolve { expr, .. } => collect_ident_refs_expr(expr, out),

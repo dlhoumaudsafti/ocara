@@ -33,6 +33,7 @@ pub(in crate::parsing::lexer) fn keyword_or_ident(s: &str) -> TokenKind {
         "if"         => TokenKind::If,
         "elseif"     => TokenKind::Elseif,
         "else"       => TokenKind::Else,
+        "then"       => TokenKind::Then,
         "switch"     => TokenKind::Switch,
         "default"    => TokenKind::Default,
         "match"      => TokenKind::Match,

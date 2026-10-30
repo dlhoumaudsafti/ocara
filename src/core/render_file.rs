@@ -332,6 +332,14 @@ fn desugar_expr(expr: &mut Expr, map: &mut ConstMap) -> Result<(), DesugarError>
             }
         }
 
+        Expr::Cond { cond, then_expr, else_expr, .. } => {
+            desugar_expr(cond, map)?;
+            desugar_expr(then_expr, map)?;
+            if let Some(e) = else_expr.value_mut() {
+                desugar_expr(e, map)?;
+            }
+        }
+
         Expr::Nameless { body, .. } => {
             // Nouvelle portée de fonction : on part d'une copie (pour pouvoir
             // lire les chemins déjà connus), mais rien n'en ressort — les

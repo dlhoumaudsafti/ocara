@@ -173,6 +173,7 @@ impl<'a> Scan<'a> {
                 _ => true,
             }),
             Expr::Match { subject, arms, .. } => safe(subject) && arms.iter().all(|a| safe(&a.body)),
+            Expr::Cond { cond, then_expr, else_expr, .. } => safe(cond) && safe(then_expr) && else_expr.value().is_none_or(safe),
             _ => false,
         }
     }

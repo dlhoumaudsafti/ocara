@@ -51,6 +51,9 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     `ocara.os`/`ocara.arch`/`ocara.build`) est estompée ; les diagnostics des autres configurations
     sont signalés avec leur combinaison (`[System::OS = 'windows']`) ; `when` et ses opérateurs
     ont une couleur dédiée, quel que soit le thème.
+  - **expression conditionnelle** : `empty`, `zero` et `null` de la forme courte
+    (`c then v empty`) prennent la couleur de `then`/`else` — position lue par le parseur du
+    compilateur, si bien qu'une variable ou une méthode `zero`/`empty` garde la sienne.
 - **Barre latérale Ocara** (icône du logo dans la barre d'activité) :
   - **LED « Release »** en tête du panneau, avec trois voyants repris des encarts **Linter**,
     **Coverage** et **Architecture** (voir plus bas) : Linter sans avertissement, Coverage avec tous

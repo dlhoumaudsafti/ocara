@@ -97,6 +97,15 @@ pub fn shift_expr_spans(expr: &mut Expr, origin: &Span) {
                 shift_expr_spans(&mut arm.body, origin);
             }
         }
+        Expr::Cond { cond, then_expr, else_expr, span } => {
+            shift_span(span, origin);
+            shift_expr_spans(cond, origin);
+            shift_expr_spans(then_expr, origin);
+            match else_expr {
+                super::expressions::CondElse::Value(e) => shift_expr_spans(e, origin),
+                super::expressions::CondElse::Default(_, span) => shift_span(span, origin),
+            }
+        }
         Expr::Template { parts, span } => {
             shift_span(span, origin);
             for part in parts {

@@ -6,15 +6,26 @@
 //!   `src`, `layers`, `shared` et noms de couche du bloc) ;
 //! - le segment de couche des chemins `namespace`, `import` et `wiring`
 //!   (`context.car.infra.db…`), selon l'architecture du projet (layers.rs).
+//!
+//! Jetons `ocaraCondDefault` (couleur de `then`/`else`) : `empty`, `zero`,
+//! `null` lus par le parseur comme valeur par défaut d'un `then` — un
+//! identifiant `zero` ailleurs garde sa couleur.
 
 use lsp_types::{SemanticToken, SemanticTokenType, SemanticTokens, SemanticTokensLegend};
 
 use super::layers::LayerSyntax;
 use crate::parsing::lexer::Lexer;
+use crate::parsing::parser::Parser;
 use crate::parsing::token::{Token, TokenKind};
 
+const WHEN: u32 = 0;
+const COND_DEFAULT: u32 = 1;
+
 pub fn legend() -> SemanticTokensLegend {
-    SemanticTokensLegend { token_types: vec![SemanticTokenType::new("ocaraWhen")], token_modifiers: Vec::new() }
+    SemanticTokensLegend {
+        token_types: vec![SemanticTokenType::new("ocaraWhen"), SemanticTokenType::new("ocaraCondDefault")],
+        token_modifiers: Vec::new(),
+    }
 }
 
 const ARCH_KEYS: [&str; 6] = ["src", "layers", "shared", "infrastructure", "application", "domain"];
@@ -50,8 +61,13 @@ pub fn tokens(text: &str, layers: Option<&LayerSyntax>) -> SemanticTokens {
             _ => {}
         }
     }
-    marked.sort_by_key(|t| (t.span.line, t.span.col));
-    marked.dedup_by_key(|t| (t.span.line, t.span.col));
+    let mut marked: Vec<(&Token, u32)> = marked.into_iter().map(|t| (t, WHEN)).collect();
+    let (program, _) = Parser::new(tokens.clone()).parse_program_recovering();
+    marked.extend(tokens.iter()
+        .filter(|t| program.cond_keywords.iter().any(|s| (s.line, s.col) == (t.span.line, t.span.col)))
+        .map(|t| (t, COND_DEFAULT)));
+    marked.sort_by_key(|(t, _)| (t.span.line, t.span.col));
+    marked.dedup_by_key(|(t, _)| (t.span.line, t.span.col));
     encode(text, &marked)
 }
 
@@ -77,10 +93,10 @@ fn path_after(tokens: &[Token], i: usize) -> Vec<&Token> {
     out
 }
 
-fn encode(text: &str, marked: &[&Token]) -> SemanticTokens {
+fn encode(text: &str, marked: &[(&Token, u32)]) -> SemanticTokens {
     let lines: Vec<&str> = text.lines().collect();
     let (mut data, mut prev_line, mut prev_col) = (Vec::new(), 0u32, 0u32);
-    for tok in marked {
+    for &(tok, token_type) in marked {
         let Some(text_line) = lines.get(tok.span.line - 1) else { continue };
         let col = super::position::utf16_col(text_line, tok.span.col - 1) as u32;
         let line0 = (tok.span.line - 1) as u32;
@@ -89,7 +105,7 @@ fn encode(text: &str, marked: &[&Token]) -> SemanticTokens {
             delta_line,
             delta_start: if delta_line == 0 { col - prev_col } else { col },
             length: tok.lexeme.chars().map(char::len_utf16).sum::<usize>() as u32,
-            token_type: 0,
+            token_type,
             token_modifiers_bitset: 0,
         });
         (prev_line, prev_col) = (line0, col);
@@ -110,6 +126,14 @@ mod tests {
     fn colors_when_and_its_operators_only() {
         let s = spans("when System::OS is not 'android' or System::BUILD is 'debug'\nfunction f(): bool { return true or false }\n", None);
         assert_eq!(s, vec![(0, 0, 4), (0, 16, 2), (0, 3, 3), (0, 14, 2), (0, 17, 2)]);
+    }
+
+    #[test]
+    fn colors_cond_defaults_but_not_homonymous_identifiers() {
+        let text = "function f(zero:int): int {\n    var a:int = zero equal 0 then zero zero\n    var s:string|null = a equal 1 then \"x\" null\n    return a\n}\n";
+        let types: Vec<(u32, u32, u32)> = tokens(text, None).data.iter().map(|d| (d.delta_line, d.delta_start, d.token_type)).collect();
+        // Second `zero` (l.2) et `null` (l.3) seuls, colonnes comptées depuis 0.
+        assert_eq!(types, vec![(1, 39, 1), (1, 43, 1)]);
     }
 
     #[test]

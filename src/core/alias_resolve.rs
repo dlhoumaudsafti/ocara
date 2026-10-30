@@ -277,6 +277,13 @@ fn resolve_expr(aliases: &HashMap<String, String>, expr: &mut Expr) {
                 resolve_expr(aliases, &mut arm.body);
             }
         }
+        Expr::Cond { cond, then_expr, else_expr, .. } => {
+            resolve_expr(aliases, cond);
+            resolve_expr(aliases, then_expr);
+            if let Some(e) = else_expr.value_mut() {
+                resolve_expr(aliases, e);
+            }
+        }
         Expr::Nameless { params, ret_ty, body, .. } => {
             for p in params.iter_mut() {
                 resolve_type(aliases, &mut p.ty);

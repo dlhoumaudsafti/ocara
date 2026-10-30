@@ -66,6 +66,7 @@ impl Parser {
         }
 
         program.type_refs = std::mem::take(&mut self.type_refs);
+        program.cond_keywords = std::mem::take(&mut self.cond_keywords);
         Ok(program)
     }
 

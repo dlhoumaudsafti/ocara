@@ -91,6 +91,7 @@ pub enum TokenKind {
     If,
     Elseif,
     Else,
+    Then,
     Switch,
     Default,
     Match,

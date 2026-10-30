@@ -53,7 +53,7 @@ Corrige les fichiers sur place, puis les réanalyse : seuls les avertissements r
 
 | Règle | Correction |
 |---|---|
-| R01 | Indentation recalculée d'après les `{ }`, `( )`, `[ ]` (plusieurs ouvrants sur une même ligne ne comptent qu'un niveau), au type et à la largeur de R19/R20 (sinon déduits de la première ligne indentée, sinon 4 espaces). Une ligne de continuation (`.chain()`, opérateur en tête, ou ligne précédente terminée par `=`, `+`, `&&`…) prend un niveau de plus ; un `*` à la fin d'une chaîne (`` `SELECT *``) ou d'un `import ocara.*` n'est pas un opérateur. |
+| R01 | Indentation recalculée d'après les `{ }`, `( )`, `[ ]` (plusieurs ouvrants sur une même ligne ne comptent qu'un niveau), au type et à la largeur de R19/R20 (sinon déduits de la première ligne indentée, sinon 4 espaces). Une ligne de continuation (`.chain()`, opérateur en tête, ligne précédente terminée par `=`, `+`, `&&`…, ou branche d'une expression conditionnelle hors parenthèses : `then …`, `else …` — pas le `else {` d'un `if` — ou `empty`/`zero`/`null` seul) prend un niveau de plus ; un `*` à la fin d'une chaîne (`` `SELECT *``) ou d'un `import ocara.*` n'est pas un opérateur. |
 | R02 | Espaces des lignes vides retirés |
 | R03 | Espace ajouté avant/après le `=` d'une déclaration |
 | R04 | Espaces de fin de ligne retirés |

@@ -40,6 +40,9 @@ fn side_effect(expr: &Expr) -> Option<Span> {
         Expr::Index { object: a, index: b, .. } | Expr::Binary { left: a, right: b, .. } | Expr::Range { start: a, end: b, .. } => {
             side_effect(a).or_else(|| side_effect(b))
         }
+        Expr::Cond { cond, then_expr, else_expr, .. } => side_effect(cond)
+            .or_else(|| side_effect(then_expr))
+            .or_else(|| else_expr.value().and_then(side_effect)),
         Expr::Array { elements, .. } => elements.iter().find_map(side_effect),
         Expr::Map { entries, .. } => entries.iter().find_map(|(k, v)| side_effect(k).or_else(|| side_effect(v))),
         Expr::Template { parts, .. } => parts.iter().find_map(|p| match p {

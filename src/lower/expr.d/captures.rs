@@ -130,6 +130,11 @@ fn walk_expr_caps(expr: &Expr, p: &HashSet<String>, l: &HashMap<String, (Value, 
         Expr::Map    { entries, .. }     => { for (k, v) in entries { walk_expr_caps(k, p, l, caps, seen, count_direct_refs); walk_expr_caps(v, p, l, caps, seen, count_direct_refs); } }
         Expr::Template { parts, .. }     => { for part in parts { if let TemplatePartExpr::Expr(e) = part { walk_expr_caps(e, p, l, caps, seen, count_direct_refs); } } }
         Expr::Match  { subject, arms, ..} => { walk_expr_caps(subject, p, l, caps, seen, count_direct_refs); for arm in arms { walk_expr_caps(&arm.body, p, l, caps, seen, count_direct_refs); } }
+        Expr::Cond { cond, then_expr, else_expr, .. } => {
+            walk_expr_caps(cond, p, l, caps, seen, count_direct_refs);
+            walk_expr_caps(then_expr, p, l, caps, seen, count_direct_refs);
+            if let Some(e) = else_expr.value() { walk_expr_caps(e, p, l, caps, seen, count_direct_refs); }
+        }
         Expr::IsCheck { expr, .. }       => walk_expr_caps(expr, p, l, caps, seen, count_direct_refs),
         Expr::Resolve { expr, .. }        => walk_expr_caps(expr, p, l, caps, seen, count_direct_refs),
         Expr::IncDec { target, .. } | Expr::NamedArg { value: target, .. }      => walk_expr_caps(target, p, l, caps, seen, count_direct_refs),

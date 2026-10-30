@@ -113,6 +113,15 @@ pub enum Expr {
         span:    Span,
     },
 
+    /// Expression conditionnelle : `cond then a else b`, ou forme courte
+    /// `cond then a empty|zero|null` — voir `docs/EBNF.md` §11.3.
+    Cond {
+        cond:      Box<Expr>,
+        then_expr: Box<Expr>,
+        else_expr: CondElse,
+        span:      Span,
+    },
+
     /// `self`
     SelfExpr(Span),
 
@@ -180,6 +189,7 @@ impl Expr {
             Expr::Index { span, .. } => span,
             Expr::Range { span, .. } => span,
             Expr::Match { span, .. } => span,
+            Expr::Cond { span, .. } => span,
             Expr::SelfExpr(span) => span,
             Expr::ParentExpr(span) => span,
             Expr::Nameless { span, .. } => span,
@@ -187,6 +197,50 @@ impl Expr {
             Expr::IsCheck { span, .. } => span,
             Expr::IncDec { span, .. } => span,
             Expr::NamedArg { span, .. } => span,
+        }
+    }
+}
+
+/// Branche `else` d'un `Expr::Cond`.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CondElse {
+    /// `else <valeur>`.
+    Value(Box<Expr>),
+    /// Forme courte (`empty`, `zero`, `null`, position du mot) : valeur par
+    /// défaut du type de la branche `then`, remplacée par un littéral après
+    /// la sema (`AstRewrites::cond_defaults`) — le lowering n'en voit jamais.
+    Default(CondDefault, Span),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CondDefault {
+    Empty,
+    Zero,
+    Null,
+}
+
+impl CondDefault {
+    pub fn keyword(self) -> &'static str {
+        match self {
+            CondDefault::Empty => "empty",
+            CondDefault::Zero  => "zero",
+            CondDefault::Null  => "null",
+        }
+    }
+}
+
+impl CondElse {
+    pub fn value(&self) -> Option<&Expr> {
+        match self {
+            CondElse::Value(e) => Some(e),
+            CondElse::Default(..) => None,
+        }
+    }
+
+    pub fn value_mut(&mut self) -> Option<&mut Expr> {
+        match self {
+            CondElse::Value(e) => Some(e),
+            CondElse::Default(..) => None,
         }
     }
 }

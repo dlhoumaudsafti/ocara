@@ -628,7 +628,7 @@
 
     "function-call": {
       "comment": "free function call: name( — sauf mot-clé suivi de ( (if (, while (, return (, not (…)",
-      "match": "\\b(?!(?:if|elseif|else|switch|match|while|for|in|return|result|break|continue|default|try|on|raise|emit|and|or|not|equal|smaller|greater|is|var|const|use)\\b)([a-z_][\\w]*)(?=\\s*\\()",
+      "match": "\\b(?!(?:if|elseif|else|then|switch|match|while|for|in|return|result|break|continue|default|try|on|raise|emit|and|or|not|equal|smaller|greater|is|var|const|use)\\b)([a-z_][\\w]*)(?=\\s*\\()",
       "captures": {
         "1": { "name": "entity.name.function.ocara" }
       }
@@ -714,7 +714,7 @@
         },
         {
           "name": "keyword.control.ocara",
-          "match": "\\b(if|elseif|else|switch|match|while|for|in|return|result|break|continue|default|try|on|raise|emit)\\b"
+          "match": "\\b(if|elseif|else|then|switch|match|while|for|in|return|result|break|continue|default|try|on|raise|emit)\\b"
         }
       ]
     },

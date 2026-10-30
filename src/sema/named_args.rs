@@ -64,6 +64,9 @@ pub struct AstRewrites {
     /// `x[k] = v`/`x.k = v` sur un `mixed` (clé : span de la cible) :
     /// `Convert::mixedSet(x, k, v)`.
     pub mixed_writes: std::collections::HashSet<ArgSiteKey>,
+    /// `c then v empty|zero|null` (clé : span du mot) : littéral de la
+    /// valeur par défaut — voir `crate::sema::cond_expr`.
+    pub cond_defaults: HashMap<ArgSiteKey, Expr>,
 }
 
 /// Paramètres déclarés par callable utilisateur : `"fonction"`,

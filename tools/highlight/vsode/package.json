@@ -806,6 +806,11 @@
         "id": "ocaraWhen",
         "superType": "keyword",
         "description": "Clause `when` et ses opérateurs"
+      },
+      {
+        "id": "ocaraCondDefault",
+        "superType": "keyword",
+        "description": "`empty`, `zero`, `null` : valeur par défaut d'une expression `then`"
       }
     ],
     "semanticTokenScopes": [
@@ -814,6 +819,9 @@
         "scopes": {
           "ocaraWhen": [
             "keyword.control.directive.when.ocara"
+          ],
+          "ocaraCondDefault": [
+            "keyword.control.ocara"
           ]
         }
       }

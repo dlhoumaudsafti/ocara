@@ -51,6 +51,7 @@ Produites lors de la construction de l'AST.
 | `operator 'X' has been removed — use 'Y' instead` | Ancien opérateur de comparaison symbolique (`==`, `!=`, `<`, `<=`, `>`, `>=`, `===`, `!==`, `<==`, `>==`) — voir [§11.1 de l'EBNF](EBNF.md#111-comparaisons) |
 | `unexpected top-level declaration: Wiring` | `wiring` utilisé en dehors d'un corps `interface` (déclaration de premier niveau, ou à l'intérieur d'une classe/fonction) — `wiring` n'est reconnu que par `parse_interface`, voir [§17.1 de l'EBNF](EBNF.md#171-wiring--liaison-interface--implémentation-à-la-compilation) |
 | `expression trop profonde (plus de 50000 niveaux d'imbrication ou d'opérateurs enchaînés)` | Arbre d'expression trop profond pour les passes récursives du compilateur (parenthèses imbriquées, ou très longue chaîne `a + a + …`) — découper en variables intermédiaires |
+| `'then' expects 'else <value>', or a default value 'empty', 'zero' or 'null', after its value` | Expression conditionnelle sans branche `else` ni valeur par défaut (`c then v` seul) — voir [§11.3 de l'EBNF](EBNF.md#113-expression-conditionnelle-then) |
 | `blocs trop profondément imbriqués (plus de 100000 niveaux)` | Blocs (`if`, boucles, `try`…) imbriqués au-delà de ce que les passes récursives du compilateur acceptent — extraire une partie dans une fonction |
 
 ---
@@ -1431,6 +1432,35 @@ fichier.oc:6:56: error: in 'Box<map<string, int>>': '.A' reads a map key only wh
 Dans un `generic`, `self.v.A` où `v:T` ne peut pas devenir `self.v["A"]` pour une seule instanciation : le corps est partagé par toutes.
 
 **Correction :** `self.v["A"]`, ou un champ de type `map<string, …>` explicite.
+
+---
+
+### E72 — Valeur par défaut impossible
+
+```
+fichier.oc:7:39: error: the 'then' branch has type 'string', which has no 'zero' value — 'zero' exists only for 'int' and 'float': write 'else <value>' or 'null'
+```
+
+La forme courte `c then v empty|zero` prend la valeur par défaut du type de `v` : `empty` n'existe que pour `string`, `array<T>` et `map<K, V>`, `zero` que pour `int` et `float`. Une union (`int|string`), un `mixed` ou une classe n'en ont pas — on ne saurait pas quelle valeur produire.
+
+```ocara
+var s:string = trouve then nom zero     // ❌ E72
+var s:string = trouve then nom empty    // ✅ ""
+```
+
+**Correction :** le mot qui convient au type, `else <valeur>`, ou `null`.
+
+---
+
+### E73 — Valeur par défaut d'un paramètre de type
+
+```
+fichier.oc:9:31: error: 'zero' depends on a type parameter here: the shared 'generic' body cannot hold a different value per instantiation — write 'else <value>'
+```
+
+Dans un `generic`, `ok then self.v zero` où `v:T` : le corps est partagé par toutes les instanciations, la valeur ne peut pas être `0` pour l'une et `0.0` pour l'autre. `null` reste permis.
+
+**Correction :** `else <valeur>`, ou une valeur d'un type concret.
 
 ---
 

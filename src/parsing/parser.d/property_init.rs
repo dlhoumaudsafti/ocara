@@ -93,6 +93,11 @@ fn visit(expr: &Expr, f: &mut impl FnMut(&Expr)) {
             visit(subject, f);
             arms.iter().for_each(|a| visit(&a.body, f));
         }
+        Expr::Cond { cond, then_expr, else_expr, .. } => {
+            visit(cond, f);
+            visit(then_expr, f);
+            if let Some(e) = else_expr.value() { visit(e, f) }
+        }
         Expr::Nameless { body, .. } => body.stmts.iter().for_each(|s| visit_stmt(s, f)),
         Expr::Literal(..) | Expr::Ident(..) | Expr::SelfExpr(_) | Expr::ParentExpr(_) | Expr::StaticConst { .. } => {}
     }

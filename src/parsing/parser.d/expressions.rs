@@ -10,7 +10,7 @@ const MAX_EXPR_DEPTH: usize = 50_000;
 
 impl Parser {
     /// Un niveau de plus dans l'arbre de l'expression en cours.
-    fn deepen(&mut self) -> ParseResult<()> {
+    pub(super) fn deepen(&mut self) -> ParseResult<()> {
         self.expr_depth += 1;
         if self.expr_depth > MAX_EXPR_DEPTH {
             return Err(ParseError::new(
@@ -32,16 +32,16 @@ impl Parser {
 
     // ── Expressions ──────────────────────────────────────────────────────────
     // Précédence (croissante) :
-    //   Or → And → Equality → Comparison → Additive → Multiplicative → Unary → Postfix → Primary
+    //   Cond (`then`, voir cond.rs) → Or → And → Equality → Comparison → Additive → Multiplicative → Unary → Postfix → Primary
 
     pub fn parse_expr(&mut self) -> ParseResult<Expr> {
-        self.nested(Self::parse_or)
+        self.nested(|p| p.parse_cond(Self::parse_or))
     }
 
     /// Parse expression sans autoriser 'is' au top level
     /// Utilisé pour les body de match arms où 'is' est réservé aux patterns
     fn parse_expr_no_is(&mut self) -> ParseResult<Expr> {
-        self.nested(Self::parse_or_no_is)
+        self.nested(|p| p.parse_cond(Self::parse_or_no_is))
     }
 
     fn parse_or(&mut self) -> ParseResult<Expr> {

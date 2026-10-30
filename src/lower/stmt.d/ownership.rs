@@ -249,6 +249,11 @@ fn collect_consumed_reads_expr(expr: &Expr, live: &dyn Fn(&str) -> bool, out: &m
             collect_consumed_reads_expr(subject, live, out);
             for arm in arms { collect_consumed_reads_expr(&arm.body, live, out); }
         }
+        Expr::Cond { cond, then_expr, else_expr, .. } => {
+            collect_consumed_reads_expr(cond, live, out);
+            collect_consumed_reads_expr(then_expr, live, out);
+            if let Some(e) = else_expr.value() { collect_consumed_reads_expr(e, live, out); }
+        }
         Expr::IsCheck { expr, .. } => collect_consumed_reads_expr(expr, live, out),
         Expr::Resolve { expr, .. } => collect_consumed_reads_expr(expr, live, out),
         // `i++`/`++i`/`i--`/`--i` — la cible est toujours `int`/`float`

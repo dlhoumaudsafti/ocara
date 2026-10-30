@@ -180,6 +180,13 @@ fn substitute_expr(expr: &mut Expr, type_params: &[String], type_args: &[Type], 
                 substitute_expr(&mut arm.body, type_params, type_args, mapping);
             }
         }
+        Expr::Cond { cond, then_expr, else_expr, .. } => {
+            substitute_expr(cond, type_params, type_args, mapping);
+            substitute_expr(then_expr, type_params, type_args, mapping);
+            if let Some(e) = else_expr.value_mut() {
+                substitute_expr(e, type_params, type_args, mapping);
+            }
+        }
         Expr::Template { parts, .. } => {
             for part in parts {
                 if let ast::TemplatePartExpr::Expr(e) = part {
@@ -489,6 +496,13 @@ fn collect_from_expr(expr: &Expr, instantiations: &mut HashSet<(String, Vec<Type
             collect_from_expr(subject, instantiations);
             for arm in arms {
                 collect_from_expr(&arm.body, instantiations);
+            }
+        }
+        Expr::Cond { cond, then_expr, else_expr, .. } => {
+            collect_from_expr(cond, instantiations);
+            collect_from_expr(then_expr, instantiations);
+            if let Some(e) = else_expr.value() {
+                collect_from_expr(e, instantiations);
             }
         }
         Expr::Template { parts, .. } => {

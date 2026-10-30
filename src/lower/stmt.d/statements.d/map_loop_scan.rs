@@ -101,6 +101,11 @@ impl BodyScan {
                 self.expr(subject);
                 arms.iter().for_each(|a| self.expr(&a.body));
             }
+            Expr::Cond { cond, then_expr, else_expr, .. } => {
+                self.expr(cond);
+                self.expr(then_expr);
+                if let Some(e) = else_expr.value() { self.expr(e); }
+            }
             Expr::IsCheck { expr, .. } | Expr::NamedArg { value: expr, .. } => self.expr(expr),
         }
     }
