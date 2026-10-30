@@ -7,7 +7,10 @@ use std::path::{Path, PathBuf};
 
 use super::UiSpec;
 
-const ENGINE_JS: &str = include_str!("../../../runtime_tauri/src/ui/engine.js");
+const ENGINE_JS: &str = concat!(
+    include_str!("../../../runtime_tauri/src/ui/effects.js"),
+    include_str!("../../../runtime_tauri/src/ui/engine.js"),
+);
 const ENGINE_CSS: &str = include_str!("../../../runtime_tauri/src/ui/engine.css");
 
 const PREVIEW_CSS: &str = "#oc-log{position:fixed;right:8px;bottom:8px;max-width:420px;max-height:40vh;overflow:auto;\

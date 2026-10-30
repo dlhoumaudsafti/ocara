@@ -103,6 +103,7 @@ screens:
 | `window` | fenêtre principale (ci-dessous) |
 | `components` | composants déclarés : `nom: { params, layout }`, `includes` (voir « Composants ») |
 | `styles` | styles nommés : `nom: { propriétés de présentation }` (aussi dans les fichiers inclus, voir « Écrans inclus ») ; `dark:` et `light:` y surchargent des styles pour un thème (voir « Styles par thème ») |
+| `animations` | animations nommées, sur le modèle des `@keyframes` CSS (voir « Animations ») |
 | `screens` | écrans nommés : `nom: { title, layout, onShow }` (`onShow` : action lancée à chaque affichage de l'écran, valeur : son nom) |
 | `start` | écran affiché au lancement ; facultatif s'il n'y a qu'un écran |
 | `layout` | à la place de `screens` : un seul écran, nommé `main` |
@@ -144,6 +145,7 @@ Un nœud est une table dont `type` est l'un des types ci-dessous.
 | `date`, `time` | `value` (ISO), `placeholder`, `required`, `onChange` | |
 | `button` | `text`, `icon`, `variant` (`primary`, `secondary`, `text`), `onClick`, `submit`, `onInvalid` | |
 | `iconButton` | `icon`, `onClick`, `submit`, `onInvalid` | `icon`, `label` |
+| `link` | `text`, `onClick` ; état `visited` après le premier clic (voir « Styles d'état et effets ») | `text` |
 | `android.fab` | `icon`, `text` (bouton étendu), `onClick` | `icon`, `label` |
 | `android.bottomSheet` | `children`, `spacing`, `open`, `onDismiss` | `id` |
 | `android.drawer` | `children`, `spacing`, `open`, `onDismiss` | `id` |
@@ -164,7 +166,8 @@ Propriétés communes à tous les nœuds :
 | `contextMenu` | entrées de menu (clic droit, appui long) |
 | événements | `onHover`, `onLeave`, `onFocus`, `onBlur`, `onLongPress`, `onDoubleClick`, `onSwipe` (voir [Événements](#événements)) |
 | `tauri`, `android` | surcharge de propriétés pour une plateforme (voir plus bas) |
-| présentation | `fontSize`, `bold`, `italic`, `color`, `background`, `padding`, `margin`, `radius`, `border`, `elevation` (aussi permises dans `styles`) |
+| présentation | `fontSize`, `bold`, `italic`, `color`, `background`, `padding`, `margin`, `radius`, `border`, `elevation`, `opacity`, `blur`, `backdropBlur`, `shadow`, `transition`, `states` (tables d'état `hover`, `focus`, `active`, `disabled`, `invalid`, `checked`, `visited`) — aussi permises dans `styles`, voir « Styles d'état et effets » |
+| `animation`, `onAnimationEnd` | animation du nœud et action lancée à sa fin (voir « Animations ») |
 
 ### Composants propres à Android
 
@@ -357,6 +360,95 @@ styles:
 surcharges peuvent aussi être déclarées dans un fichier inclus ; un même
 style surchargé deux fois pour un thème est une erreur. Dans l'arbre
 normalisé, elles sont sous `themeStyles` (`{ "dark": {…}, "light": {…} }`).
+
+### Styles d'état et effets
+
+Dans un style ou sur un nœud, `states` associe à chaque état une **table
+d'état** : des propriétés de présentation appliquées tant que le nœud est
+dans cet état. Les tables sont regroupées sous `states` pour ne heurter
+aucune propriété (`checked` d'une case à cocher) :
+
+```yaml
+styles:
+  action:
+    background: "#00796b"
+    shadow: { y: 2, blur: 6, color: "rgba(0, 0, 0, 0.3)" }
+    transition: { duration: 150, properties: [background, opacity] }
+    states:
+      hover: { background: "#004d40" }
+      active: { opacity: 0.8 }
+      focus: { border: "#ffb300" }
+      disabled: { opacity: 0.4 }
+```
+
+| État | Quand |
+|---|---|
+| `hover` | le pointeur est sur le nœud (jamais sur un écran tactile) |
+| `focus` | le focus est dans le nœud |
+| `active` | appui en cours |
+| `disabled` | `enabled: false` |
+| `invalid` | champ obligatoire vide après une soumission (voir « Formulaires ») |
+| `checked` | case, interrupteur ou radio cochés |
+| `visited` | lien (`link`) déjà suivi ; l'état est gardé : `ui.get(id, "visited")`, `ui.set(id, "visited", false)` |
+
+La table d'état d'un nœud complète celle de son style, et celle d'un thème
+(`styles.dark.action.states.hover`) complète celle du style.
+
+Effets :
+
+| Propriété | Valeur | Android |
+|---|---|---|
+| `opacity` | 0 à 1 | |
+| `blur` | flou du nœud, rayon en px | Android 12 et plus |
+| `backdropBlur` | flou de ce qui est derrière le nœud (verre dépoli), rayon en px | ignoré (pas d'équivalent Compose) |
+| `shadow` | `{ x, y, blur, spread, color, inset }` (valeurs absentes : 0, noir translucide), ou liste d'ombres | une ombre : couleur et flou ; décalage, `spread` et `inset` ignorés ; à travers un nœud translucide, l'ombre se voit |
+| `transition` | `{ duration, delay, easing, properties }` : changements de ces propriétés (états, `ui.set`) animés ; `properties` absent : toutes | `background`, `color`, `opacity` |
+
+`easing` : `linear`, `ease`, `ease-in`, `ease-out`, `ease-in-out`.
+`elevation` reste un raccourci d'ombre.
+
+### Animations
+
+Une animation est déclarée sous `animations:`, sur le modèle des
+`@keyframes` CSS, puis posée sur un nœud :
+
+```yaml
+animations:
+  pulse:
+    duration: 800          # ms (défaut 300)
+    delay: 0
+    easing: ease-in-out
+    iterations: infinite   # nombre, ou infinite (défaut 1)
+    direction: alternate   # normal, reverse, alternate, alternate-reverse
+    fill: none             # none, forwards, backwards, both
+    keyframes:
+      0%: { opacity: 1, scale: 1 }
+      100%: { opacity: 0.6, scale: 1.05 }
+
+layout:
+  type: card
+  animation: pulse                         # au premier affichage
+  children:
+    - { type: button, text: "Ok", animation: { name: pulse, on: hover }, onAnimationEnd: pulsed }
+```
+
+- **Étapes** : `0%` à `100%`, `from` (0 %) et `to` (100 %), au moins deux.
+  Propriétés animables : `opacity`, `scale`, `rotate` (degrés),
+  `translateX`/`translateY` (px), `background`, `color`, `blur`,
+  `width`/`height` (px). Une autre propriété est une erreur.
+- **Déclenchement** (`on`) : `appear` (au premier affichage, défaut),
+  `hover`, `active`, `focus` (tant que l'état dure).
+- **Depuis Ocara** : `ui.animate(id, nom)` relance l'animation, avec des
+  options facultatives (`duration`, `delay`, `easing`, `iterations`,
+  `direction`, `fill`) : `ui.animate("card", "pulse", {"iterations": 2})` ;
+  `ui.stopAnimation(id)` l'arrête (voir [UI.md](builtins/UI.md#animations)).
+- **Fin** : `onAnimationEnd` part à la fin d'une animation finie, avec son
+  nom en `event.value()`.
+- **Réglage système « réduire les animations »** : animations et
+  transitions immédiates.
+- **Android** : `opacity`, `scale`, `rotate`, `translateX`/`Y` et
+  `background` sont animés ; `color`, `blur`, `width`/`height` ne le sont
+  que sur desktop.
 
 ## Écrans inclus
 
@@ -642,7 +734,10 @@ une clé en double dans une table est une erreur.
 servent à vérifier les `ui.on` et les `get`/`set`, et `roots` : pour chaque
 racine liée, ses chemins (`paths`) et ses nœuds (`id`, propriété, rang du
 chemin, nature `text`/`number`/`bool` de la valeur), retirés des nœuds
-eux-mêmes.
+eux-mêmes. `animations` y est normalisé : options complétées par leurs
+valeurs par défaut, étapes en liste triée (`{ "at": 50, … }`) ; `shadow`
+est toujours une liste d'ombres complètes, `animation` d'un nœud
+`{ "name", "on" }`.
 
 ## Moteurs de rendu
 

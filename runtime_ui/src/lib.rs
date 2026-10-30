@@ -29,6 +29,7 @@ pub const ERR_SCREEN: i64 = 103;
 pub const ERR_UNAVAILABLE: i64 = 104;
 pub const ERR_TREE: i64 = 105;
 pub const ERR_ROOT: i64 = 107;
+pub const ERR_ANIMATION: i64 = 108;
 
 struct Ui {
     /// Arbre du compilateur (textes avec `${nom}`) et variables.
@@ -282,6 +283,23 @@ fn set_json(this: i64, id: &str, prop: &str, value: Value) {
 pub fn state(this: i64) -> Value {
     let state = with(this, |ui| ui.state.clone()).unwrap_or_default();
     Value::Object(state.into_iter().map(|(id, props)| (id, Value::Object(props))).collect())
+}
+
+/// `ui.animate(id, nom, options)` : nœud et animation déclarés
+/// (`animations:`) ; rend les options (table, ou `null` : celles du `.oc.ui`).
+pub fn animate(this: i64, id: &str, name: &str, options: Value) -> Value {
+    check_id(this, id);
+    let known = with(this, |ui| ui.tree["animations"].get(name).is_some()).unwrap_or(false);
+    if !known {
+        let names: Vec<String> = with(this, |ui| ui.tree["animations"].as_object().map(|a| a.keys().cloned().collect()).unwrap_or_default()).unwrap_or_default();
+        raise(ERR_ANIMATION, format!("animation '{name}' absente du .oc.ui (animations : {})", names.join(", ")));
+    }
+    if options.is_object() { options } else { Value::Null }
+}
+
+/// `ui.stopAnimation(id)` : nœud déclaré.
+pub fn stop_animation(this: i64, id: &str) {
+    check_id(this, id);
 }
 
 /// `ui.navigate(screen)` : écran déclaré.

@@ -1,0 +1,45 @@
+architecture permissive
+
+import ocara.UnitTest
+import ocara.UI
+import ocara.UIException
+
+// Animations (ui/animation.oc.ui) : `ui.animate` vérifie le nœud (102) et
+// l'animation (108) ; un littéral l'est dès la compilation.
+class UIAnimationTest extends UnitTest {
+
+    public method animateDeclaredTest(): int {
+        const ui:UI = use UI("ui/animation.oc.ui")
+        ui.animate("title", "fade")
+        ui.animate("title", "fade", {"duration": 500, "iterations": 2})
+        ui.stopAnimation("title")
+        self::assertEquals("Titre", ui.get("title", "value"))
+        return 0
+    }
+
+    public method unknownAnimationTest(): int {
+        const ui:UI = use UI("ui/animation.oc.ui")
+        const name:string = "spin"
+        var code:int = 0
+        try {
+            ui.animate("title", name)
+        } on e is UIException {
+            code = e.code
+        }
+        self::assertEquals(108, code)
+        return 0
+    }
+
+    public method unknownNodeTest(): int {
+        const ui:UI = use UI("ui/animation.oc.ui")
+        const id:string = "nope"
+        var code:int = 0
+        try {
+            ui.stopAnimation(id)
+        } on e is UIException {
+            code = e.code
+        }
+        self::assertEquals(102, code)
+        return 0
+    }
+}

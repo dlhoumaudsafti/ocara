@@ -122,7 +122,15 @@ pub fn check_call(tree: &str, method: &str, args: &[Expr], span: &Span) -> Resul
                 Err((span.clone(), format!("ui.on : action '{name}' absente du .oc.ui{}", suggestion(name, &actions))))
             }
         }
-        "get" | "set" | "has" | "validate" => id_of(None),
+        "get" | "set" | "has" | "validate" | "stopAnimation" => id_of(None),
+        "animate" => {
+            id_of(None)?;
+            let Some(Expr::Literal(Literal::String(animation), _)) = args.get(1) else { return Ok(()) };
+            let names: Vec<&str> = tree["animations"].as_object().map(|a| a.keys().map(String::as_str).collect()).unwrap_or_default();
+            if names.contains(&animation.as_str()) { Ok(()) } else {
+                Err((span.clone(), format!("ui.animate : animation '{animation}' absente du .oc.ui{}", suggestion(animation, &names))))
+            }
+        }
         "bind" | "unbind" => {
             let roots: Vec<&str> = tree["roots"].as_object().map(|r| r.keys().map(String::as_str).collect()).unwrap_or_default();
             if roots.contains(&name.as_str()) { Ok(()) } else {

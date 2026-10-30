@@ -3831,6 +3831,27 @@
         "docFile": "UI.md"
       },
       {
+        "name": "animate",
+        "params": [
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "options",
+            "type": "map<string, mixed>"
+          }
+        ],
+        "returns": "void",
+        "static": true,
+        "doc": "`ui.animate(id, name, options)` — relance l'animation `name` sur le nœud `id` ; `options` (facultatif, `map<string, mixed>`) : `duration`, `delay`, `easing`, `iterations`, `direction`, `fill`",
+        "docFile": "UI.md"
+      },
+      {
         "name": "back",
         "params": [],
         "returns": "void",
@@ -4116,6 +4137,19 @@
         "params": [],
         "returns": "string",
         "static": false
+      },
+      {
+        "name": "stopAnimation",
+        "params": [
+          {
+            "name": "id",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`ui.stopAnimation(id)` — arrête l'animation du nœud",
+        "docFile": "UI.md"
       },
       {
         "name": "tauri",

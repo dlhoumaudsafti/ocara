@@ -1,6 +1,6 @@
 // Backend desktop d'`ocara.UI` : un objet `UI` est une fenêtre Tauri (même
 // état, même finaliseur, mêmes boîtes de dialogue que `ocara.Tauri`) dont la
-// page est le moteur de rendu (engine.js) affichant l'arbre du `.oc.ui`.
+// page est le moteur de rendu (effects.js, engine.js) affichant l'arbre du `.oc.ui`.
 // État, actions et thread des gestionnaires : crate `runtime_ui`.
 
 use serde_json::{json, Value};
@@ -26,7 +26,7 @@ pub(crate) const PAGE: &str = "__ocara_ui.html";
 /// Commande IPC des messages du moteur.
 pub(crate) const EVENT_COMMAND: &str = "__ocara_ui_event";
 
-const ENGINE_JS: &str = include_str!("engine.js");
+const ENGINE_JS: &str = concat!(include_str!("effects.js"), include_str!("engine.js"));
 const ENGINE_CSS: &str = include_str!("engine.css");
 
 pub(crate) fn page() -> String {
@@ -152,6 +152,27 @@ pub extern "C" fn UI_unbind(this: i64, root: i64) {
 #[unsafe(no_mangle)]
 pub extern "C" fn UI_refresh(this: i64) {
     core::refresh(this);
+}
+
+/// `ui.animate(id, name, options)` : animation déclarée sous `animations:`.
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_animate(this: i64, id: i64, name: i64, options: i64) {
+    let (id, name) = (str_arg(id), str_arg(name));
+    let options = core::animate(this, &id, &name, ocara_runtime_ui::ffi::to_json(options));
+    eval(this, &format!("OcaraUI.animate({}, {}, {options})", json!(id), json!(name)));
+}
+
+/// `ui.animate(id, name)` : options du `.oc.ui`.
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_animate_2(this: i64, id: i64, name: i64) {
+    UI_animate(this, id, name, 0);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_stopAnimation(this: i64, id: i64) {
+    let id = str_arg(id);
+    core::stop_animation(this, &id);
+    eval(this, &format!("OcaraUI.stopAnimation({})", json!(id)));
 }
 
 /// `ui.validate(container)` → `array<string>` : champs obligatoires vides.

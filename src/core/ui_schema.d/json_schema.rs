@@ -10,6 +10,7 @@
 
 use serde_json::{json, Map, Value as Json};
 
+use super::effects;
 use super::icons;
 use super::schema::{self, Ty};
 
@@ -62,7 +63,7 @@ fn ty(t: Ty) -> Json {
 fn prop_ty(t: Ty, within: Within, values: &mut Values) -> Json {
     let strict = ty_within(t, within);
     match (within, t) {
-        (Within::Screen, _) | (_, Ty::Node | Ty::Children | Ty::Override | Ty::Binds) => strict,
+        (Within::Screen, _) | (_, Ty::Node | Ty::Children | Ty::Override | Ty::Binds | Ty::States) => strict,
         (Within::Component, _) => values.reference(json!({ "anyOf": [strict, { "$ref": "#/definitions/values/param" }] })),
     }
 }
@@ -102,6 +103,21 @@ fn ty_within(t: Ty, within: Within) -> Json {
         Ty::ActionMap => json!({ "type": "object", "additionalProperties": ty(Ty::Action) }),
         Ty::Override => json!({ "type": "object" }),
         Ty::Binds => json!({ "type": "object", "additionalProperties": { "type": "string" } }),
+        Ty::States => {
+            let table = object(&effects::state_props());
+            let states: Map<String, Json> = effects::STATES.iter().map(|s| (s.to_string(), table.clone())).collect();
+            json!({ "type": "object", "properties": states, "additionalProperties": false })
+        }
+        Ty::Shadow => {
+            let one = object(effects::SHADOW_PROPS);
+            json!({ "anyOf": [one.clone(), { "type": "array", "items": one }] })
+        }
+        Ty::Transition => object(effects::TRANSITION_PROPS),
+        Ty::Animation => json!({ "anyOf": [
+            { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+            { "type": "object", "additionalProperties": false, "required": ["name"],
+              "properties": { "name": { "type": "string" }, "on": { "enum": effects::TRIGGERS } } },
+        ] }),
     }
 }
 
@@ -139,7 +155,21 @@ fn node_case(name: &str, within: Within, values: &mut Values) -> Json {
     })
 }
 
+/// Animation déclarée sous `animations:` (effects.rs).
+fn animation_schema() -> Json {
+    let mut animation = object(effects::ANIMATION_PROPS);
+    animation["required"] = json!(["keyframes"]);
+    animation["properties"]["iterations"] = json!({ "anyOf": [{ "type": "integer", "minimum": 1 }, { "const": "infinite" }] });
+    animation["properties"]["keyframes"] = json!({
+        "type": "object",
+        "propertyNames": { "pattern": "^(from|to|[0-9]+(\\.[0-9]+)?%)$" },
+        "additionalProperties": object(effects::KEYFRAME_PROPS),
+    });
+    animation
+}
+
 pub fn schema() -> Json {
+    let animation = animation_schema();
     let param_types: Vec<&str> = super::components::PARAM_TYPES.iter().map(|(n, _)| *n).collect();
     let mut window = object(schema::WINDOW_PROPS);
     window["properties"]["tauri"] = object(schema::WINDOW_TAURI);
@@ -195,6 +225,7 @@ pub fn schema() -> Json {
                     },
                 },
             },
+            "animations": { "type": "object", "additionalProperties": animation },
             "start": { "type": "string" },
             "screens": {
                 "type": "object",

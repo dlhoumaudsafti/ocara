@@ -41,4 +41,6 @@ mod tests_ui_schema;
 #[cfg(test)]
 mod tests_ui_roots;
 #[cfg(test)]
+mod tests_ui_effects;
+#[cfg(test)]
 mod tests_ui_file;

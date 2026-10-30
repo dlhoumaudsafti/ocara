@@ -218,6 +218,19 @@ ui.on("missing", nameless(u:UI, event:UIEvent): void {
 |---------|------|
 | `ui.validate(container)` → `array<string>` | `id` des champs obligatoires vides du conteneur `container` (sans les marquer `invalid`) ; `UIException` 102 si l'`id` est absent |
 
+## Animations
+
+Animations déclarées sous `animations:` et posées par `animation:` : voir
+[oc-ui.md](../oc-ui.md#animations).
+
+| Méthode | Rôle |
+|---------|------|
+| `ui.animate(id, name, options)` | relance l'animation `name` sur le nœud `id` ; `options` (facultatif, `map<string, mixed>`) : `duration`, `delay`, `easing`, `iterations`, `direction`, `fill` |
+| `ui.stopAnimation(id)` | arrête l'animation du nœud |
+
+`id` absent : `UIException` 102 ; animation absente : 108. Avec des
+littéraux, les deux sont vérifiés dès la compilation.
+
 ## Navigation et cycle de vie
 
 | Méthode | Rôle |
@@ -306,6 +319,7 @@ Les spécificités de chaque plateforme restent dans [Tauri](Tauri.md) et
 | 105 | arbre d'interface invalide (binaire altéré) |
 | 106 | composant absent du `.oc.ui` (`ui.component`) |
 | 107 | `ui.bind` : racine absente des liaisons du `.oc.ui`, chemin lié absent de l'objet (ou inaccessible), ou de type incompatible |
+| 108 | `ui.animate` : animation absente du `.oc.ui` |
 
 ## Voir aussi
 

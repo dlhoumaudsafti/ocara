@@ -73,7 +73,7 @@
   `anchor` (`topStart`, `topEnd`, `bottomStart`, `bottomEnd`, `center`),
   `z` (ordre d'empilement ; un `z` sur tout nœud d'un `stack` aussi).
 - Déplaçable depuis Ocara : `ui.set(id, "x", 120)` (et `y`, `z`), animable
-  (voir [langage-builtin-ui-styles-animations.md](langage-builtin-ui-styles-animations.md)).
+  (voir [docs/oc-ui.md](../oc-ui.md#animations)).
 - Desktop : `position: fixed|absolute`, `z-index`. Android : `Box` racine
   avec `Modifier.offset`/`zIndex` pour `fixed`, `Box` du parent pour
   `absolute`.

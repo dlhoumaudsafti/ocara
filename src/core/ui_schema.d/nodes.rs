@@ -34,6 +34,10 @@ impl Checker {
                 }
                 Some(Json::Object(out))
             }
+            Ty::States => self.state_styles(node, what),
+            Ty::Shadow => self.shadow(node, what),
+            Ty::Transition => self.transition(node, what),
+            Ty::Animation => self.animation_ref(node, what),
             Ty::Override | Ty::Binds => unreachable!("contrôlé par `node`"),
             simple => self.simple(node, simple, what),
         }

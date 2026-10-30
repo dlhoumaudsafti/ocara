@@ -9,9 +9,30 @@ window:
 
 styles:
   section: { fontSize: 13, bold: true, color: "#00796b" }
+  # États, ombre et transition (docs/oc-ui.md, « Styles d'état et effets »).
+  action:
+    shadow: { y: 2, blur: 6, color: "rgba(0, 0, 0, 0.3)" }
+    transition: { duration: 150, properties: [background, opacity] }
+    states:
+      hover: { background: "#004d40" }
+      active: { opacity: 0.8 }
+  # Table `checked` : distincte de la propriété `checked` d'une case.
+  case:
+    states:
+      checked: { bold: true }
   # Surcharge en thème sombre, par-dessus `section`.
   dark:
     section: { color: "#80cbc4" }
+
+# Animations, sur le modèle des @keyframes CSS (docs/oc-ui.md, « Animations »).
+animations:
+  pulse:
+    duration: 800
+    iterations: infinite
+    direction: alternate
+    keyframes:
+      0%: { opacity: 1, scale: 1 }
+      100%: { opacity: 0.6, scale: 1.05 }
 
 # Composant déclaré ici, développé à la compilation (docs/oc-ui.md, « Composants »).
 components:
@@ -39,7 +60,7 @@ screens:
         - type: row
           spacing: 16
           children:
-            - { type: checkbox, id: terms, label: "J'accepte les conditions", onChange: terms_changed }
+            - { type: checkbox, id: terms, label: "J'accepte les conditions", style: case, onChange: terms_changed }
             - { type: switch, id: news, label: "Lettre d'information", checked: true }
         - { type: radio, id: plan, value: free, options: [{ value: free, text: "Gratuit" }, { value: pro, text: "Pro" }] }
         - { type: select, id: country, value: fr, options: [{ value: fr, text: "France" }, { value: be, text: "Belgique" }, { value: ch, text: "Suisse" }] }
@@ -56,15 +77,18 @@ screens:
           onDoubleClick: zone_double
           onLongPress: zone_long
           onSwipe: zone_swipe
+          animation: pulse
+          onAnimationEnd: zone_anim_end
           children:
             - { type: text, value: "Survol, double clic, appui long, balayage" }
+        - { type: link, id: more, text: "En savoir plus", onClick: more }
         - { type: progress, id: upload, value: 0.4 }
         - { type: progress }
         - { type: divider }
         - type: row
           spacing: 8
           children:
-            - { type: button, id: save, text: "Enregistrer", icon: check, onClick: save, submit: true, onInvalid: save_invalid }
+            - { type: button, id: save, text: "Enregistrer", icon: check, style: action, onClick: save, submit: true, onInvalid: save_invalid }
             - { type: button, text: "Annuler", variant: secondary, onClick: cancel }
             - { type: button, text: "Désactivé", variant: text, enabled: false }
             - { type: spacer }

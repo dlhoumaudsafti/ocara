@@ -122,6 +122,31 @@ pub extern "C" fn UI_refresh(this: i64) {
     core::refresh(this);
 }
 
+/// `ui.animate(id, name, options)` : animation déclarée sous `animations:`.
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_animate(this: i64, id: i64, name: i64, options: i64) {
+    let (id, name) = (str_arg(id), str_arg(name));
+    let options = core::animate(this, &id, &name, ocara_runtime_ui::ffi::to_json(options));
+    if SHOWN.load(Ordering::SeqCst) == this {
+        engine("animate", &[Arg::Str(&id), Arg::Str(&name), Arg::Str(&options.to_string())]);
+    }
+}
+
+/// `ui.animate(id, name)` : options du `.oc.ui`.
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_animate_2(this: i64, id: i64, name: i64) {
+    UI_animate(this, id, name, 0);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_stopAnimation(this: i64, id: i64) {
+    let id = str_arg(id);
+    core::stop_animation(this, &id);
+    if SHOWN.load(Ordering::SeqCst) == this {
+        engine("stopAnimation", &[Arg::Str(&id)]);
+    }
+}
+
 /// `ui.validate(container)` → `array<string>` : champs obligatoires vides.
 #[unsafe(no_mangle)]
 pub extern "C" fn UI_validate(this: i64, container: i64) -> i64 {

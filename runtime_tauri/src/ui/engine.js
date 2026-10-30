@@ -1,10 +1,12 @@
 // Moteur de rendu desktop d'`ocara.UI` : construit le DOM de l'arbre
 // normalisé d'un `.oc.ui` (src/core/ui_schema.d, docs/oc-ui.md) dans la vue
-// de la fenêtre Tauri, sans framework.
+// de la fenêtre Tauri, sans framework. Styles d'état, effets et animations :
+// effects.js, chargé avant.
 //
 //   OcaraUI.start(tree, { platform, send })  affiche l'écran `start`
 //   OcaraUI.set(id, prop, value)             état d'un nœud (réaffiche ce nœud)
 //   OcaraUI.navigate(screen), OcaraUI.back(), OcaraUI.reload(tree)
+//   OcaraUI.animate(id, name, options), OcaraUI.stopAnimation(id)
 //
 // Variantes de taille (`variants`, `sizes`) : la variante de la largeur de la
 // fenêtre est affichée, et remplacée à la volée ; la classe est rapportée par
@@ -31,15 +33,11 @@
 
   var FLEX_ALIGN = { start: "flex-start", center: "center", end: "flex-end", stretch: "stretch" };
 
-  function px(v) { return typeof v === "number" ? v + "px" : v; }
+  var px = OcaraEffects.px, spacing = OcaraEffects.spacing;
 
-  function spacing(v) {
-    return Array.isArray(v) ? v.map(px).join(" ") : px(v);
-  }
-
-  /// Propriétés effectives : style nommé, nœud, surcharge de plateforme, état.
   /// Propriétés effectives : style nommé, nœud, surcharge de plateforme,
   /// état ; dans un élément de liste, `binds` lit les champs de l'élément.
+  /// Les tables d'état (`states`) complètent celles de la couche précédente.
   function props(node, ctx) {
     var out = {};
     var item = ctx && ctx.item;
@@ -48,7 +46,10 @@
     var themed = node.style && tree.themeStyles && tree.themeStyles[theme()] && tree.themeStyles[theme()][node.style];
     var layers = [named || {}, themed || {}, node, node[platform] || {}, (node.id && !item && state[node.id]) || {}];
     layers.forEach(function (layer) {
-      for (var k in layer) if (k !== "tauri" && k !== "android") out[k] = layer[k];
+      for (var k in layer) {
+        if (k === "tauri" || k === "android") continue;
+        out[k] = k === "states" ? OcaraEffects.mergeStates(out.states, layer.states) : layer[k];
+      }
     });
     if (item && node.binds) {
       for (var prop in node.binds) out[prop] = field(item, node.binds[prop]);
@@ -364,6 +365,9 @@
       if (p.onBlur) e.addEventListener("focusout", function (ev) { if (!e.contains(ev.relatedTarget)) send("onBlur"); });
     }
     if (p.onDoubleClick) e.addEventListener("dblclick", function () { send("onDoubleClick"); });
+    if (p.onAnimationEnd) e.addEventListener("animationend", function (ev) {
+      if (ev.target === e) send("onAnimationEnd", ev.animationName.replace(/^oc-a-/, ""));
+    });
     if (p.onLongPress || p.onSwipe) gestures(e, p, send);
   }
 
@@ -371,6 +375,21 @@
   function focusIn(e) {
     var field = e.matches("input, textarea, select, button") ? e : e.querySelector("input, textarea, select, button");
     (field || e).focus();
+  }
+
+  /// Lien : texte cliquable, à l'état `visited` après son premier clic
+  /// (gardé par l'hôte, lisible par `ui.get(id, "visited")`).
+  function link(node, p, ctx) {
+    var e = el("a", "oc-link");
+    e.href = "#";
+    e.textContent = p.text == null ? "" : p.text;
+    e.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      e.classList.add("oc-visited");
+      changed(node.id, "visited", true);
+    });
+    onClick(e, node, p, ctx);
+    return e;
   }
 
   function button(node, p, ctx) {
@@ -411,6 +430,7 @@
       case "radio": case "select": e = choice(node, p); break;
       case "slider": e = slider(node, p); break;
       case "button": case "iconButton": e = button(node, p, ctx); break;
+      case "link": e = link(node, p, ctx); break;
       case "android.fab": case "android.bottomSheet": case "android.drawer":
         // Composants propres à Android : rien sur desktop.
         e = el("span"); e.hidden = true; break;
@@ -423,8 +443,10 @@
       default: e = el("div");
     }
     decorate(e, p, axis, ["column", "row", "stack", "grid", "card", "list"].indexOf(node.type) >= 0);
+    OcaraEffects.apply(e, p, tree.animations || {});
     events(e, node, p, ctx);
     if (p.invalid) e.classList.add("oc-invalid");
+    if (p.visited) e.classList.add("oc-visited");
     if (p.required) {
       var required = e.matches("input, textarea, select") ? e : e.querySelector("input, textarea, select");
       if (required) required.setAttribute("aria-required", "true");
@@ -539,6 +561,7 @@
 
   function render() {
     mounted = {};
+    OcaraEffects.setTree(tree);
     if (gridObserver) gridObserver.disconnect();
     var screen = tree.screens[current];
     var root = document.getElementById("oc-root");
@@ -599,6 +622,16 @@
       var fresh = build(m.node, m.ctx, m.axis);
       m.el.replaceWith(fresh);
       schedulePlacement();
+    },
+
+    /// `ui.animate(id, name, options)` / `ui.stopAnimation(id)`.
+    animate: function (id, name, options) {
+      var m = mounted[id], anim = tree.animations && tree.animations[name];
+      if (m && anim) OcaraEffects.animate(m.el, name, anim, options);
+    },
+
+    stopAnimation: function (id) {
+      if (mounted[id]) OcaraEffects.stop(mounted[id].el);
     },
 
     get: function (id, prop) {

@@ -26,6 +26,7 @@
   check("Entrée → onSubmit", last().action === "save" && last().value === "Ada");
 
   var terms = node("terms").querySelector("input");
+  check("table d'état checked sans cocher la case", !terms.checked && document.getElementById("oc-states").textContent.indexOf(":has(input:checked) { font-weight: bold !important }") >= 0);
   terms.click();
   check("case → onChange", last().action === "terms_changed" && last().value === true);
   check("interrupteur coché", node("news").querySelector("input").checked);
@@ -42,6 +43,25 @@
 
   node("save").click();
   check("clic → onClick", last().action === "save" && last().id === "save");
+
+  // Styles d'état, ombre, animations, lien.
+  var states = document.getElementById("oc-states").textContent;
+  check("règle d'état :hover", /\.oc-fx\d+:hover \{ background: #004d40 !important \}/.test(states));
+  check("règle d'état :active", states.indexOf(":active { opacity: 0.8 !important }") >= 0);
+  check("classe d'états posée", /oc-fx\d+/.test(node("save").className));
+  check("ombre", node("save").style.boxShadow.indexOf("6px") >= 0);
+  check("transition", node("save").style.transition.indexOf("150ms") >= 0);
+  check("@keyframes", document.getElementById("oc-keyframes").textContent.indexOf("@keyframes oc-a-pulse") === 0);
+  check("animation au premier affichage", node("zone").style.animation.indexOf("oc-a-pulse") >= 0);
+  OcaraUI.animate("zone", "pulse", { duration: 120, iterations: 1 });
+  check("ui.animate", node("zone").style.animation.indexOf("120ms") >= 0);
+  node("zone").dispatchEvent(new AnimationEvent("animationend", { animationName: "oc-a-pulse", bubbles: true }));
+  check("fin d'animation → onAnimationEnd", last().action === "zone_anim_end" && last().value === "pulse");
+  OcaraUI.stopAnimation("zone");
+  check("ui.stopAnimation", node("zone").style.animationName === "none");
+  node("more").click();
+  check("lien → onClick", last().action === "more");
+  check("lien visité", node("more").classList.contains("oc-visited") && OcaraUI.get("more", "visited") === true);
 
   // Événements communs : survol, focus, double clic, balayage.
   var zone = node("zone");

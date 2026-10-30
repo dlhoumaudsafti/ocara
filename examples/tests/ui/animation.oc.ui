@@ -1,0 +1,11 @@
+# Interface de 127_ui_animationTest.oc : animation déclarée et nœud animé.
+animations:
+  fade:
+    duration: 200
+    keyframes:
+      from: { opacity: 0 }
+      to: { opacity: 1 }
+layout:
+  type: column
+  children:
+    - { type: text, id: title, value: "Titre", animation: fade }

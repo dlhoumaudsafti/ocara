@@ -35,6 +35,23 @@ object OcaraUIEngine {
     /** Demandes de focus par `id` (compteur) : premier champ obligatoire vide (runtime_ui/src/form.rs). */
     val focusRequests = mutableStateMapOf<String, Int>()
 
+    /** Dernière demande `ui.animate`/`ui.stopAnimation` par `id` (`name` nul : arrêt). */
+    data class AnimationRequest(val count: Int, val name: String?, val options: JSONObject?)
+
+    val animationRequests = mutableStateMapOf<String, AnimationRequest>()
+
+    /** `ui.animate(id, name, options)` ; `optionsJson` : `null` ou table. */
+    @JvmStatic
+    fun animate(id: String, name: String, optionsJson: String) = onMain {
+        val count = (animationRequests[id]?.count ?: 0) + 1
+        animationRequests[id] = AnimationRequest(count, name, JSONTokener(optionsJson).nextValue() as? JSONObject)
+    }
+
+    @JvmStatic
+    fun stopAnimation(id: String) = onMain {
+        animationRequests[id] = AnimationRequest((animationRequests[id]?.count ?: 0) + 1, null, null)
+    }
+
     /** Écrans ouverts, le courant en dernier. */
     val backStack = mutableStateListOf<String>()
 

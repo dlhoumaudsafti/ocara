@@ -88,6 +88,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextDecoration
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.roundToInt
@@ -201,13 +202,28 @@ private fun Screen(tree: JSONObject) {
 private const val BACK_PATH = "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"
 private const val MENU_PATH = "M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"
 
+/** `states` de `over` par-dessus ceux de `base`, état par état. */
+private fun mergeStates(base: JSONObject?, over: JSONObject): JSONObject {
+    val out = JSONObject(base?.toString() ?: "{}")
+    for (state in over.keys()) {
+        val table = out.optJSONObject(state) ?: JSONObject().also { out.put(state, it) }
+        val add = over.getJSONObject(state)
+        for (key in add.keys()) table.put(key, add.get(key))
+    }
+    return out
+}
+
 /** Propriétés effectives : style nommé et sa surcharge du thème affiché
  *  (`styles.dark`/`styles.light`), nœud, surcharge `android`, état, `binds`. */
 internal fun props(node: JSONObject, ctx: Ctx): Map<String, Any?> {
     val out = HashMap<String, Any?>()
     fun merge(layer: JSONObject?) {
         layer ?: return
-        for (key in layer.keys()) if (key != "tauri" && key != "android") out[key] = layer.get(key)
+        for (key in layer.keys()) {
+            if (key == "tauri" || key == "android") continue
+            // Tables d'état : chacune complète celle de la couche précédente.
+            out[key] = if (key == "states") mergeStates(out["states"] as? JSONObject, layer.getJSONObject(key)) else layer.get(key)
+        }
     }
     node.optString("style").takeIf { it.isNotEmpty() }?.let {
         merge(ctx.tree.optJSONObject("styles")?.optJSONObject(it))
@@ -235,6 +251,7 @@ private fun Map<String, Any?>.num(key: String) = (this[key] as? Number)?.toDoubl
 private fun Map<String, Any?>.flag(key: String, default: Boolean) = this[key] as? Boolean ?: default
 
 internal fun parseColor(value: Any?): Color? {
+    if (value is Color) return value
     val hex = (value as? String)?.removePrefix("#") ?: return null
     val rgba = hex.toLongOrNull(16) ?: return null
     return when (hex.length) {
@@ -269,14 +286,21 @@ internal fun iconVector(path: String): ImageVector =
         .addPath(PathParser().parsePathString(path).toNodes(), fill = SolidColor(Color.Black))
         .build()
 
-/** Taille, marges, fond, bordure et ombre d'un nœud. */
-private fun decorate(modifier: Modifier, p: Map<String, Any?>): Modifier {
+/** Taille, marges, fond, bordure et ombre d'un nœud ; `faded` (opacité,
+ *  flou) s'applique à ce qui suit l'ombre. */
+private fun decorate(modifier: Modifier, p: Map<String, Any?>, faded: Modifier = Modifier): Modifier {
     var m = modifier
     spacing(p["margin"])?.let { m = m.padding(it) }
     val shape = RoundedCornerShape((p.num("radius") ?: 0.0).toFloat().dp)
     (p["width"] as? Number)?.let { m = m.width(it.toFloat().dp) }
     (p["height"] as? Number)?.let { m = m.height(it.toFloat().dp) }
     p.num("elevation")?.let { m = m.shadow(it.toFloat().dp, shape) }
+    // Ombre réglable : sa couleur et son flou ; le décalage n'a pas d'équivalent Compose.
+    (p["shadow"] as? JSONArray)?.optJSONObject(0)?.let { s ->
+        val color = parseColor(s.opt("color")) ?: Color.Black
+        m = m.shadow((s.optDouble("blur", 0.0) / 2).toFloat().dp, shape, ambientColor = color, spotColor = color)
+    }
+    m = m.then(faded)
     parseColor(p["background"])?.let { m = m.background(it, shape) }
     parseColor(p["border"])?.let { m = m.border(BorderStroke(1.dp, it), shape) }
     spacing(p["padding"])?.let { m = m.padding(it) }
@@ -287,6 +311,9 @@ private fun decorate(modifier: Modifier, p: Map<String, Any?>): Modifier {
 }
 
 private val INVALID = Color(0xFFC62828)
+
+/** Lien déjà suivi (même violet que engine.css). */
+private val VISITED = Color(0xFF6A1B9A)
 
 private fun textStyle(p: Map<String, Any?>, base: TextStyle): TextStyle = base.copy(
     fontSize = p.num("fontSize")?.sp ?: base.fontSize,
@@ -346,12 +373,20 @@ internal fun children(p: Map<String, Any?>): List<JSONObject> {
 
 @Composable
 internal fun Node(node: JSONObject, ctx: Ctx, modifier: Modifier) {
-    val p = props(node, ctx)
-    if (p["visible"] == false) return
+    val base = props(node, ctx)
+    if (base["visible"] == false) return
     val id = node.optString("id").takeIf { it.isNotEmpty() }
+    // États (survol, appui, focus…), transitions et animation (OcaraUIEffects.kt).
+    val states = remember { NodeStates() }
+    val shown = transitioned(withStates(base, states))
+    val frame = animationFrame(shown, states, id, ctx)
+    val p = frame.background?.let { shown + ("background" to it) } ?: shown
     val enabled = p.flag("enabled", true)
-    val m = decorate(modifier, p).events(p, id, ctx)
     val type = node.getString("type")
+    // Une carte peint son fond elle-même (surface Material, forme de `radius`) et
+    // porte sa marge intérieure : une seule couche, de la taille de son ombre.
+    val decorated = if (type == "card") p - "background" - "padding" else p
+    val m = decorate(modifier.effects(states, frame, watchesInteraction(base)), decorated, fade(p, frame)).events(base, id, ctx)
     if (type in CONTAINERS) return Container(node, type, p, id, ctx, m)
     when (type) {
         "divider" -> HorizontalDivider(m)
@@ -431,6 +466,14 @@ internal fun Node(node: JSONObject, ctx: Ctx, modifier: Modifier) {
                 else -> Button(click, m, enabled, content = content)
             }
         }
+        "link" -> {
+            val color = parseColor(p["color"]) ?: if (p["visited"] == true) VISITED else MaterialTheme.colorScheme.primary
+            val click = {
+                OcaraUIEngine.changed(id, "visited", true)
+                itemClick(p, id, ctx)
+            }
+            Text(p.text("text") ?: "", m.clickable(onClick = click), style = textStyle(p, bodyStyle()).copy(color = color, textDecoration = TextDecoration.Underline))
+        }
         "iconButton" -> IconButton({ itemClick(p, id, ctx) }, m, enabled) {
             NamedIcon(ctx, p.text("icon"), p.text("label"), Modifier, null)
         }
@@ -475,14 +518,15 @@ private fun Container(node: JSONObject, type: String, p: Map<String, Any?>, id: 
         "card" -> {
             val click = p["onClick"]?.let { { itemClick(p, id, ctx) } }
             val body: @Composable ColumnScope.() -> Unit = {
-                Column(Modifier.padding(12.dp), Arrangement.spacedBy(gap)) {
+                Column(Modifier.padding(spacing(p["padding"]) ?: PaddingValues(12.dp)), Arrangement.spacedBy(gap)) {
                     for (child in children(p)) Node(child, inner, childModifier(child, inner))
                 }
             }
-            // Couleur de fond de la carte elle-même (sa surface couvrirait `background`).
+            // Fond et forme de la carte elle-même (seule à les peindre, voir `Node`).
             val colors = parseColor(p["background"])?.let { CardDefaults.cardColors(containerColor = it) } ?: CardDefaults.cardColors()
-            if (click != null) Card(onClick = click, modifier = m, colors = colors, content = body)
-            else Card(m, colors = colors, content = body)
+            val shape = p.num("radius")?.let { RoundedCornerShape(it.toFloat().dp) } ?: CardDefaults.shape
+            if (click != null) Card(onClick = click, modifier = m, shape = shape, colors = colors, content = body)
+            else Card(m, shape = shape, colors = colors, content = body)
         }
         "list" -> {
             val template = node.getJSONObject("item")

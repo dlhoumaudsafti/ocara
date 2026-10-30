@@ -20,6 +20,7 @@
 
 mod colors;
 mod components;
+mod effects;
 mod icons;
 mod images;
 pub mod json_schema;
@@ -92,6 +93,7 @@ pub fn check_source(file: &Path, source: &str) -> Result<UiSpec, Vec<Diagnostic>
         instances: BTreeMap::new(),
         in_item: 0,
         bindings: BTreeMap::new(),
+        animations: BTreeSet::new(),
     };
     checker.declare_styles(&root);
     checker.declare_components(&root);
@@ -161,6 +163,8 @@ pub(super) struct Checker {
     in_item: usize,
     /// Nœuds liés hors d'une liste, par racine (roots.rs).
     bindings: BTreeMap<String, Vec<roots::Bound>>,
+    /// Noms déclarés sous `animations:` (effects.rs), connus avant les nœuds.
+    animations: BTreeSet<String>,
 }
 
 type Entry<'n> = (&'n Node, &'n str, &'n Node);
@@ -204,7 +208,11 @@ impl Checker {
             }
         }
         let mut out = Map::new();
-        // Styles d'abord : les nœuds y font référence.
+        // Animations et styles d'abord : les nœuds y font référence.
+        if let Some((_, animations)) = get("animations") {
+            self.declare_animations(animations);
+            out.insert("animations".into(), Json::Object(self.animations(animations)));
+        }
         if let Some((_, styles)) = get("styles") {
             out.insert("styles".into(), Json::Object(self.styles(styles)));
         }

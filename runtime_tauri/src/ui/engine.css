@@ -107,3 +107,16 @@ textarea.oc-input { min-height: 80px; resize: vertical; }
   box-shadow: 0 2px 8px rgba(0, 0, 0, .3); transition: opacity .4s;
 }
 .oc-toast-out { opacity: 0; }
+
+/* Lien (`link`) ; `oc-visited` après son premier clic. */
+.oc-link { color: var(--oc-primary, #1565c0); text-decoration: underline; cursor: pointer; }
+.oc-link.oc-visited { color: #6a1b9a; }
+
+/* Réglage « réduire les animations » du système : effets immédiats. */
+@media (prefers-reduced-motion: reduce) {
+  #oc-root, #oc-root * {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0s !important;
+  }
+}

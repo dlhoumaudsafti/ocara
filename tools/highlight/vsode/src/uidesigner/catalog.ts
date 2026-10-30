@@ -12,9 +12,11 @@ import * as fs from 'fs';
 export type Kind =
     | 'text' | 'bool' | 'int' | 'number' | 'length' | 'spacing' | 'color' | 'enum' | 'id'
     | 'icon' | 'action' | 'style' | 'field' | 'node' | 'children' | 'strings' | 'options'
-    | 'menu' | 'actionMap' | 'binds' | 'override';
+    | 'menu' | 'actionMap' | 'binds' | 'override' | 'object';
 
-export interface PropSpec { name: string; kind: Kind; values?: string[]; min?: number; max?: number }
+/** `object` : table aux champs `fields` (table d'état, `shadow`, `transition`) ;
+ *  `list` : une liste de ces tables est aussi acceptée (`shadow`). */
+export interface PropSpec { name: string; kind: Kind; values?: string[]; min?: number; max?: number; fields?: PropSpec[]; list?: boolean }
 export interface TypeSpec { type: string; own: PropSpec[]; required: string[] }
 
 export interface Catalog {
@@ -49,6 +51,10 @@ function kindOf(name: string, s: Schema): PropSpec {
         case 'options': return spec('options');
         case 'webHandlers': return spec('actionMap');
     }
+    const table = (x: Schema) => x?.type === 'object' && x.properties;
+    if (table(s)) { return spec('object', { fields: props(s.properties) }); }
+    const listed = s.anyOf?.find(table);
+    if (listed && s.anyOf.some((a: Schema) => a.type === 'array')) { return spec('object', { fields: props(listed.properties), list: true }); }
     if (s.enum) { return spec(name === 'icon' || name === 'name' ? 'icon' : 'enum', { values: s.enum }); }
     if (typeof s.pattern === 'string' && s.pattern.includes('#') && s.pattern.includes('rgba')) { return spec('color'); }
     if (s.anyOf?.some((a: Schema) => a.enum)) { return spec('length'); }

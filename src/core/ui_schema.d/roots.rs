@@ -80,12 +80,13 @@ impl Checker {
         }
     }
 
-    /// Champ `required`, bouton `submit`, champ à `onSubmit` : leur état et
-    /// leurs actions passent par leur `id` (runtime_ui/src/form.rs) ; sans
-    /// `id` écrit, `@type` (`@input`, `@button#2`…).
+    /// Champ `required`, bouton `submit`, champ à `onSubmit` (leur état et
+    /// leurs actions passent par leur `id`, runtime_ui/src/form.rs), lien
+    /// (état `visited` gardé) : sans `id` écrit, `@type` (`@input`,
+    /// `@button#2`, `@link`…).
     pub(super) fn form_id(&mut self, node: &Node, ty: &str, out: &mut Map<String, Json>) {
         let flagged = |key: &str| out.get(key) == Some(&Json::Bool(true));
-        if out.contains_key("id") || !(flagged("required") || flagged("submit") || out.contains_key("onSubmit")) {
+        if out.contains_key("id") || !(flagged("required") || flagged("submit") || out.contains_key("onSubmit") || ty == "link") {
             return;
         }
         let id = self.generated_id(ty);

@@ -162,6 +162,8 @@ textarea.d-input { width: 100%; min-height: 54px; resize: vertical; font-family:
 .d-inline .d-input { flex: 1; min-width: 60px; }
 .d-inline .d-narrow { flex: 0 1 70px; }
 .d-rows { display: flex; flex-direction: column; gap: 4px; }
+/* Table aux champs typés (table d'état, ombre, transition). */
+.d-object { padding-left: 8px; border-left: 2px solid var(--vscode-panel-border, #8884); }
 .d-add { align-self: flex-start; font-size: 12px; padding: 1px 6px; }
 .d-tri button { padding: 1px 7px; font-size: 12px; }
 .d-color { width: 28px; height: 24px; padding: 0; border: 1px solid var(--vscode-input-border, #8884); background: none; }

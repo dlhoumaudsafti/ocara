@@ -131,7 +131,10 @@ function nodePanel(path) {
     const events = [...own, ...S.catalog.common].filter(p => p.kind === 'action');
     out.push(section('Événements', events.map(row), { id: 'events' }));
     out.push(section('Disposition', LAYOUT.map(n => common[n] && row(common[n])), { id: 'layout' }));
-    out.push(section('Présentation', S.catalog.style.map(row), { id: 'style', collapsed: true }));
+    // Tables d'état (`states`, docs/oc-ui.md « Styles d'état et effets ») : rubrique à part.
+    out.push(section('Présentation', S.catalog.style.filter(p => p.name !== 'states').map(row), { id: 'style', collapsed: true }));
+    out.push(section('États (survol, focus, appui…)', S.catalog.style.filter(p => p.name === 'states').map(row), { id: 'states', collapsed: !node.states }));
+    out.push(section('Animation', [common.animation && row(common.animation)], { id: 'animation', collapsed: !node.animation }));
     out.push(section('Accessibilité', A11Y.map(n => common[n] && row(common[n])), { id: 'a11y' }));
     // Dans une liste : champs de l'élément ; ailleurs : `racine.champ` d'un objet relié par `ui.bind`.
     if (common.binds) {

@@ -46,6 +46,16 @@ pub enum Ty {
     Binds,
     /// Surcharge `tauri:`/`android:` : propriétés du même nœud.
     Override,
+    /// Tables d'état (`states: { hover: {…} }`) : propriétés de style par
+    /// état (effects.rs) ; regroupées pour ne heurter aucune propriété
+    /// (`checked` d'une case).
+    States,
+    /// Ombre portée, ou liste d'ombres (effects.rs).
+    Shadow,
+    /// Transition des propriétés de style (effects.rs).
+    Transition,
+    /// Animation d'un nœud : nom déclaré sous `animations:`, ou `{ name, on }`.
+    Animation,
 }
 
 pub const ALIGN: &[&str] = &["start", "center", "end", "stretch"];
@@ -64,6 +74,13 @@ pub const STYLE_PROPS: &[(&str, Ty)] = &[
     ("radius", Ty::Number(0.0, 10_000.0)),
     ("border", Ty::Color),
     ("elevation", Ty::Number(0.0, 100.0)),
+    ("opacity", Ty::Number(0.0, 1.0)),
+    ("blur", Ty::Number(0.0, 1000.0)),
+    ("backdropBlur", Ty::Number(0.0, 1000.0)),
+    ("shadow", Ty::Shadow),
+    ("transition", Ty::Transition),
+    // Tables d'état : `states: { hover: {…}, checked: {…} }` (effects.rs).
+    ("states", Ty::States),
 ];
 
 /// Propriétés de tout nœud (en plus de `STYLE_PROPS`).
@@ -88,6 +105,8 @@ pub const COMMON_PROPS: &[(&str, Ty)] = &[
     ("onLongPress", Ty::Action),
     ("onDoubleClick", Ty::Action),
     ("onSwipe", Ty::Action),
+    ("animation", Ty::Animation),
+    ("onAnimationEnd", Ty::Action),
     ("tauri", Ty::Override),
     ("android", Ty::Override),
     ("binds", Ty::Binds),
@@ -191,6 +210,8 @@ const BUTTON: &[(&str, Ty)] = &[
     ("submit", Ty::Bool),
     ("onInvalid", Ty::Action),
 ];
+// Lien : texte cliquable ; passe à l'état `visited` après son premier clic.
+const LINK: &[(&str, Ty)] = &[("text", Ty::Text), ("onClick", Ty::Action)];
 const ICON_BUTTON: &[(&str, Ty)] = &[("icon", Ty::Icon), ("onClick", Ty::Action), ("submit", Ty::Bool), ("onInvalid", Ty::Action)];
 
 // Composants Material propres à Android (préfixe `android.`), ignorés sur
@@ -209,7 +230,7 @@ pub const NODE_TYPES: &[&str] = &[
     "column", "row", "stack", "grid", "card", "divider", "spacer",
     "text", "heading", "image", "icon", "progress", "list", "webview",
     "input", "checkbox", "switch", "radio", "select", "slider", "date", "time",
-    "button", "iconButton",
+    "button", "iconButton", "link",
     "android.fab", "android.bottomSheet", "android.drawer",
 ];
 
@@ -234,6 +255,7 @@ pub fn node_props(ty: &str) -> Option<&'static [(&'static str, Ty)]> {
         "date" | "time" => DATE,
         "button" => BUTTON,
         "iconButton" => ICON_BUTTON,
+        "link" => LINK,
         "android.fab" => ANDROID_FAB,
         "android.bottomSheet" | "android.drawer" => ANDROID_PANEL,
         _ => return None,
@@ -246,6 +268,7 @@ pub fn required_props(ty: &str) -> &'static [&'static str] {
         "image" => &["src|bind", "label"],
         "icon" => &["name"],
         "iconButton" => &["icon", "label"],
+        "link" => &["text"],
         "list" => &["item"],
         "radio" | "select" => &["options"],
         // L'hôte désigne la vue web par son `id` (ui.postMessage, ui.eval…).
@@ -315,4 +338,4 @@ pub const MENU_PROPS: &[(&str, Ty)] = &[
 pub const THEME_OVERRIDES: &[&str] = &["dark", "light"];
 
 /// Clés à la racine du fichier.
-pub const ROOT_KEYS: &[&str] = &["window", "styles", "components", "start", "screens", "layout", "menu"];
+pub const ROOT_KEYS: &[&str] = &["window", "styles", "animations", "components", "start", "screens", "layout", "menu"];

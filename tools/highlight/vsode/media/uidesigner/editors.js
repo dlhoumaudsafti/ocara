@@ -133,6 +133,29 @@ function pairs(value, set, keyHint, valueHint, valueList) {
     return wrap;
 }
 
+/** Table aux champs typés (table d'état, `shadow`, `transition`) ; une
+ *  liste de plusieurs tables (`shadow`) se modifie dans le source. */
+function objectEditor(spec, value, set) {
+    if (Array.isArray(value) && value.length > 1) {
+        return h('p', 'd-muted', `${value.length} valeurs : à modifier dans le source`);
+    }
+    const one = Array.isArray(value) ? value[0] : value;
+    const current = one && typeof one === 'object' ? { ...one } : {};
+    const wrap = h('div', 'd-rows d-object');
+    for (const field of spec.fields) {
+        const r = h('div', 'd-field');
+        const label = h('label', 'd-label', field.name);
+        if (current[field.name] !== undefined) { label.classList.add('d-set'); }
+        r.append(label, editor(field, current[field.name], v => {
+            if (v === undefined) { delete current[field.name]; } else { current[field.name] = v; }
+            const out = Object.keys(current).length ? current : undefined;
+            set(spec.list && out ? [out] : out);
+        }));
+        wrap.appendChild(r);
+    }
+    return wrap;
+}
+
 /** Choix de `radio`/`select` : lignes valeur + libellé. */
 function options(value, set) {
     const list = (Array.isArray(value) ? value : []).map(o => (o && typeof o === 'object' ? { value: o.value, text: o.text } : { value: o, text: undefined }));
@@ -238,6 +261,7 @@ export function editor(spec, value, set, ctx = {}) {
         case 'menu': return menuEditor(value, set);
         case 'actionMap': return pairs(value, set, 'message', 'action', 'actionList');
         case 'binds': return pairs(value, set, 'propriété', 'champ');
+        case 'object': return objectEditor(spec, value, set);
         default: {
             if (spec.name === 'html' || (typeof value === 'string' && value.includes('\n'))) {
                 const t = h('textarea', 'd-input');

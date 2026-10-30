@@ -27,6 +27,11 @@ use std::collections::HashMap;
 use crate::parsing::ast::Type;
 use crate::sema::symbols::{ClassInfo, FuncSig};
 
+/// Comme `inst_m`, les derniers paramètres facultatifs (`required` requis).
+fn inst_m_opt(params: Vec<(&str, Type)>, ret_ty: Type, required: usize) -> FuncSig {
+    FuncSig { required_params_count: required, ..inst_m(params, ret_ty) }
+}
+
 fn inst_m(params: Vec<(&str, Type)>, ret_ty: Type) -> FuncSig {
     let len = params.len();
     FuncSig {
@@ -87,6 +92,10 @@ pub fn class() -> ClassInfo {
     methods.insert("bind".to_string(), inst_m(vec![("root", Type::String), ("object", Type::Mixed)], Type::Void));
     methods.insert("unbind".to_string(), inst_m(vec![("root", Type::String)], Type::Void));
     methods.insert("refresh".to_string(), inst_m(vec![], Type::Void));
+    // Animation déclarée sous `animations:` (options : duration, delay,
+    // iterations, easing, direction ; facultatives), et son arrêt.
+    methods.insert("animate".to_string(), inst_m_opt(vec![("id", Type::String), ("name", Type::String), ("options", Type::Map(Box::new(Type::String), Box::new(Type::Mixed)))], Type::Void, 2));
+    methods.insert("stopAnimation".to_string(), inst_m(vec![("id", Type::String)], Type::Void));
     // Champs `required` vides du conteneur (docs/oc-ui.md, « Formulaires »).
     methods.insert("validate".to_string(), inst_m(vec![("container", Type::String)], Type::Array(Box::new(Type::String))));
     methods.insert("navigate".to_string(), inst_m(vec![("screen", Type::String)], Type::Void));
