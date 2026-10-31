@@ -231,9 +231,11 @@ pub(crate) fn apply(this: i64, id: &str, prop: &str) {
     });
 }
 
-/// Adresse ouverte dans le navigateur du système (`link` sans `target`).
+/// Adresse ouverte dans le navigateur du système (`link` sans `target`) ;
+/// un fichier (chemin relatif au dossier courant) dans l'application par
+/// défaut pour son type.
 pub(crate) fn open_external(this: i64, url: &str) {
-    let url = url.to_string();
+    let url = super::external_uri(url);
     on_main(this, move |_| {
         let _ = gtk::show_uri_on_window(None::<&gtk::Window>, &url, gtk::current_event_time());
     });

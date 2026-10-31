@@ -69,6 +69,16 @@ pub(crate) fn receive(this: i64, args_json: &str) {
     }
 }
 
+/// `url` d'un `link` sans `target` : une adresse telle quelle ; un chemin
+/// (sans `scheme://`) devient `file://` absolu, relatif au dossier courant.
+pub(crate) fn external_uri(url: &str) -> String {
+    if url.contains("://") || url.starts_with("mailto:") || url.starts_with("tel:") {
+        return url.to_string();
+    }
+    let path = std::env::current_dir().unwrap_or_default().join(url);
+    format!("file://{}", path.display())
+}
+
 fn eval(this: i64, script: &str) {
     if let Some(window) = live(this) {
         let _ = window.eval(script);

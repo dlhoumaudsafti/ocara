@@ -28,9 +28,11 @@ class MaintenanceRepository implements MaintenanceContract {
         var created_at:int = row["created_at"]
         var mileage:int = row["mileage"]
         var performed_on:string = row["performed_on"]
+        var attachment:string = row["attachment"]
+        var attachment_name:string = row["attachment_name"]
         return use MaintenanceEntity(
             id, car_id, type, description, cost, material_source, lifespan_days, created_at,
-            mileage, performed_on
+            mileage, performed_on, attachment, attachment_name
         )
     }
 
@@ -38,7 +40,7 @@ class MaintenanceRepository implements MaintenanceContract {
         const db:SQLite = Database::connect()
         const row:map<string, mixed> = db.queryOne(
             `SELECT id, car_id, type, description, cost, created_at, material_source,
-                COALESCE(lifespan_days, 0) AS lifespan_days, mileage, performed_on
+                COALESCE(lifespan_days, 0) AS lifespan_days, mileage, performed_on, attachment, attachment_name
             FROM maintenances WHERE id = :id`,
             {"id": id}
         )
@@ -53,7 +55,7 @@ class MaintenanceRepository implements MaintenanceContract {
         const db:SQLite = Database::connect()
         consumed rows:array<map<string, mixed>> = db.query(
             `SELECT id, car_id, type, description, cost, created_at, material_source,
-                COALESCE(lifespan_days, 0) AS lifespan_days, mileage, performed_on
+                COALESCE(lifespan_days, 0) AS lifespan_days, mileage, performed_on, attachment, attachment_name
             FROM maintenances
             WHERE car_id = :carId
             ORDER BY COALESCE(NULLIF(performed_on, ''), date(created_at, 'unixepoch')) DESC, id DESC`,
@@ -132,6 +134,14 @@ class MaintenanceRepository implements MaintenanceContract {
         })
     }
 
+    public static method setAttachment(id:int, path:string, name:string): void {
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.prepare("UPDATE maintenances SET attachment = :path, attachment_name = :name WHERE id = :id")
+            db.bind({"path": path, "name": name, "id": id})
+            db.commit()
+        })
+    }
+
     public static method delete(id:int): void {
         SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
             db.prepare("DELETE FROM maintenances WHERE id = :id")
@@ -146,7 +156,7 @@ class MaintenanceRepository implements MaintenanceContract {
         const db:SQLite = Database::connect()
         const row:map<string, mixed> = db.queryOne(
             `SELECT id, car_id, type, description, cost, created_at, material_source,
-                COALESCE(lifespan_days, 0) AS lifespan_days, mileage, performed_on
+                COALESCE(lifespan_days, 0) AS lifespan_days, mileage, performed_on, attachment, attachment_name
             FROM maintenances
             WHERE car_id = :carId AND mileage > 0
             ORDER BY COALESCE(NULLIF(performed_on, ''), date(created_at, 'unixepoch')) DESC, id DESC

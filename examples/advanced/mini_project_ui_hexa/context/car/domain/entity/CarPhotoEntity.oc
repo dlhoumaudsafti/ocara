@@ -1,0 +1,16 @@
+namespace context.car.domain.entity
+
+// Photo de la galerie d'une voiture : chemin dans ./uploads ; `main` : photo
+// principale (une au plus ; aucune : la première fait office).
+
+class CarPhotoEntity {
+    public property id:int
+    public property path:string
+    public property main:bool
+
+    init(id:int, path:string, main:bool) {
+        self.id = id
+        self.path = path
+        self.main = main
+    }
+}

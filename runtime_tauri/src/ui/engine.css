@@ -132,6 +132,8 @@ textarea.oc-input { min-height: 80px; resize: vertical; }
 
 /* Tiroir et panneau inférieur : voile et boîte glissante. */
 .oc-panel { position: fixed; inset: 0; z-index: 40; pointer-events: none; }
+/* Un panneau inférieur passe devant un tiroir (permanent compris) ; `z` change l'ordre. */
+.oc-bottomSheet { z-index: 45; }
 .oc-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, .32); opacity: 0; transition: opacity .2s; }
 .oc-panel-box {
   position: absolute; display: flex; flex-direction: column; overflow: auto;

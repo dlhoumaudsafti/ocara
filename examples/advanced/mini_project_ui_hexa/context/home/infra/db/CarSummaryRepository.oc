@@ -40,7 +40,7 @@ class CarSummaryRepository implements CarSummaryContract {
     }
 
     public static method all(withPhotos:bool = false): array<CarSummaryEntity> {
-        // Première photo : la sous-requête n'est évaluée que si `:withPhotos`
+        // Photo principale (sinon la première) : la sous-requête n'est évaluée que si `:withPhotos`
         // vaut 1 (l'interface affichée la montre).
         var with_photos:int = 0
         if withPhotos {
@@ -54,7 +54,7 @@ class CarSummaryRepository implements CarSummaryContract {
                     COALESCE((
                         SELECT path FROM car_photos
                         WHERE car_photos.car_id = cars.id AND path != ''
-                        ORDER BY car_photos.id LIMIT 1
+                        ORDER BY car_photos.main DESC, car_photos.id LIMIT 1
                     ), '')
                 ELSE '' END as photo,
                 COALESCE(

@@ -1,0 +1,90 @@
+namespace context.car.infra.files
+// Fichiers ajoutés depuis l'interface (photos de la galerie, factures des
+// entretiens) : contrôlés comme le site le faisait — format reconnu à sa
+// signature (pas seulement à son extension), 1 octet à 10 Mo — puis copiés
+// dans ./uploads.
+
+import ocara.File
+import ocara.Directory
+
+class Upload {
+
+    // Extension normalisée de `source` si elle fait partie de `allowed`
+    // (`jpeg` → `jpg`), "" sinon.
+    public static method extension(source:string, allowed:array<string>): string {
+        var extension:string = File::extension(source).lower()
+        if extension equal "jpeg" {
+            extension = "jpg"
+        }
+        if not allowed.contains(extension) {
+            return ""
+        }
+        return extension
+    }
+
+    // Extension (normalisée) de `source` s'il est accepté : type permis,
+    // signature reconnue, 1 octet à 10 Mo ; "" s'il est refusé.
+    public static method check(source:string, allowed:array<string>): string {
+        if not File::exists(source) {
+            return ""
+        }
+        const extension:string = self::extension(source, allowed)
+        if extension.empty() {
+            return ""
+        }
+        const content:array<int> = File::readBytes(source)
+        if not self::validSignature(extension, content) or content.len() greater 10485760 or content.len() smaller 1 {
+            return ""
+        }
+        return extension
+    }
+
+    // Copie `source` (déjà contrôlé) en `uploads/<name>.<extension>` ; rend
+    // le chemin, relatif au dossier du programme.
+    public static method store(source:string, extension:string, name:string): string {
+        Directory::createRecursive("./uploads")
+        const path:string = "uploads/" + name + "." + extension
+        File::writeBytes("./" + path, File::readBytes(source))
+        return path
+    }
+
+    // Nom de fichier de `path` (dernier segment).
+    public static method fileName(path:string): string {
+        const parts:array<string> = path.replace("\\", "/").split("/")
+        return parts[parts.len() - 1]
+    }
+
+    // Fichier de ./uploads supprimé s'il existe ("" : rien).
+    public static method remove(path:string): void {
+        if not path.empty() and File::exists("./" + path) {
+            File::remove("./" + path)
+        }
+    }
+
+    public static method validSignature(extension:string, content:array<int>): bool {
+        if extension equal "jpg" and content.len() greater or equal 3 {
+            return content[0] equal 255 and content[1] equal 216 and content[2] equal 255
+        }
+        if extension equal "png" and content.len() greater or equal 8 {
+            return content[0] equal 137 and content[1] equal 80
+                and content[2] equal 78 and content[3] equal 71
+                and content[4] equal 13 and content[5] equal 10
+                and content[6] equal 26 and content[7] equal 10
+        }
+        if extension equal "gif" and content.len() greater or equal 6 {
+            return content[0] equal 71 and content[1] equal 73
+                and content[2] equal 70 and content[3] equal 56
+        }
+        if extension equal "webp" and content.len() greater or equal 12 {
+            return content[0] equal 82 and content[1] equal 73
+                and content[2] equal 70 and content[3] equal 70
+                and content[8] equal 87 and content[9] equal 69
+                and content[10] equal 66 and content[11] equal 80
+        }
+        // PDF : « %PDF ».
+        if extension equal "pdf" and content.len() greater or equal 4 {
+            return content[0] equal 37 and content[1] equal 80 and content[2] equal 68 and content[3] equal 70
+        }
+        return false
+    }
+}

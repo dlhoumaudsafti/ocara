@@ -8,6 +8,7 @@ import context.car.infra.controllers.CarController
 import context.car.infra.controllers.MaintenanceController
 import context.car.infra.view.form.CarForm
 import context.car.infra.view.form.MaintenanceForm
+import ocara.File
 import tests.support.fake.FakeDatabase
 
 // Entretiens de la fiche : ajout, modification, suppression (actions
@@ -129,6 +130,64 @@ class MaintenanceControllerTest extends UnitTest {
             }
         }
         self::assertTrue(dated)
+        FakeDatabase::cleanup()
+        return 0
+    }
+
+    // Relevé du compteur : sans coût (ni durée de vie, ni source), le
+    // relevé est obligatoire ; il met à jour le compteur sans changer le prix.
+    public method readingTypeTest(): int {
+        FakeDatabase::reset()
+        const car_id:int = FakeDatabase::car("READTYPE", "Peugeot", "308", 10000.0)
+        const form:MaintenanceForm = self.form("reading", "", "", "Garage", "90")
+        form.applyType()
+        self::assertTrue(form.is_reading)
+        self::assertFalse(form.needs_cost)
+        self::assertEquals("invalid_reading", MaintenanceController::store(car_id, form))
+        form.mileage = "61000"
+        self::assertEquals("", MaintenanceController::store(car_id, form))
+        const saved:map<string, mixed> = FakeDatabase::maintenances(car_id)[0]
+        self::assertEquals("reading", saved["type"])
+        self::assertEquals(0.0, saved["cost"])
+        self::assertEquals(0, saved["lifespan_days"])
+        self::assertEquals("", saved["material_source"])
+        self::assertEquals(61000, FakeDatabase::carRow(car_id)["mileage"])
+        self::assertEquals(10000.0, FakeDatabase::estimatedPrice(car_id))
+        FakeDatabase::cleanup()
+        return 0
+    }
+
+    // Facture jointe : PDF ou image contrôlés, la précédente remplacée ; pas
+    // sur un relevé ; retirée (fichier supprimé) ; supprimée avec l'entretien.
+    public method attachmentTest(): int {
+        FakeDatabase::reset()
+        const car_id:int = FakeDatabase::car("ATTACH", "Peugeot", "308", 10000.0)
+        const m_id:int = FakeDatabase::insertMaintenance(car_id, "maintenance", "Vidange", 80.0, "", 0)
+        const r_id:int = FakeDatabase::insertMaintenance(car_id, "reading", "", 0.0, "", 0, 50000, "2026-01-01")
+        File::writeBytes("/tmp/facture-ocunit.pdf", [37, 80, 68, 70, 45, 49])
+        File::writeBytes("/tmp/faux-ocunit.pdf", [1, 2, 3])
+        self::assertEquals("invalid_attachment", MaintenanceController::storeAttachment(car_id, m_id, "/tmp/faux-ocunit.pdf"))
+        self::assertEquals("not_found", MaintenanceController::storeAttachment(car_id, r_id, "/tmp/facture-ocunit.pdf"))
+        self::assertEquals("not_found", MaintenanceController::storeAttachment(car_id + 1000, m_id, "/tmp/facture-ocunit.pdf"))
+        self::assertEquals("", MaintenanceController::storeAttachment(car_id, m_id, "/tmp/facture-ocunit.pdf"))
+        var first:string = FakeDatabase::maintenanceRow(m_id)["attachment"]
+        self::assertEquals("facture-ocunit.pdf", FakeDatabase::maintenanceRow(m_id)["attachment_name"])
+        self::assertTrue(File::exists("./" + first))
+        // Une seconde facture remplace la première (fichier supprimé).
+        self::assertEquals("", MaintenanceController::storeAttachment(car_id, m_id, "/tmp/facture-ocunit.pdf"))
+        var second:string = FakeDatabase::maintenanceRow(m_id)["attachment"]
+        if first not equal second {
+            self::assertFalse(File::exists("./" + first))
+        }
+        self::assertTrue(MaintenanceController::removeAttachment(car_id, m_id))
+        self::assertFalse(File::exists("./" + second))
+        self::assertEquals("", FakeDatabase::maintenanceRow(m_id)["attachment"])
+        self::assertFalse(MaintenanceController::removeAttachment(car_id, m_id))
+        // Supprimer l'entretien supprime sa facture.
+        MaintenanceController::storeAttachment(car_id, m_id, "/tmp/facture-ocunit.pdf")
+        var third:string = FakeDatabase::maintenanceRow(m_id)["attachment"]
+        self::assertTrue(MaintenanceController::remove(car_id, m_id))
+        self::assertFalse(File::exists("./" + third))
         FakeDatabase::cleanup()
         return 0
     }

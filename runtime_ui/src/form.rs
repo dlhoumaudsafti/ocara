@@ -5,7 +5,9 @@
 //! plus proche, sinon l'écran. Sinon, les champs vides passent à l'état
 //! `invalid`, le premier reçoit le focus et l'action `onInvalid` du bouton
 //! part avec leurs `id`. Vérifié ici, sur l'état gardé (saisies, `ui.set`,
-//! liaisons), pour les deux moteurs à la fois.
+//! liaisons), pour les deux moteurs à la fois : `required` et `visible` sont
+//! ceux du moment (un champ rendu obligatoire ou facultatif par `ui.set` ou
+//! une liaison, un champ masqué qui ne compte pas).
 
 use serde_json::{Map, Value};
 
@@ -26,16 +28,25 @@ fn path_to<'t>(node: &'t Value, id: &str, path: &mut Vec<&'t Value>) -> bool {
     false
 }
 
-/// Champs obligatoires de `node` et de ses descendants (`id`, type).
-fn required_fields(node: &Value, out: &mut Vec<(String, String)>) {
-    if node.get("required") == Some(&Value::Bool(true)) {
-        if let (Some(id), Some(ty)) = (node.get("id").and_then(Value::as_str), node.get("type").and_then(Value::as_str)) {
+/// Types de nœuds qui portent une saisie.
+const FIELDS: &[&str] = &["input", "checkbox", "switch", "radio", "select", "slider", "date", "time"];
+
+/// Champs à `id` de `node` et de ses descendants (`id`, type) : obligatoires
+/// ou non dans le `.oc.ui`, leur état du moment décide (`counts`).
+fn candidate_fields(node: &Value, out: &mut Vec<(String, String)>) {
+    if let (Some(id), Some(ty)) = (node.get("id").and_then(Value::as_str), node.get("type").and_then(Value::as_str)) {
+        if FIELDS.contains(&ty) {
             out.push((id.to_string(), ty.to_string()));
         }
     }
     for child in node.get("children").and_then(Value::as_array).into_iter().flatten() {
-        required_fields(child, out);
+        candidate_fields(child, out);
     }
+}
+
+/// Le champ (propriétés du moment) est-il à vérifier : obligatoire et affiché ?
+fn counts(props: &Map<String, Value>) -> bool {
+    props.get("required") == Some(&Value::Bool(true)) && props.get("visible") != Some(&Value::Bool(false))
 }
 
 /// Valeur absente : `null`, texte vide ou blanc, case non cochée.
@@ -67,7 +78,7 @@ fn form_fields(this: i64, id: &str, whole: bool) -> Vec<(String, String)> {
                 true => *path.last().expect("nœud trouvé"),
                 false => path.iter().rev().find(|n| n.get("form") == Some(&Value::Bool(true))).copied().unwrap_or(root),
             };
-            required_fields(scope, &mut fields);
+            candidate_fields(scope, &mut fields);
             break;
         }
         fields
@@ -77,7 +88,10 @@ fn form_fields(this: i64, id: &str, whole: bool) -> Vec<(String, String)> {
 /// `id` des champs obligatoires vides parmi `fields`.
 fn empty_fields(this: i64, fields: Vec<(String, String)>) -> Vec<String> {
     fields.into_iter()
-        .filter(|(id, ty)| is_empty(props(this, id).get(value_prop(ty))))
+        .filter(|(id, ty)| {
+            let p = props(this, id);
+            counts(&p) && is_empty(p.get(value_prop(ty)))
+        })
         .map(|(id, _)| id)
         .collect()
 }
@@ -125,7 +139,7 @@ pub fn validate(this: i64, container: &str) -> Vec<String> {
 mod tests {
     use serde_json::json;
 
-    use super::{is_empty, path_to, required_fields};
+    use super::{candidate_fields, counts, is_empty, path_to};
 
     #[test]
     fn empty_values() {
@@ -147,7 +161,17 @@ mod tests {
         assert!(path_to(&layout, "save", &mut path));
         let form = path.iter().rev().find(|n| n.get("form") == Some(&json!(true))).expect("formulaire");
         let mut fields = Vec::new();
-        required_fields(form, &mut fields);
+        candidate_fields(form, &mut fields);
         assert_eq!(fields, vec![("name".to_string(), "input".to_string()), ("terms".to_string(), "checkbox".to_string())]);
+    }
+
+    /// Obligatoire du moment (`ui.set`, liaison) ; un champ masqué ne compte pas.
+    #[test]
+    fn required_and_visible_of_the_moment() {
+        let p = |v: serde_json::Value| v.as_object().unwrap().clone();
+        assert!(counts(&p(json!({ "required": true }))));
+        assert!(!counts(&p(json!({ "required": false }))));
+        assert!(!counts(&p(json!({}))));
+        assert!(!counts(&p(json!({ "required": true, "visible": false }))));
     }
 }

@@ -112,12 +112,23 @@ class Database {
         if not self::hasColumn(db, "maintenances", "performed_on") {
             db.execute("ALTER TABLE maintenances ADD COLUMN performed_on TEXT NOT NULL DEFAULT ''")
         }
+        // Fichier joint (facture) : chemin dans ./uploads et nom d'origine.
+        if not self::hasColumn(db, "maintenances", "attachment") {
+            db.execute("ALTER TABLE maintenances ADD COLUMN attachment TEXT NOT NULL DEFAULT ''")
+        }
+        if not self::hasColumn(db, "maintenances", "attachment_name") {
+            db.execute("ALTER TABLE maintenances ADD COLUMN attachment_name TEXT NOT NULL DEFAULT ''")
+        }
         db.execute(`CREATE TABLE IF NOT EXISTS car_photos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             car_id INTEGER NOT NULL,
             path TEXT NOT NULL DEFAULT '',
             FOREIGN KEY(car_id) REFERENCES cars(id) ON DELETE CASCADE
         )`)
+        // Photo principale de la voiture (une au plus ; aucune : la première).
+        if not self::hasColumn(db, "car_photos", "main") {
+            db.execute("ALTER TABLE car_photos ADD COLUMN main INTEGER NOT NULL DEFAULT 0")
+        }
         // Préférences (contexte settings) : langue, devise, fuseau horaire.
         db.execute(`CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,

@@ -30,6 +30,8 @@ bar:
       id: top_search
       placeholder: "${search_placeholder}"
       width: fill
+      # Hauteur fixe : champ compact dans la barre de titre (Android : sans les 56 dp de Material).
+      height: 40
       onChange: suggest_search
       onSubmit: search_submit
       onSuggestion: open_suggestion

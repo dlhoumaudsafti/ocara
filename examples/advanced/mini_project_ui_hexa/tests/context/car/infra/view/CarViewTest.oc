@@ -2,6 +2,7 @@ import ocara.UnitTest
 import ocara.DateTime
 import context.car.domain.entity.CarEntity
 import context.car.domain.entity.MaintenanceEntity
+import context.car.domain.entity.CarPhotoEntity
 import context.car.app.dto.CarDetailsDTO
 import context.car.infra.view.CarView
 import context.shared.infra.settings.Preferences
@@ -18,7 +19,7 @@ class CarViewTest extends UnitTest {
         var maintenances:array<MaintenanceEntity> = []
         maintenances.push(use MaintenanceEntity(1, 7, "maintenance", "Vidange moteur", 80.0, "Garage", 0, 1790251200))
         maintenances.push(use MaintenanceEntity(2, 7, "improvement", "Peinture", 500.0, "", 0, 1790251200))
-        const details:CarDetailsDTO = use CarDetailsDTO(car, maintenances, ["uploads/photo.jpg"], 80.0, 500.0)
+        const details:CarDetailsDTO = use CarDetailsDTO(car, maintenances, [use CarPhotoEntity(3, "uploads/photo.jpg", true)], 80.0, 500.0)
 
         const state:map<string, map<string, mixed>> = CarView::present(details)
         self::assertEquals("7", state["car_id"]["value"])
@@ -48,6 +49,10 @@ class CarViewTest extends UnitTest {
 
         var photos:array<map<string, mixed>> = state["photos"]["items"]
         self::assertEquals("uploads/photo.jpg", photos[0]["path"])
+        self::assertEquals(3, photos[0]["id"])
+        self::assertEquals("#FFC107", photos[0]["star_color"])
+        self::assertEquals("uploads/photo.jpg", state["car_main_photo"]["src"])
+        self::assertEquals(true, state["car_main_photo"]["visible"])
         return 0
     }
 
@@ -57,6 +62,7 @@ class CarViewTest extends UnitTest {
         const state:map<string, map<string, mixed>> = CarView::present(details)
         self::assertEquals(true, state["history_empty"]["visible"])
         self::assertEquals(true, state["photos_empty"]["visible"])
+        self::assertEquals(false, state["car_main_photo"]["visible"])
         // Ni pays ni année : absents du résumé.
         self::assertEquals(
             "Renault Clio · ${label_acquisition} : ${not_set} · ${label_sale} : ${not_set}",
@@ -84,6 +90,24 @@ class CarViewTest extends UnitTest {
         self::assertEquals("03/02/2026", rows[0]["date"])
         self::assertEquals("${reading_label} : 84 500 km", rows[0]["mileage"])
         self::assertEquals(true, rows[0]["has_mileage"])
+        return 0
+    }
+
+    // Relevé : badge propre, ni coût ni facture ; facture d'un entretien.
+    public method readingAndAttachmentRowsTest(): int {
+        Preferences::reset()
+        const car:CarEntity = use CarEntity(12, "REF-R", "Fiat", "Panda", "IT", 2012, 5000.0, 5000.0, "", "")
+        var maintenances:array<MaintenanceEntity> = []
+        maintenances.push(use MaintenanceEntity(6, 12, "reading", "", 0.0, "", 0, 1790251200, 70000, "2026-03-01"))
+        maintenances.push(use MaintenanceEntity(7, 12, "maintenance", "Vidange", 80.0, "", 0, 1790251200, 0, "2026-02-01", "uploads/m-7.pdf", "facture.pdf"))
+        var rows:array<map<string, mixed>> = CarView::present(use CarDetailsDTO(car, maintenances, [], 80.0, 0.0))["maintenances"]["items"]
+        self::assertEquals("${badge_reading}", rows[0]["badge"])
+        self::assertEquals(false, rows[0]["has_cost"])
+        self::assertEquals(false, rows[0]["can_attach"])
+        self::assertEquals(true, rows[1]["can_attach"])
+        self::assertEquals(true, rows[1]["has_attachment"])
+        self::assertEquals("facture.pdf", rows[1]["attachment_name"])
+        self::assertEquals("uploads/m-7.pdf", rows[1]["attachment"])
         return 0
     }
 

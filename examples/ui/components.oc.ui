@@ -98,11 +98,14 @@ screens:
         - { type: fab, id: add, icon: add, label: "Ajouter", position: bottomCenter, onClick: add_item }
         - type: drawer
           id: nav
+          # Ordre des panneaux : ce tiroir passe devant le panneau inférieur.
+          z: 60
           onDismiss: nav_closed
           children:
             - { type: text, value: "Menu" }
         - type: bottomSheet
           id: sheet
+          z: 50
           onDismiss: sheet_closed
           children:
             - { type: text, value: "Panneau" }

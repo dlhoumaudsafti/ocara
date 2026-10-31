@@ -14,6 +14,8 @@ pub(crate) fn release(_this: i64) {}
 
 /// Adresse ouverte dans le navigateur du système (`link` sans `target`).
 pub(crate) fn open_external(_this: i64, url: &str) {
+    let url = super::external_uri(url);
+    let url = url.as_str();
     #[cfg(target_os = "macos")]
     let _ = std::process::Command::new("open").arg(url).spawn();
     #[cfg(target_os = "windows")]

@@ -1,3 +1,6 @@
+// CarPhotoContract en mémoire (tests.support.fake.FakeDatabase).
+
+import context.car.domain.entity.CarPhotoEntity
 import context.car.domain.contract.CarPhotoContract
 import tests.support.fake.FakeDatabase
 
@@ -10,8 +13,19 @@ class FakeCarPhotoRepository implements CarPhotoContract {
         FakeDatabase::setPhotoPath(id, path)
     }
 
-    public static method forCar(car_id:int): array<string> {
-        return FakeDatabase::photos(car_id)
+    public static method forCar(car_id:int): array<CarPhotoEntity> {
+        var photos:array<CarPhotoEntity> = []
+        for row in FakeDatabase::photoRows(car_id) {
+            var id:int = row["id"]
+            var path:string = row["path"]
+            var main:bool = row["main"]
+            photos.push(use CarPhotoEntity(id, path, main))
+        }
+        return photos
+    }
+
+    public static method setMain(car_id:int, photo_id:int): bool {
+        return FakeDatabase::setMainPhoto(car_id, photo_id)
     }
 
     public static method deleteForCar(car_id:int): void {

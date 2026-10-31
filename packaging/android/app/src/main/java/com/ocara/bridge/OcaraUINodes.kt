@@ -71,6 +71,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.style.TextOverflow
@@ -673,24 +676,33 @@ private fun Input(type: String, p: Map<String, Any?>, id: String?, ctx: Ctx, ena
     val suggestions = suggestionsOf(p["suggestions"])
     var focused by remember { mutableStateOf(false) }
     var dismissed by remember(suggestions) { mutableStateOf(false) }
+    val onChange = { text: String ->
+        local = text
+        OcaraUIEngine.changed(id, "value", text)
+        OcaraUIEngine.fire(p, "onChange", id, text)
+    }
+    val visual = if (kind == "password") PasswordVisualTransformation() else VisualTransformation.None
+    val options = KeyboardOptions(keyboardType = keyboard, imeAction = if (multiline) ImeAction.Default else ImeAction.Done)
+    val actions = KeyboardActions(onDone = { OcaraUIEngine.fire(p, "onSubmit", id, value) })
+    val field = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }
     Box(modifier) {
-    OutlinedTextField(
+    if (p["height"] is Number && !multiline) {
+        // Hauteur fixée (`height`, barre de titre) : champ compact, sans la
+        // hauteur minimale de 56 dp de Material.
+        CompactField(value, onChange, field.fillMaxHeight(), enabled, p["readonly"] == true, p["invalid"] == true, placeholder, visual, options, actions)
+    } else OutlinedTextField(
         value = value,
-        onValueChange = { text ->
-            local = text
-            OcaraUIEngine.changed(id, "value", text)
-            OcaraUIEngine.fire(p, "onChange", id, text)
-        },
-        modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
+        onValueChange = onChange,
+        modifier = field,
         enabled = enabled,
         readOnly = p["readonly"] == true,
         isError = p["invalid"] == true,
         placeholder = placeholder?.let { { Text(it) } },
         singleLine = !multiline,
         minLines = if (multiline) 3 else 1,
-        visualTransformation = if (kind == "password") PasswordVisualTransformation() else VisualTransformation.None,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboard, imeAction = if (multiline) ImeAction.Default else ImeAction.Done),
-        keyboardActions = KeyboardActions(onDone = { OcaraUIEngine.fire(p, "onSubmit", id, value) }),
+        visualTransformation = visual,
+        keyboardOptions = options,
+        keyboardActions = actions,
     )
     DropdownMenu(
         expanded = focused && !dismissed && suggestions.isNotEmpty(),
@@ -706,6 +718,56 @@ private fun Input(type: String, p: Map<String, Any?>, id: String?, ctx: Ctx, ena
         }
     }
     }
+}
+
+/** Champ d'une ligne à la hauteur imposée par `modifier` : bordure et
+ *  couleurs de OutlinedTextField, marges intérieures réduites. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CompactField(
+    value: String,
+    onChange: (String) -> Unit,
+    modifier: Modifier,
+    enabled: Boolean,
+    readOnly: Boolean,
+    isError: Boolean,
+    placeholder: String?,
+    visual: VisualTransformation,
+    options: KeyboardOptions,
+    actions: KeyboardActions,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val colors = OutlinedTextFieldDefaults.colors()
+    val shape = LocalCorner.current ?: OutlinedTextFieldDefaults.shape
+    BasicTextField(
+        value = value,
+        onValueChange = onChange,
+        modifier = modifier,
+        enabled = enabled,
+        readOnly = readOnly,
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        visualTransformation = visual,
+        keyboardOptions = options,
+        keyboardActions = actions,
+        interactionSource = interaction,
+        decorationBox = { inner ->
+            OutlinedTextFieldDefaults.DecorationBox(
+                value = value,
+                innerTextField = inner,
+                enabled = enabled,
+                singleLine = true,
+                visualTransformation = visual,
+                interactionSource = interaction,
+                isError = isError,
+                placeholder = placeholder?.let { { Text(it, style = MaterialTheme.typography.bodyMedium) } },
+                colors = colors,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                container = { OutlinedTextFieldDefaults.Container(enabled, isError, interaction, colors = colors, shape = shape) },
+            )
+        },
+    )
 }
 
 /** Date (`AAAA-MM-JJ`) ou heure (`HH:MM`) choisie dans la boîte native de Material 3. */

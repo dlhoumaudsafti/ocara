@@ -185026,6 +185026,7 @@
                   "name": {
                     "enum": [
                       "add",
+                      "attach",
                       "back",
                       "car",
                       "check",
@@ -186725,6 +186726,7 @@
               "name": {
                 "enum": [
                   "add",
+                  "attach",
                   "back",
                   "car",
                   "check",
@@ -188363,6 +188365,7 @@
                   "name": {
                     "enum": [
                       "add",
+                      "attach",
                       "back",
                       "car",
                       "check",
@@ -246959,6 +246962,7 @@
                   "icon": {
                     "enum": [
                       "add",
+                      "attach",
                       "back",
                       "car",
                       "check",
@@ -248679,6 +248683,7 @@
               "icon": {
                 "enum": [
                   "add",
+                  "attach",
                   "back",
                   "car",
                   "check",
@@ -250332,6 +250337,7 @@
                   "icon": {
                     "enum": [
                       "add",
+                      "attach",
                       "back",
                       "car",
                       "check",
@@ -252171,6 +252177,7 @@
                   "icon": {
                     "enum": [
                       "add",
+                      "attach",
                       "back",
                       "car",
                       "check",
@@ -253877,6 +253884,7 @@
               "icon": {
                 "enum": [
                   "add",
+                  "attach",
                   "back",
                   "car",
                   "check",
@@ -255530,6 +255538,7 @@
                   "icon": {
                     "enum": [
                       "add",
+                      "attach",
                       "back",
                       "car",
                       "check",
@@ -262489,6 +262498,7 @@
                   "icon": {
                     "enum": [
                       "add",
+                      "attach",
                       "back",
                       "car",
                       "check",
@@ -264207,6 +264217,7 @@
               "icon": {
                 "enum": [
                   "add",
+                  "attach",
                   "back",
                   "car",
                   "check",
@@ -265865,6 +265876,7 @@
                   "icon": {
                     "enum": [
                       "add",
+                      "attach",
                       "back",
                       "car",
                       "check",
@@ -288526,6 +288538,7 @@
           {
             "enum": [
               "add",
+              "attach",
               "back",
               "car",
               "check",

@@ -2,6 +2,7 @@ import ocara.UnitTest
 import ocara.Directory
 import ocara.File
 import context.car.infra.db.CarPhotoRepository
+import context.car.domain.entity.CarPhotoEntity
 import tests.support.Fixture
 
 class CarPhotoRepositoryTest extends UnitTest {
@@ -23,9 +24,32 @@ class CarPhotoRepositoryTest extends UnitTest {
         const path:string = "uploads/car-" + car_id.toStr() + "-" + id.toStr() + ".gif"
         CarPhotoRepository::setPath(id, path)
 
-        const photos:array<string> = CarPhotoRepository::forCar(car_id)
+        const photos:array<CarPhotoEntity> = CarPhotoRepository::forCar(car_id)
         self::assertEquals(1, photos.len())
-        self::assertEquals(path, photos[0])
+        self::assertEquals(path, photos[0].path)
+        Fixture::cleanup()
+        return 0
+    }
+
+    // Photo principale : la seule marquée, rendue en premier ; une photo
+    // d'une autre voiture ne l'est pas.
+    public method setMainTest(): int {
+        Fixture::reset()
+        const car_id:int = Fixture::car("PHOTO-MAIN", "Peugeot", "308", 12000.0)
+        const first:int = CarPhotoRepository::reserve(car_id)
+        CarPhotoRepository::setPath(first, "uploads/a.jpg")
+        const second:int = CarPhotoRepository::reserve(car_id)
+        CarPhotoRepository::setPath(second, "uploads/b.jpg")
+        self::assertEquals(first, CarPhotoRepository::forCar(car_id)[0].id)
+        self::assertTrue(CarPhotoRepository::setMain(car_id, second))
+        const photos:array<CarPhotoEntity> = CarPhotoRepository::forCar(car_id)
+        self::assertEquals(second, photos[0].id)
+        self::assertTrue(photos[0].main)
+        self::assertFalse(photos[1].main)
+        self::assertTrue(CarPhotoRepository::setMain(car_id, first))
+        self::assertEquals(first, CarPhotoRepository::forCar(car_id)[0].id)
+        const other:int = Fixture::car("PHOTO-MAIN2", "Renault", "Clio", 8000.0)
+        self::assertFalse(CarPhotoRepository::setMain(other, first))
         Fixture::cleanup()
         return 0
     }
@@ -39,9 +63,9 @@ class CarPhotoRepositoryTest extends UnitTest {
         File::writeBytes("./" + path, [71, 73, 70, 56, 57, 97])
         CarPhotoRepository::setPath(id, path)
 
-        const photos:array<string> = CarPhotoRepository::forCar(car_id)
+        const photos:array<CarPhotoEntity> = CarPhotoRepository::forCar(car_id)
         self::assertEquals(1, photos.len())
-        self::assertEquals(path, photos[0])
+        self::assertEquals(path, photos[0].path)
         self::assertTrue(File::exists("./" + path))
 
         CarPhotoRepository::deleteForCar(car_id)

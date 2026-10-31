@@ -19,9 +19,18 @@ class CarView implements CarViewPort {
         for m in details.maintenances {
             rows.push(self::row(m))
         }
+        // La principale d'abord (étoile jaune) ; sans principale, la première.
         var photos:array<map<string, mixed>> = []
         for photo in details.photos {
-            photos.push({"path": photo})
+            var star:string = "#9e9e9e"
+            if photo.main {
+                star = "#FFC107"
+            }
+            photos.push({"id": photo.id, "path": photo.path, "main": photo.main, "star_color": star})
+        }
+        var main_photo:string = ""
+        if details.photos.len() greater 0 {
+            main_photo = details.photos[0].path
         }
         // Voiture lue en base : son `id` est toujours connu.
         var id:string = ""
@@ -37,6 +46,7 @@ class CarView implements CarViewPort {
             "car_estimated.value": {"value": Format::price(details.car.estimated_price)},
             "car_maintenance_total.value": {"value": Format::price(details.maintenance_total)},
             "car_improvement_total.value": {"value": Format::price(details.improvement_total)},
+            "car_main_photo": {"src": main_photo, "visible": not main_photo.empty()},
             "photos": {"items": photos},
             "photos_empty": {"visible": photos.len() equal 0},
             "maintenances": {"items": rows},
@@ -125,10 +135,20 @@ class CarView implements CarViewPort {
         }
         return {
             "id": m.id,
-            "badge": match m.type { "improvement" => "${badge_improvement}" default => "${badge_maintenance}" },
-            "badge_color": match m.type { "improvement" => "#8e24aa" default => "#b8860b" },
+            "badge": match m.type {
+                "improvement" => "${badge_improvement}"
+                "reading" => "${badge_reading}"
+                default => "${badge_maintenance}"
+            },
+            "badge_color": match m.type { "improvement" => "#8e24aa" "reading" => "#00838f" default => "#b8860b" },
             "description": m.description,
             "cost": Format::price(m.cost),
+            "has_cost": not m.isReading(),
+            // Facture : relevé exclu ; lien ouvert dans l'application par défaut.
+            "can_attach": not m.isReading(),
+            "attachment": m.attachment,
+            "attachment_name": m.attachment_name,
+            "has_attachment": not m.attachment.empty(),
             "date": self::date(m),
             "mileage": self::reading(m),
             "has_mileage": m.mileage greater 0,

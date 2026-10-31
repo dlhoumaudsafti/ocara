@@ -7,13 +7,13 @@ namespace context.car.infra.controllers
 
 import ocara.UI
 import ocara.UIEvent
-import ocara.File
-import ocara.Directory
 import ocara.DateTime
 import ocara.ConvertException
 import context.car.domain.entity.CarEntity
 import context.car.domain.contract.CarContract
 import context.car.domain.contract.CarPhotoContract
+import context.car.domain.contract.MaintenanceContract
+import context.car.domain.entity.MaintenanceEntity
 import context.car.app.port.CarViewPort
 import context.car.app.usecase.CarDetailsService
 import context.car.app.usecase.PricingService
@@ -22,6 +22,9 @@ import context.car.infra.view.form.CarForm
 import context.car.infra.view.helpers.Flash
 import context.shared.infra.ui.Screen
 import context.shared.infra.i18n.Format
+import context.car.infra.files.Upload
+
+const PHOTO_TYPES:array<string> = ["jpg", "png", "webp", "gif"]
 
 class CarController {
 
@@ -277,7 +280,12 @@ class CarController {
         ui.navigate("home")
     }
 
+    // La voiture, ses photos et les factures de ses entretiens (fichiers compris).
     public static method remove(id:int): void {
+        consumed maintenances:Resolvable<array<MaintenanceEntity>> = MaintenanceContract::forCar(id)
+        for m in resolve maintenances {
+            Upload::remove(m.attachment)
+        }
         CarPhotoContract::deleteForCar(id)
         CarContract::delete(id)
     }
@@ -297,55 +305,28 @@ class CarController {
         self::refresh(ui, id)
     }
 
-    // Copie la photo `source` dans ./uploads après les contrôles du site :
-    // format reconnu à sa signature, 1 octet à 10 Mo. Faux si refusée.
+    // Copie la photo `source` dans ./uploads après les contrôles du site
+    // (car.infra.files.Upload). Faux si refusée.
     public static method storePhoto(id:int, source:string): bool {
         const car:CarEntity|null = CarContract::find(id)
-        if car is null or not File::exists(source) {
+        const extension:string = Upload::check(source, PHOTO_TYPES)
+        if car is null or extension.empty() {
             return false
         }
-        var extension:string = match File::extension(source).lower() {
-            "jpg" => "jpg"
-            "jpeg" => "jpg"
-            "png" => "png"
-            "webp" => "webp"
-            "gif" => "gif"
-            default => ""
-        }
-        var content:array<int> = File::readBytes(source)
-        if extension.empty() or not self::validSignature(extension, content)
-            or content.len() greater 10485760 or content.len() smaller 1 {
-            return false
-        }
-        Directory::createRecursive("./uploads")
         var photo_id:int = CarPhotoContract::reserve(id)
-        var path:string = "uploads/car-" + id.toStr() + "-" + photo_id.toStr() + "." + extension
-        File::writeBytes("./" + path, content)
-        CarPhotoContract::setPath(photo_id, path)
+        CarPhotoContract::setPath(photo_id, Upload::store(source, extension, "car-" + id.toStr() + "-" + photo_id.toStr()))
         return true
     }
 
-    private static method validSignature(extension:string, content:array<int>): bool {
-        if extension equal "jpg" and content.len() greater or equal 3 {
-            return content[0] equal 255 and content[1] equal 216 and content[2] equal 255
+    // Étoile d'une photo de la galerie : elle devient la photo principale.
+    public static method setMainPhoto(ui:UI, event:UIEvent): void {
+        var row:map<string, mixed> = event.value()
+        var photo_id:int = row["id"]
+        const id:int = self::current(ui)
+        if CarPhotoContract::setMain(id, photo_id) {
+            ui.toast(Flash::message("main_photo_set"))
+            self::refresh(ui, id)
         }
-        if extension equal "png" and content.len() greater or equal 8 {
-            return content[0] equal 137 and content[1] equal 80
-                and content[2] equal 78 and content[3] equal 71
-                and content[4] equal 13 and content[5] equal 10
-                and content[6] equal 26 and content[7] equal 10
-        }
-        if extension equal "gif" and content.len() greater or equal 6 {
-            return content[0] equal 71 and content[1] equal 73
-                and content[2] equal 70 and content[3] equal 56
-        }
-        if extension equal "webp" and content.len() greater or equal 12 {
-            return content[0] equal 82 and content[1] equal 73
-                and content[2] equal 70 and content[3] equal 70
-                and content[8] equal 87 and content[9] equal 69
-                and content[10] equal 66 and content[11] equal 80
-        }
-        return false
     }
 
     // Photo de la galerie : en grand.

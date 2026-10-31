@@ -3,6 +3,7 @@ namespace context.car.infra.db
 import ocara.SQLite
 import ocara.File
 import context.shared.infra.db.Database
+import context.car.domain.entity.CarPhotoEntity
 import context.car.domain.contract.CarPhotoContract
 
 class CarPhotoRepository implements CarPhotoContract {
@@ -26,27 +27,45 @@ class CarPhotoRepository implements CarPhotoContract {
         })
     }
 
-    public static method forCar(car_id:int): array<string> {
+    public static method forCar(car_id:int): array<CarPhotoEntity> {
         const db:SQLite = Database::connect()
-        const rows:array<map<string, string|null>> = db.query(
-            "SELECT path FROM car_photos WHERE car_id = :carId AND path != '' ORDER BY id",
+        const rows:array<map<string, mixed>> = db.query(
+            "SELECT id, path, main FROM car_photos WHERE car_id = :carId AND path != '' ORDER BY main DESC, id",
             {"carId": car_id}
         )
         db.close()
-        var paths:array<string> = []
+        var photos:array<CarPhotoEntity> = []
         for row in rows {
-            var path:string|null = row["path"]
-            if path not equal null {
-                paths.push(path)
-            }
+            var id:int = row["id"]
+            var path:string = row["path"]
+            var main:int = row["main"]
+            photos.push(use CarPhotoEntity(id, path, main equal 1))
         }
-        return paths
+        return photos
+    }
+
+    public static method setMain(car_id:int, photo_id:int): bool {
+        const db:SQLite = Database::connect()
+        const row:map<string, mixed> = db.queryOne(
+            "SELECT id FROM car_photos WHERE id = :id AND car_id = :carId AND path != ''",
+            {"id": photo_id, "carId": car_id}
+        )
+        db.close()
+        if row.size() equal 0 {
+            return false
+        }
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.begin()
+            db.execute("UPDATE car_photos SET main = 0 WHERE car_id = :carId", {"carId": car_id})
+            db.execute("UPDATE car_photos SET main = 1 WHERE id = :id", {"id": photo_id})
+            db.commit()
+        })
+        return true
     }
 
     public static method deleteForCar(car_id:int): void {
-        var paths:array<string> = self::forCar(car_id)
-        for path in paths {
-            var absolute_path:string = "./" + path
+        for photo in self::forCar(car_id) {
+            var absolute_path:string = "./" + photo.path
             if File::exists(absolute_path) {
                 File::remove(absolute_path)
             }

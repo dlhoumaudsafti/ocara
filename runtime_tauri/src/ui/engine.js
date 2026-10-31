@@ -160,7 +160,10 @@
       } else if (typeof v === "number") s[dim] = px(v);
     });
     if (p.weight) { s.flex = p.weight + " 1 0"; s.minWidth = "0"; }
-    if (p.z != null) { s.zIndex = p.z; if (!s.position) s.position = "relative"; }
+    if (p.z != null) {
+      s.zIndex = p.z;
+      if (!s.position && !e.classList.contains("oc-panel-box")) s.position = "relative";
+    }
     if (p.tooltip) e.title = p.tooltip;
     if (p.label) e.setAttribute("aria-label", p.label);
     if (p.visible === false) e.hidden = true;
@@ -494,6 +497,12 @@
     decorate(box, p, axis, ["column", "row", "stack", "grid", "card", "list", "floating", "drawer", "bottomSheet"].indexOf(node.type) >= 0);
     OcaraEffects.apply(box, p, tree.animations || {});
     events(box, node, p, ctx);
+    // `z` d'un tiroir ou d'un panneau : ordre des panneaux entre eux (sur
+    // le panneau entier, voile compris, pas sur sa boîte).
+    if (e.ocBox && p.z != null) {
+      e.style.zIndex = p.z;
+      box.style.zIndex = "";
+    }
     if (p.invalid) e.classList.add("oc-invalid");
     if (p.visited) e.classList.add("oc-visited");
     if (p.required) {

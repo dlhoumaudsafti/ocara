@@ -1,0 +1,37 @@
+import ocara.UnitTest
+import ocara.File
+import context.car.infra.files.Upload
+
+// Fichiers ajoutés depuis l'interface : type, signature, copie dans ./uploads.
+class UploadTest extends UnitTest {
+
+    public method checkTest(): int {
+        File::writeBytes("/tmp/ocara-up.pdf", [37, 80, 68, 70, 45, 49, 46, 55])
+        File::writeBytes("/tmp/ocara-up-fake.pdf", [1, 2, 3, 4])
+        File::writeBytes("/tmp/ocara-up.JPEG", [255, 216, 255, 224])
+        self::assertEquals("pdf", Upload::check("/tmp/ocara-up.pdf", ["pdf", "jpg"]))
+        self::assertEquals("", Upload::check("/tmp/ocara-up-fake.pdf", ["pdf", "jpg"]))
+        self::assertEquals("jpg", Upload::check("/tmp/ocara-up.JPEG", ["pdf", "jpg"]))
+        self::assertEquals("", Upload::check("/tmp/ocara-up.pdf", ["jpg"]))
+        self::assertEquals("", Upload::check("/tmp/absent.pdf", ["pdf"]))
+        return 0
+    }
+
+    public method storeAndRemoveTest(): int {
+        File::writeBytes("/tmp/ocara-up.pdf", [37, 80, 68, 70, 45, 49, 46, 55])
+        const path:string = Upload::store("/tmp/ocara-up.pdf", "pdf", "test-ocunit-upload")
+        self::assertEquals("uploads/test-ocunit-upload.pdf", path)
+        self::assertTrue(File::exists("./" + path))
+        Upload::remove(path)
+        self::assertFalse(File::exists("./" + path))
+        Upload::remove("")
+        return 0
+    }
+
+    public method fileNameTest(): int {
+        self::assertEquals("facture.pdf", Upload::fileName("/home/a/Documents/facture.pdf"))
+        self::assertEquals("scan.png", Upload::fileName("C:\\Users\\a\\scan.png"))
+        self::assertEquals("seul.pdf", Upload::fileName("seul.pdf"))
+        return 0
+    }
+}

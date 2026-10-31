@@ -3,6 +3,8 @@ package com.ocara.bridge
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.webkit.MimeTypeMap
+import androidx.core.content.FileProvider
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -180,7 +182,7 @@ object OcaraUIEngine {
      */
     fun openLink(context: Context, url: String, target: String?) {
         if (target == null) {
-            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            runCatching { context.startActivity(viewIntent(context, url)) }
                 .onFailure { Log.w(TAG, "lien $url : ${it.message}") }
             return
         }
@@ -189,6 +191,23 @@ object OcaraUIEngine {
         changed(target, "html", null)
         changed(target, "file", null)
         changed(target, "url", url)
+    }
+
+    /**
+     * Adresse, ou fichier du programme (`file://…`, chemin relatif au dossier
+     * du programme) partagé en lecture par le FileProvider, ouvert dans l'app
+     * par défaut pour son type.
+     */
+    private fun viewIntent(context: Context, url: String): Intent {
+        val scheme = Uri.parse(url).scheme
+        if (scheme != null && scheme != "file") {
+            return Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val file = OcaraBridge.file(if (scheme == "file") Uri.parse(url).path ?: "" else url)
+        val uri = FileProvider.getUriForFile(context, context.packageName + ".files", file)
+        val type = MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension.lowercase()) ?: "*/*"
+        return Intent(Intent.ACTION_VIEW).setDataAndType(uri, type)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 
     /** Écran dont la disposition contient le nœud `id`. */

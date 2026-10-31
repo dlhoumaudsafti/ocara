@@ -288,7 +288,7 @@ Les deux moteurs suivent les mêmes règles :
 ### Icônes
 
 `icon.name`, `button.icon` et `iconButton.icon` nomment une icône du jeu
-commun (Material Icons) : `add`, `back`, `check`, `close`, `delete`,
+commun (Material Icons) : `add`, `attach`, `back`, `check`, `close`, `delete`,
 `car`, `edit`, `favorite`, `forward`, `home`, `info`, `menu`, `more`,
 `person`, `refresh`, `search`, `settings`, `share`, `star`. Le dessin des icônes utilisées est
 copié dans l'arbre (`icons`) : il est le même sur les deux plateformes.

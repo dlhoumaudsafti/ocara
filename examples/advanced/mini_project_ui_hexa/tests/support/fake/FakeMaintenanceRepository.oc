@@ -19,9 +19,11 @@ class FakeMaintenanceRepository implements MaintenanceContract {
         var created_at:int = row["created_at"]
         var mileage:int = row["mileage"]
         var performed_on:string = row["performed_on"]
+        var attachment:string = row["attachment"]
+        var attachment_name:string = row["attachment_name"]
         return use MaintenanceEntity(
             id, car_id, type, description, cost, material_source, lifespan_days, created_at,
-            mileage, performed_on
+            mileage, performed_on, attachment, attachment_name
         )
     }
 
@@ -52,6 +54,10 @@ class FakeMaintenanceRepository implements MaintenanceContract {
             return null
         }
         return self::fromRow(row)
+    }
+
+    public static method setAttachment(id:int, path:string, name:string): void {
+        FakeDatabase::setAttachment(id, path, name)
     }
 
     public static method delete(id:int): void {

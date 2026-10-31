@@ -15,6 +15,9 @@ import context.car.infra.view.helpers.Flash
 import context.shared.infra.ui.Screen
 import context.shared.infra.i18n.Format
 import context.car.app.usecase.MileageService
+import context.car.infra.files.Upload
+
+const ATTACHMENT_TYPES:array<string> = ["pdf", "jpg", "jpeg", "png", "webp"]
 import ocara.DateTime
 
 class MaintenanceController {
@@ -46,7 +49,7 @@ class MaintenanceController {
     // `id`) ; rend le code d'erreur, "" si enregistré.
     public static method store(car_id:int, form:MaintenanceForm): string {
         const desc:string = form.description.trim()
-        const cost:float = CarController::number(form.cost)
+        var cost:float = CarController::number(form.cost)
         const lifespan_str:string = form.lifespan_days.trim()
         var lifespan_days:int = 0
         var invalid_lifespan:bool = false
@@ -56,13 +59,24 @@ class MaintenanceController {
                 invalid_lifespan = true
             }
         }
-        var invalid_type:bool = not (form.type equal "maintenance" or form.type equal "improvement")
-        if desc.empty() or cost smaller or equal 0.0 or invalid_type or invalid_lifespan {
+        if not MaintenanceEntity::types().contains(form.type) {
             return "invalid_cost"
         }
+        const is_reading:bool = form.type equal "reading"
         const reading:int = CarController::count(form.mileage)
         if reading smaller 0 {
             return "invalid_mileage"
+        }
+        // Relevé du compteur : le relevé seul, sans coût ni durée de vie.
+        if is_reading and reading equal 0 {
+            return "invalid_reading"
+        }
+        if not is_reading and (desc.empty() or cost smaller or equal 0.0 or invalid_lifespan) {
+            return "invalid_cost"
+        }
+        if is_reading {
+            cost = 0.0
+            lifespan_days = 0
         }
         var performed_on:string = form.performed_on.trim()
         if performed_on.empty() {
@@ -82,15 +96,86 @@ class MaintenanceController {
             if existing.mileage greater 0 and reading equal Format::toUnit(existing.mileage) {
                 kept = existing.mileage
             }
-            MaintenanceContract::update(form.id, form.type, desc, cost, form.material_source.trim(), lifespan_days, kept, performed_on)
+            MaintenanceContract::update(form.id, form.type, desc, cost, self::source(form), lifespan_days, kept, performed_on)
+            // Devenu relevé : plus de facture.
+            if is_reading and not existing.attachment.empty() {
+                Upload::remove(existing.attachment)
+                MaintenanceContract::setAttachment(form.id, "", "")
+            }
             MileageService::applyLatestReading(car_id, form.id)
         } else {
-            const id:int = MaintenanceContract::create(car_id, form.type, desc, cost, form.material_source.trim(), lifespan_days, mileage, performed_on)
+            const id:int = MaintenanceContract::create(car_id, form.type, desc, cost, self::source(form), lifespan_days, mileage, performed_on)
             MileageService::applyLatestReading(car_id, id)
         }
         // Recalcul complet (pas un simple +=) : voir PricingService.
         PricingService::recalculateEstimatedPrice(car_id)
         return ""
+    }
+
+    private static method source(form:MaintenanceForm): string {
+        if form.type equal "reading" {
+            return ""
+        }
+        return form.material_source.trim()
+    }
+
+    // Type choisi dans le formulaire : champs montrés et obligatoires.
+    public static method typeChanged(ui:UI, event:UIEvent, form:MaintenanceForm): void {
+        form.applyType()
+    }
+
+    // Trombone d'une ligne de l'historique : facture (PDF ou image) jointe à
+    // l'entretien, à la place de la précédente.
+    public static method attach(ui:UI, event:UIEvent): void {
+        var row:map<string, mixed> = event.value()
+        var id:int = row["id"]
+        const source:string = ui.pickFile(ATTACHMENT_TYPES)
+        if source.empty() {
+            return
+        }
+        const car_id:int = CarController::current(ui)
+        const error:string = self::storeAttachment(car_id, id, source)
+        Screen::error(ui, "car_error", Flash::message(error))
+        if error.empty() {
+            ui.toast(Flash::message("attachment_added"))
+            CarController::refresh(ui, car_id)
+        }
+    }
+
+    // Rend le code d'erreur ; "" si le fichier est joint.
+    public static method storeAttachment(car_id:int, id:int, source:string): string {
+        const m:MaintenanceEntity|null = MaintenanceContract::find(id)
+        if m is null or m.car_id not equal car_id or m.isReading() {
+            return "not_found"
+        }
+        const extension:string = Upload::check(source, ATTACHMENT_TYPES)
+        if extension.empty() {
+            return "invalid_attachment"
+        }
+        Upload::remove(m.attachment)
+        const path:string = Upload::store(source, extension, "maintenance-" + id.toStr() + "-" + DateTime::now().toStr())
+        MaintenanceContract::setAttachment(id, path, Upload::fileName(source))
+        return ""
+    }
+
+    // Croix à côté de la facture : retirée (fichier supprimé).
+    public static method detach(ui:UI, event:UIEvent): void {
+        var row:map<string, mixed> = event.value()
+        var id:int = row["id"]
+        const car_id:int = CarController::current(ui)
+        if self::removeAttachment(car_id, id) {
+            CarController::refresh(ui, car_id)
+        }
+    }
+
+    public static method removeAttachment(car_id:int, id:int): bool {
+        const m:MaintenanceEntity|null = MaintenanceContract::find(id)
+        if m is null or m.car_id not equal car_id or m.attachment.empty() {
+            return false
+        }
+        Upload::remove(m.attachment)
+        MaintenanceContract::setAttachment(id, "", "")
+        return true
     }
 
     // Crayon d'une ligne de l'historique : l'entretien dans le formulaire.
@@ -136,6 +221,7 @@ class MaintenanceController {
         if m is null or m.car_id not equal car_id {
             return false
         }
+        Upload::remove(m.attachment)
         MaintenanceContract::delete(id)
         PricingService::recalculateEstimatedPrice(car_id)
         return true

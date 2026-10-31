@@ -23,4 +23,11 @@ class MaintenanceEntityTest extends UnitTest {
         self::assertNull(m.id)
         return 0
     }
+
+    public method typesTest(): int {
+        self::assertEquals(3, MaintenanceEntity::types().len())
+        self::assertTrue((use MaintenanceEntity(1, 1, "reading", "", 0.0, "", 0, 0, 1000)).isReading())
+        self::assertFalse((use MaintenanceEntity(2, 1, "improvement", "Jantes", 9.0, "", 0, 0)).isReading())
+        return 0
+    }
 }

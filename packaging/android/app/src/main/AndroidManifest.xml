@@ -30,6 +30,17 @@
         android:windowSoftInputMode="adjustResize"
         android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@style/Theme.OcaraUIHybridDemo">
+        <!-- Fichiers du programme ouverts dans une autre app (`link` vers un
+             fichier local, OcaraUIEngine.openLink) : URI content:// en lecture. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/ocara_files" />
+        </provider>
         <activity
             android:name=".MainActivity"
             android:exported="true"

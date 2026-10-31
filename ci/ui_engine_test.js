@@ -94,6 +94,13 @@
   check("menu → tiroir ouvert", node("nav").classList.contains("oc-open") && last().id === "nav" && last().value === true);
   document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
   check("Échap → tiroir fermé, onDismiss", !node("nav").classList.contains("oc-open") && last().action === "nav_closed");
+  // Ordre des panneaux : `z` sur le panneau entier ; sinon le panneau
+  // inférieur passe devant le tiroir.
+  check("z d'un tiroir", node("nav").style.zIndex === "60" && node("nav").ocBox.style.zIndex === "");
+  check("z préserve la position du tiroir", getComputedStyle(node("nav").ocBox).position === "absolute");
+  check("z du panneau inférieur", node("sheet").style.zIndex === "50" && getComputedStyle(node("sheet").ocBox).zIndex === "45");
+  check("z préserve la position du panneau", getComputedStyle(node("sheet").ocBox).position === "absolute");
+  check("panneau fermé hors écran", node("sheet").ocBox.getBoundingClientRect().top >= window.innerHeight);
   OcaraUI.set("sheet", "open", true);
   check("panneau ouvert par set", node("sheet").classList.contains("oc-open"));
   node("sheet").querySelector(".oc-scrim").click();

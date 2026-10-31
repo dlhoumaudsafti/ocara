@@ -23,7 +23,7 @@ class CarDetailsServiceTest extends UnitTest {
         self::assertEquals(80.0, details.maintenance_total)
         self::assertEquals(700.0, details.improvement_total)
         self::assertEquals(1, details.photos.len())
-        self::assertEquals("/uploads/test-photo.jpg", details.photos[0])
+        self::assertEquals("/uploads/test-photo.jpg", details.photos[0].path)
         FakeDatabase::cleanup()
         return 0
     }

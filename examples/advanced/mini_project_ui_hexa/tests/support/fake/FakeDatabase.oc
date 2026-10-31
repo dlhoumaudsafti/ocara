@@ -90,6 +90,8 @@ class FakeDatabase {
             "lifespan_days": lifespan_days,
             "mileage": mileage,
             "performed_on": performed_on,
+            "attachment": "",
+            "attachment_name": "",
             "created_at": DateTime::now()
         })
         return id
@@ -262,7 +264,7 @@ class FakeDatabase {
 
     public static method addPhoto(car_id:int, path:string): int {
         const id:int = self::nextId()
-        FAKE_CAR_PHOTOS.push({"id": id, "car_id": car_id, "path": path})
+        FAKE_CAR_PHOTOS.push({"id": id, "car_id": car_id, "path": path, "main": false})
         return id
     }
 
@@ -285,6 +287,59 @@ class FakeDatabase {
             }
         }
         return paths
+    }
+
+    // Photos d'une voiture (lignes), la principale d'abord, chemin renseigné.
+    public static method photoRows(car_id:int): array<map<string, mixed>> {
+        var main:array<map<string, mixed>> = []
+        var others:array<map<string, mixed>> = []
+        for row in FAKE_CAR_PHOTOS {
+            var owner:int = row["car_id"]
+            var path:string = row["path"]
+            var is_main:bool = row["main"]
+            if owner equal car_id and not path.empty() {
+                if is_main {
+                    main.push(row)
+                } else {
+                    others.push(row)
+                }
+            }
+        }
+        for row in others {
+            main.push(row)
+        }
+        return main
+    }
+
+    // Faux si la photo n'est pas à la voiture.
+    public static method setMainPhoto(car_id:int, photo_id:int): bool {
+        var found:bool = false
+        for row in FAKE_CAR_PHOTOS {
+            var owner:int = row["car_id"]
+            var id:int = row["id"]
+            if owner equal car_id and id equal photo_id {
+                found = true
+            }
+        }
+        if not found {
+            return false
+        }
+        for row in FAKE_CAR_PHOTOS {
+            var owner:int = row["car_id"]
+            var id:int = row["id"]
+            if owner equal car_id {
+                row["main"] = id equal photo_id
+            }
+        }
+        return true
+    }
+
+    public static method setAttachment(id:int, path:string, name:string): void {
+        const row:map<string, mixed> = self::maintenanceRow(id)
+        if row.size() greater 0 {
+            row["attachment"] = path
+            row["attachment_name"] = name
+        }
     }
 
     public static method deletePhotos(car_id:int): void {

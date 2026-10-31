@@ -1,9 +1,15 @@
 namespace context.car.domain.contract
 
+import context.car.domain.entity.CarPhotoEntity
+
 interface CarPhotoContract {
     wiring context.car.infra.db.CarPhotoRepository
     public static method reserve(car_id:int): int
     public static method setPath(id:int, path:string): void
-    public static method forCar(car_id:int): array<string>
+    // Photos de la voiture, la principale d'abord, puis dans l'ordre d'ajout.
+    public static method forCar(car_id:int): array<CarPhotoEntity>
+    // `photo_id` devient la photo principale de `car_id` (les autres ne le
+    // sont plus) ; faux si la photo n'est pas à cette voiture.
+    public static method setMain(car_id:int, photo_id:int): bool
     public static method deleteForCar(car_id:int): void
 }

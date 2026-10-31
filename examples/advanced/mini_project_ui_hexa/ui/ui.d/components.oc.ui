@@ -187,6 +187,8 @@ components:
     layout:
       type: bottomSheet
       id: new_car_sheet
+      # Devant le menu, même toujours affiché (grands écrans).
+      z: 50
       children:
         - type: column
           id: new_car_form
@@ -237,6 +239,7 @@ components:
           children:
             - { type: heading, level: 1, bind: car.reference, style: page_title, width: fill }
             - { type: text, id: car_saved, value: "${car_saved}", style: saved, visible: false }
+        - { type: image, id: car_main_photo, src: "", label: "${photo_label}", width: fill, height: 220, fit: cover, radius: 4, visible: false }
         - { type: text, id: car_summary, style: muted }
         # Contrôle technique à faire bientôt, ou dépassé (CarView::inspection).
         - { type: text, id: car_inspection, color: "#ffffff", bold: true, padding: [4, 10], radius: 4, visible: false }
@@ -265,7 +268,16 @@ components:
           id: photos
           spacing: 8
           onSelect: open_photo
-          item: { type: image, bind: path, label: "${photo_label}", height: 200, width: fill, fit: cover, radius: 4 }
+          item:
+            type: column
+            spacing: 2
+            children:
+              - { type: image, bind: path, label: "${photo_label}", height: 200, width: fill, fit: cover, radius: 4 }
+              - type: row
+                spacing: 4
+                children:
+                  - { type: iconButton, icon: star, label: "${main_photo_set}", tooltip: "${main_photo_set}", onClick: set_main_photo, binds: { color: star_color } }
+                  - { type: text, value: "${main_photo}", style: muted, binds: { visible: main } }
 
   # Entretien ajouté, ou modifié depuis l'historique (`maintenance.editing`).
   maintenanceForm:
@@ -280,19 +292,24 @@ components:
         - { type: label, text: "${field_type}" }
         - type: select
           bind: maintenance.type
+          onChange: maintenance_type_changed
           options:
             - { value: maintenance, text: "${type_maintenance}" }
             - { value: improvement, text: "${type_improvement}" }
+            - { value: reading, text: "${type_reading}" }
+        # Obligatoires selon le type (MaintenanceForm::applyType) : un relevé
+        # n'a ni coût, ni durée de vie, ni source, mais un relevé du compteur.
         - { type: label, text: "${field_description}" }
-        - { type: input, bind: maintenance.description, placeholder: "${description_hint}", required: true }
+        - { type: input, bind: maintenance.description, placeholder: "${description_hint}", binds: { required: maintenance.needs_cost } }
         - type: row
           spacing: 8
+          binds: { visible: maintenance.needs_cost }
           children:
             - type: column
               weight: 1
               children:
                 - { type: label, text: "${field_cost}" }
-                - { type: input, bind: maintenance.cost, kind: number, placeholder: "80", required: true }
+                - { type: input, bind: maintenance.cost, kind: number, placeholder: "80", binds: { required: maintenance.needs_cost } }
             - type: column
               weight: 1
               children:
@@ -312,9 +329,12 @@ components:
               weight: 1
               children:
                 - { type: label, text: "${field_reading}" }
-                - { type: input, bind: maintenance.mileage, kind: number, placeholder: "120000" }
-        - { type: label, text: "${field_source}" }
-        - { type: input, bind: maintenance.material_source, placeholder: "${source_hint}" }
+                - { type: input, bind: maintenance.mileage, kind: number, placeholder: "120000", binds: { required: maintenance.is_reading } }
+        - type: column
+          binds: { visible: maintenance.needs_cost }
+          children:
+            - { type: label, text: "${field_source}" }
+            - { type: input, bind: maintenance.material_source, placeholder: "${source_hint}" }
         - type: row
           spacing: 8
           children:
@@ -343,7 +363,8 @@ components:
                 children:
                   - { type: text, bind: badge, bold: true, binds: { color: badge_color } }
                   - { type: text, bind: description, width: fill }
-                  - { type: text, bind: cost, bold: true }
+                  - { type: text, bind: cost, bold: true, binds: { visible: has_cost } }
+                  - { type: iconButton, icon: attach, label: "${attach_label}", tooltip: "${attach_label}", onClick: attach_file, binds: { visible: can_attach } }
                   - { type: iconButton, icon: edit, label: "${edit_label}", tooltip: "${edit_label}", onClick: edit_maintenance }
                   - { type: iconButton, icon: delete, label: "${delete_label}", tooltip: "${delete_label}", onClick: delete_maintenance, color: "#c62828" }
               - type: row
@@ -352,4 +373,11 @@ components:
                   - { type: text, bind: date, style: muted }
                   - { type: text, bind: mileage, style: muted, binds: { visible: has_mileage } }
                   - { type: text, bind: source, style: muted, binds: { visible: has_source } }
+              # Facture jointe : ouverte dans l'application par défaut (link vers un fichier local).
+              - type: row
+                spacing: 4
+                binds: { visible: has_attachment }
+                children:
+                  - { type: link, text: "${attachment}", binds: { text: attachment_name, url: attachment } }
+                  - { type: iconButton, icon: close, label: "${detach_label}", tooltip: "${detach_label}", onClick: detach_file }
               - { type: text, bind: warning, color: "#ffffff", padding: [2, 8], radius: 4, binds: { visible: has_warning, background: warning_color } }

@@ -40,8 +40,12 @@ class SearchView implements SearchViewPort {
             maintenances.push({
                 "id": m.car_id,
                 "car_reference": m.car_reference,
-                "badge": match m.type { "improvement" => "${badge_improvement}" default => "${badge_maintenance}" },
-                "badge_color": match m.type { "improvement" => "#8e24aa" default => "#b8860b" },
+                "badge": match m.type {
+                    "improvement" => "${badge_improvement}"
+                    "reading" => "${badge_reading}"
+                    default => "${badge_maintenance}"
+                },
+                "badge_color": match m.type { "improvement" => "#8e24aa" "reading" => "#00838f" default => "#b8860b" },
                 "description": m.description,
                 "cost": Format::price(m.cost),
             })

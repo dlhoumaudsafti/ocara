@@ -27,6 +27,8 @@ interface MaintenanceContract {
         performed_on:string
     ): void
     public static method delete(id:int): void
+    // Fichier joint ("" : retiré).
+    public static method setAttachment(id:int, path:string, name:string): void
     // Dernier relevé du compteur de la voiture (date la plus récente, puis
     // dernier enregistré) ; `null` sans relevé.
     public static method latestReading(carId:int): MaintenanceEntity|null
