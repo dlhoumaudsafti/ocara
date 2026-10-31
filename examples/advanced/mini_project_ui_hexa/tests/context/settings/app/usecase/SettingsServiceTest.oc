@@ -1,0 +1,48 @@
+import ocara.UnitTest
+import context.settings.domain.entity.SettingsEntity
+import context.settings.app.usecase.SettingsService
+import tests.support.fake.FakeDatabase
+
+class SettingsServiceTest extends UnitTest {
+    wiring tests.support.fake.FakeSettingsRepository
+
+    public method loadDefaultsTest(): int {
+        FakeDatabase::reset()
+        const s:SettingsEntity = SettingsService::load()
+        self::assertEquals("fr", s.language)
+        self::assertEquals("EUR", s.currency)
+        return 0
+    }
+
+    public method updateTest(): int {
+        FakeDatabase::reset()
+        const s:SettingsEntity|null = SettingsService::update("en", "GBP", "Europe/London")
+        self::assertNotNull(s)
+        self::assertEquals("GBP", FakeDatabase::settings()["currency"])
+        const loaded:SettingsEntity = SettingsService::load()
+        self::assertEquals("en", loaded.language)
+        self::assertEquals("Europe/London", loaded.timezone)
+        FakeDatabase::reset()
+        return 0
+    }
+
+    // Choix non proposé : rien d'enregistré.
+    public method updateInvalidTest(): int {
+        FakeDatabase::reset()
+        self::assertNull(SettingsService::update("fr", "BTC", "UTC"))
+        self::assertEquals(0, FakeDatabase::settings().size())
+        return 0
+    }
+
+    // Valeur enregistrée qui n'est plus proposée : celle par défaut.
+    public method loadUnknownValueTest(): int {
+        FakeDatabase::reset()
+        FakeDatabase::setSetting("currency", "BTC")
+        FakeDatabase::setSetting("language", "en")
+        const s:SettingsEntity = SettingsService::load()
+        self::assertEquals("EUR", s.currency)
+        self::assertEquals("en", s.language)
+        FakeDatabase::reset()
+        return 0
+    }
+}

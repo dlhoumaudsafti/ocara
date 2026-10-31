@@ -2,6 +2,9 @@
    sobres proches de Material 3, thème clair/sombre (`window.theme`). */
 :root {
   --oc-primary: #3f51b5;
+  --oc-on-primary: #ffffff;
+  /* Coins (`window.radius` les met tous à la même valeur). */
+  --oc-radius-card: 12px; --oc-radius-small: 8px; --oc-radius-button: 20px; --oc-radius-fab: 16px; --oc-radius-panel: 16px;
   --oc-bg: #fafafa;
   --oc-surface: #ffffff;
   --oc-text: #1c1b1f;
@@ -32,7 +35,8 @@ body {
   display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 12px;
   background: var(--oc-surface); border-bottom: 1px solid var(--oc-line);
 }
-.oc-bar-title { font-size: 18px; font-weight: 600; }
+.oc-bar-title { font-size: 18px; font-weight: 600; white-space: nowrap; }
+.oc-bar-content { flex: 1; min-width: 0; justify-content: flex-end; }
 .oc-screen { flex: 1; overflow: auto; display: flex; flex-direction: column; }
 .oc-screen > * { flex: 1 0 auto; }
 .oc-column, .oc-card, .oc-list { display: flex; flex-direction: column; }
@@ -41,11 +45,11 @@ body {
 .oc-stack > * { grid-area: 1 / 1; }
 .oc-grid { display: grid; }
 .oc-card {
-  background: var(--oc-surface); border-radius: 12px; padding: 12px;
+  background: var(--oc-surface); border-radius: var(--oc-radius-card); padding: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, .2);
 }
 .oc-clickable, .oc-list-item { cursor: pointer; }
-.oc-list-item { padding: 8px; border-radius: 8px; }
+.oc-list-item { padding: 8px; border-radius: var(--oc-radius-small); }
 .oc-list-item:hover { background: color-mix(in srgb, var(--oc-primary) 10%, transparent); }
 .oc-divider { width: 100%; border: 0; border-top: 1px solid var(--oc-line); margin: 4px 0; }
 .oc-spacer { flex: 1 1 0; }
@@ -56,7 +60,7 @@ h1.oc-heading { font-size: 28px; } h2.oc-heading { font-size: 22px; } h3.oc-head
 .oc-icon svg { width: 100%; height: 100%; }
 .oc-input {
   font: inherit; color: inherit; background: var(--oc-surface);
-  border: 1px solid var(--oc-line); border-radius: 8px; padding: 8px 10px; min-width: 0;
+  border: 1px solid var(--oc-line); border-radius: var(--oc-radius-small); padding: 8px 10px; min-width: 0;
 }
 .oc-input:focus { outline: 2px solid var(--oc-primary); outline-offset: -1px; border-color: transparent; }
 textarea.oc-input { min-height: 80px; resize: vertical; }
@@ -79,9 +83,9 @@ textarea.oc-input { min-height: 80px; resize: vertical; }
 .oc-progress { width: 100%; accent-color: var(--oc-primary); }
 .oc-button {
   font: inherit; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  border: 0; border-radius: 20px; padding: 8px 18px; cursor: pointer; font-weight: 500;
+  border: 0; border-radius: var(--oc-radius-button); padding: 8px 18px; cursor: pointer; font-weight: 500;
 }
-.oc-variant-primary { background: var(--oc-primary); color: #fff; }
+.oc-variant-primary { background: var(--oc-primary); color: var(--oc-on-primary); }
 .oc-variant-secondary { background: transparent; color: var(--oc-primary); border: 1px solid var(--oc-line); }
 .oc-variant-text { background: transparent; color: var(--oc-primary); }
 .oc-icon-button { background: transparent; color: inherit; padding: 8px; border-radius: 50%; }
@@ -103,7 +107,7 @@ textarea.oc-input { min-height: 80px; resize: vertical; }
 .oc-card > :is(.oc-button, .oc-text, .oc-heading, .oc-checkbox, .oc-switch, .oc-icon, .oc-image) { align-self: flex-start; }
 .oc-toast {
   position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); max-width: 80%;
-  padding: 10px 16px; border-radius: 8px; background: #323232; color: #fff;
+  padding: 10px 16px; border-radius: var(--oc-radius-small); background: #323232; color: #fff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, .3); transition: opacity .4s;
 }
 .oc-toast-out { opacity: 0; }
@@ -137,9 +141,9 @@ textarea.oc-input { min-height: 80px; resize: vertical; }
 .oc-panel.oc-open { pointer-events: auto; }
 .oc-panel.oc-open .oc-scrim { opacity: 1; }
 .oc-drawer .oc-panel-box { top: 0; bottom: 0; width: min(300px, 85vw); padding: 12px; }
-.oc-drawer.oc-side-start .oc-panel-box { left: 0; transform: translateX(-105%); border-radius: 0 16px 16px 0; }
-.oc-drawer.oc-side-end .oc-panel-box { right: 0; transform: translateX(105%); border-radius: 16px 0 0 16px; }
-.oc-bottomSheet .oc-panel-box { left: 0; right: 0; bottom: 0; max-height: 70vh; padding: 16px; transform: translateY(105%); border-radius: 16px 16px 0 0; }
+.oc-drawer.oc-side-start .oc-panel-box { left: 0; transform: translateX(-105%); border-radius: 0 var(--oc-radius-panel) var(--oc-radius-panel) 0; }
+.oc-drawer.oc-side-end .oc-panel-box { right: 0; transform: translateX(105%); border-radius: var(--oc-radius-panel) 0 0 var(--oc-radius-panel); }
+.oc-bottomSheet .oc-panel-box { left: 0; right: 0; bottom: 0; max-height: 70vh; padding: 16px; transform: translateY(105%); border-radius: var(--oc-radius-panel) var(--oc-radius-panel) 0 0; }
 .oc-panel.oc-open .oc-panel-box { transform: none; }
 /* Tiroir permanent (`permanentFrom`) : toujours visible, le contenu à côté. */
 .oc-drawer.oc-permanent { position: fixed; inset: 0 auto 0 0; width: 280px; pointer-events: auto; }
@@ -152,8 +156,8 @@ textarea.oc-input { min-height: 80px; resize: vertical; }
 /* Bouton flottant (`fab`), placé par `position`. */
 .oc-fab {
   z-index: 30; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  min-width: 56px; height: 56px; padding: 0 16px; border: 0; border-radius: 16px; cursor: pointer;
-  background: var(--oc-primary); color: #fff; font: inherit; font-weight: 600;
+  min-width: 56px; height: 56px; padding: 0 16px; border: 0; border-radius: var(--oc-radius-fab); cursor: pointer;
+  background: var(--oc-primary); color: var(--oc-on-primary); font: inherit; font-weight: 600;
   box-shadow: 0 4px 12px rgba(0, 0, 0, .3);
 }
 .oc-fab:not(.oc-fab-extended) { width: 56px; padding: 0; }
@@ -181,3 +185,12 @@ textarea.oc-input { min-height: 80px; resize: vertical; }
 .oc-spin-pulse { border-radius: 50%; background: currentColor; animation: oc-pulse 1.1s infinite ease-out; }
 .oc-spin-orbit { border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .25); animation: oc-spin 1.2s linear infinite; }
 .oc-spin-orbit i { position: absolute; top: 0; left: 50%; width: 22%; height: 22%; margin-left: -11%; border-radius: 50%; background: currentColor; }
+
+/* Propositions sous un champ (`suggestions`, layers.js). */
+.oc-suggestions {
+  position: fixed; z-index: 50; max-height: 320px; overflow: auto; padding: 4px 0;
+  background: var(--oc-surface); color: var(--oc-text); border: 1px solid var(--oc-line);
+  border-radius: var(--oc-radius-small); box-shadow: 0 6px 18px rgba(0, 0, 0, .18);
+}
+.oc-suggestion { padding: 8px 12px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oc-suggestion:hover, .oc-suggestion.oc-active { background: color-mix(in srgb, var(--oc-primary) 18%, transparent); }

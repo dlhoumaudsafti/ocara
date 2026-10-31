@@ -148,7 +148,7 @@ est signalée sur la sortie d'erreur ; les actions suivantes sont traitées.
 | Méthode | Rôle |
 |---------|------|
 | `ui.get(id, prop)` → `mixed` | valeur courante : saisie de l'utilisateur, valeur posée par `set`, sinon celle du `.oc.ui`, sinon `null` |
-| `ui.set(id, prop, value)` | change une propriété (`value`, `text`, `checked`, `visible`, `enabled`…) ; le nœud est réaffiché |
+| `ui.set(id, prop, value)` | change une propriété (`value`, `text`, `checked`, `visible`, `enabled`, `suggestions` d'un champ…) ; le nœud est réaffiché (sauf `suggestions` : le menu seul) |
 | `ui.setItems(id, rows)` | éléments d'une `list` (`array<map<string, mixed>>`, lus par `bind`) |
 | `ui.has(id)` → `bool` | le nœud `id` est-il dans la variante de taille affichée (gabarits `item` des listes compris) ? `false` s'il n'est que dans une autre variante |
 

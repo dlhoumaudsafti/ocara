@@ -1,0 +1,23 @@
+import ocara.UnitTest
+import context.settings.domain.entity.SettingsEntity
+import context.settings.infra.db.SettingsRepository
+import tests.support.Fixture
+
+// Sur ./app.db : les préférences de l'utilisateur sont remises en place.
+class SettingsRepositoryTest extends UnitTest {
+
+    public method saveAndLoadTest(): int {
+        Fixture::reset()
+        const saved:SettingsEntity = SettingsRepository::load()
+        SettingsRepository::save(use SettingsEntity("en", "CHF", "Asia/Dubai"))
+        const loaded:SettingsEntity = SettingsRepository::load()
+        self::assertEquals("en", loaded.language)
+        self::assertEquals("CHF", loaded.currency)
+        self::assertEquals("Asia/Dubai", loaded.timezone)
+        // Un second enregistrement remplace le premier.
+        SettingsRepository::save(use SettingsEntity("fr", "EUR", "UTC"))
+        self::assertEquals("UTC", SettingsRepository::load().timezone)
+        SettingsRepository::save(saved)
+        return 0
+    }
+}

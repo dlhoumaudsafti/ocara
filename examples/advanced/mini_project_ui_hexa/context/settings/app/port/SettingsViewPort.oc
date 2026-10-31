@@ -1,0 +1,10 @@
+namespace context.settings.app.port
+
+import context.settings.domain.entity.SettingsEntity
+
+// État de l'écran `settings` (ui/ui.d/settings.oc.ui) : exemples d'un montant
+// et d'une date dans les formats choisis.
+interface SettingsViewPort {
+    wiring context.settings.infra.view.SettingsView
+    public static method present(settings:SettingsEntity, now:int): map<string, map<string, mixed>>
+}

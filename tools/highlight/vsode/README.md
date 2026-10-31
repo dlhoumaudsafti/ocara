@@ -206,8 +206,9 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     les surcharges de styles `styles.dark`/`styles.light` ; listes en grille (`display: grid`)
     disposées comme dans l'application ; ombres, flous, transitions, tables d'état et animations
     rendus par les effets du moteur (`effects.js` copié), état prévisualisé au choix (survol,
-    focus, appui, désactivé…), animations rejouées par ▶ ; double-clic sur un texte, un titre ou un
-    bouton pour le modifier sur place ;
+    focus, appui, désactivé…), animations rejouées par ▶ ; barre de titre avec son nœud `bar` ;
+    `primary`/`onPrimary` par thème et `radius` de la fenêtre appliqués ; double-clic sur un texte,
+    un titre ou un bouton pour le modifier sur place ;
   - **palette** des composants (tirée du schéma du compilateur) à glisser dans l'aperçu ou dans la
     **structure** ; les nœuds se déplacent de même, entre conteneurs, dans le gabarit `item` d'une
     liste ou dans un écran vide ; menu contextuel (dupliquer, copier, couper, coller, envelopper
@@ -223,7 +224,8 @@ Coloration syntaxique, et via le serveur de langage du compilateur : diagnostics
     **Fenêtre** (`window`, `start`), **Styles** (création, renommage avec mise à jour des nœuds,
     suppression, surcharges des thèmes sombre et clair), **Animations** (réglages et étapes
     `from`/`to`/`50%`, renommage et suppression reportés sur les nœuds) et **Menu** (entrées,
-    sous-menus, séparateurs) ; `animation` d'un nœud choisie parmi celles déclarées avec son
+    sous-menus, séparateurs) ; couleur par thème (clair, sombre) pour `window.primary` et
+    `window.onPrimary` ; `animation` d'un nœud choisie parmi celles déclarées avec son
     déclencheur, ombres (`shadow`) en liste, `target` d'un lien choisi parmi les `webview` ;
   - **composants** (`components:`, docs/oc-ui.md) : « Mes composants » dans la palette (glisser une
     instance, double-clic pour modifier le composant), « Nouveau composant », clic droit →

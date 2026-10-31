@@ -20,6 +20,21 @@
   check("mot de passe", node("password").type === "password");
   check("multiligne", node("notes").tagName === "TEXTAREA");
 
+  // Fenêtre : texte sur `primary` (thème clair ici), coins communs.
+  var rootStyle = document.documentElement.style;
+  check("onPrimary et radius", rootStyle.getPropertyValue("--oc-on-primary") === "#ffffff" && rootStyle.getPropertyValue("--oc-radius-button") === "6px");
+  // Barre de titre : nœud `bar` ; propositions sous le champ.
+  var quick = node("quick");
+  check("bar dans la barre de titre", quick && quick.closest(".oc-bar"));
+  quick.focus();
+  OcaraUI.set("quick", "suggestions", [{ value: 7, text: "Sept" }, "Huit"]);
+  var proposals = document.querySelectorAll(".oc-suggestions .oc-suggestion");
+  check("propositions affichées sans reconstruire le champ", proposals.length === 2 && node("quick") === quick && document.activeElement === quick);
+  quick.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+  quick.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+  check("Entrée → onSuggestion", last().action === "quick_pick" && last().value === 7 && !q(".oc-suggestions"));
+  quick.blur();
+
   type(node("name"), "Ada");
   check("saisie → état", last().id === "name" && last().prop === "value" && last().value === "Ada");
   node("name").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));

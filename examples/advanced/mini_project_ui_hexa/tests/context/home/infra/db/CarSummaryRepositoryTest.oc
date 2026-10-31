@@ -36,6 +36,24 @@ class CarSummaryRepositoryTest extends UnitTest {
     }
 
     // Première photo de chaque voiture, seulement si elle est demandée.
+    // Pays d'origine et année de chaque voiture.
+    public method allOriginTest(): int {
+        Fixture::reset()
+        const id:int = Fixture::car("SUMORIGIN", "Alfa Romeo", "Giulia", 30000.0)
+        Fixture::origin(id, "IT", 2017)
+        var found:bool = false
+        for car in CarSummaryRepository::all() {
+            if car.id equal id {
+                found = true
+                self::assertEquals("IT", car.origin)
+                self::assertEquals(2017, car.year)
+            }
+        }
+        self::assertTrue(found)
+        Fixture::cleanup()
+        return 0
+    }
+
     public method allWithPhotosTest(): int {
         Fixture::reset()
         const id:int = Fixture::car("PHOTO", "Peugeot", "208", 9000.0)

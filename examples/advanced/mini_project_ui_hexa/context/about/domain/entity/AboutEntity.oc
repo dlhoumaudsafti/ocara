@@ -1,0 +1,18 @@
+namespace context.about.domain.entity
+
+// Ce que montre l'écran « À propos » : version de l'application et contenu
+// de la base.
+
+class AboutEntity {
+    public property version:string
+    public property cars:int
+    public property maintenances:int
+    public property photos:int
+
+    init(version:string, cars:int, maintenances:int, photos:int) {
+        self.version = version
+        self.cars = cars
+        self.maintenances = maintenances
+        self.photos = photos
+    }
+}

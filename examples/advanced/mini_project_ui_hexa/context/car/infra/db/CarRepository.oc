@@ -27,12 +27,14 @@ class CarRepository implements CarContract {
         var reference:string = row["reference"]
         var brand:string = row["brand"]
         var model:string = row["model"]
+        var origin:string = row["origin"]
+        var year:int = row["year"]
         var purchase_price:float = row["purchase_price"]
         var estimated_price:float = row["estimated_sale_price"]
         var acquisition_date:string = row["acquisition_date"]
         var sale_date:string = row["sale_date"]
         return use CarEntity(
-            id, reference, brand, model, purchase_price, estimated_price,
+            id, reference, brand, model, origin, year, purchase_price, estimated_price,
             acquisition_date, sale_date
         )
     }
@@ -40,7 +42,7 @@ class CarRepository implements CarContract {
     public static method find(id:int): CarEntity|null {
         const db:SQLite = Database::connect()
         const row:map<string, mixed> = db.queryOne(
-            `SELECT id, reference, brand, model, purchase_price, estimated_sale_price,
+            `SELECT id, reference, brand, model, origin, year, purchase_price, estimated_sale_price,
                 COALESCE(acquisition_date, '') AS acquisition_date,
                 COALESCE(sale_date, '') AS sale_date
             FROM cars WHERE id = :id`,
@@ -57,6 +59,8 @@ class CarRepository implements CarContract {
         reference:string,
         brand:string,
         model:string,
+        origin:string,
+        year:int,
         purchase_price:float,
         acquisition_date:string,
         sale_date:string
@@ -67,13 +71,15 @@ class CarRepository implements CarContract {
             // ensuite fait évoluer que par les entretiens d'amélioration
             // (voir context.car.app.usecase.PricingService).
             db.prepare(`INSERT INTO cars 
-                (reference, brand, model, purchase_price, estimated_sale_price, created_at, acquisition_date, sale_date)
-                VALUES (:reference, :brand, :model, :price, :price, :createdAt, :acquisitionDate, :saleDate)
+                (reference, brand, model, origin, year, purchase_price, estimated_sale_price, created_at, acquisition_date, sale_date)
+                VALUES (:reference, :brand, :model, :origin, :year, :price, :price, :createdAt, :acquisitionDate, :saleDate)
             `)
             db.bind({
                 "reference": reference,
                 "brand": brand,
                 "model": model,
+                "origin": origin,
+                "year": year,
                 "price": purchase_price,
                 "createdAt": DateTime::now(),
                 "acquisitionDate": acquisition_date,
@@ -83,6 +89,28 @@ class CarRepository implements CarContract {
             id = db.lastInsertId()
         })
         return id
+    }
+
+    // Fiche modifiée sur place (CarController::save).
+    public static method update(car:CarEntity): void {
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.prepare(`UPDATE cars SET
+                reference = :reference, brand = :brand, model = :model, origin = :origin, year = :year,
+                purchase_price = :price, acquisition_date = :acquisitionDate, sale_date = :saleDate
+                WHERE id = :id`)
+            db.bind({
+                "reference": car.reference,
+                "brand": car.brand,
+                "model": car.model,
+                "origin": car.origin,
+                "year": car.year,
+                "price": car.purchase_price,
+                "acquisitionDate": car.acquisition_date,
+                "saleDate": car.sale_date,
+                "id": car.id
+            })
+            db.commit()
+        })
     }
 
     public static method updateEstimatedPrice(id:int, newPrice:float): void {

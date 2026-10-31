@@ -1,39 +1,39 @@
 namespace context.shared.infra.ui
-// Navigation commune à tous les écrans — les liens « Voitures » et
-// « Recherche » de la barre (configs/components/NavBar.oc de
-// mini_project_hexa), le tiroir sur Android, et le choix de la langue.
+// Menu de l'application (tiroir de chaque écran, ui/ui.d/components.oc.ui
+// `navMenu`) : Accueil, Paramètres, Recherche, À propos.
 
 import ocara.UI
 import ocara.UIEvent
-import context.shared.infra.i18n.Language
 
 class NavController {
     public static method home(ui:UI, event:UIEvent): void {
-        self::closeMenus(ui)
-        ui.navigate("home")
+        self::go(ui, "home")
     }
 
+    public static method settings(ui:UI, event:UIEvent): void {
+        self::go(ui, "settings")
+    }
+
+    // Écran des résultats ; le champ de la barre de titre prend le focus.
     public static method search(ui:UI, event:UIEvent): void {
-        self::closeMenus(ui)
-        ui.navigate("search")
+        self::go(ui, "search")
+        ui.set("top_search", "focus", true)
     }
 
-    // Français ⇄ anglais : textes de l'interface remplacés à chaud ; l'écran
-    // affiché est réaffiché (onShow), ses données comprises.
-    public static method switchLanguage(ui:UI, event:UIEvent): void {
-        self::closeMenus(ui)
-        var current:string = Screen::text(ui, "lang_code")
-        var next:string = "fr"
-        if current equal "fr" {
-            next = "en"
+    public static method about(ui:UI, event:UIEvent): void {
+        self::go(ui, "about")
+    }
+
+    // Ferme le tiroir (sans effet s'il est toujours affiché) et ouvre l'écran.
+    private static method go(ui:UI, screen:string): void {
+        for menu in self::menus() {
+            ui.set(menu, "open", false)
         }
-        ui.set("lang_code", "value", next)
-        ui.setVars(Language::vars(next))
+        ui.navigate(screen)
     }
 
-    // Tiroirs de navigation Android (sans effet sur desktop).
-    private static method closeMenus(ui:UI): void {
-        ui.set("home_drawer", "open", false)
-        ui.set("search_drawer", "open", false)
+    // `id` des tiroirs : instances de `navMenu`, une par écran.
+    public static method menus(): array<string> {
+        return ["home_menu", "car_menu", "search_menu", "settings_menu", "about_menu"]
     }
 }

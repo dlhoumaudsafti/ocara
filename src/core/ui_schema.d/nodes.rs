@@ -38,6 +38,11 @@ impl Checker {
             Ty::Shadow => self.shadow(node, what),
             Ty::Transition => self.transition(node, what),
             Ty::Animation => self.animation_ref(node, what),
+            Ty::ThemeColor => match &node.kind {
+                Kind::Map(pairs) if pairs.is_empty() => self.fail(node, format!("{what} : 'light' et/ou 'dark' attendus")),
+                Kind::Map(_) => self.table(node, what.trim_matches('\''), &[("light", Ty::Color), ("dark", Ty::Color)]).map(Json::Object),
+                _ => self.simple(node, Ty::Color, what),
+            },
             Ty::Override | Ty::Binds => unreachable!("contrôlé par `node`"),
             simple => self.simple(node, simple, what),
         }

@@ -1,11 +1,35 @@
-# Composants du garage (docs/oc-ui.md, « Composants »), inclus par
-# garage.oc.ui et ses variantes (components.includes) : les blocs répétés
+# Composants de Carfolio (docs/oc-ui.md, « Composants »), inclus par
+# carfolio.oc.ui et ses variantes (components.includes) : les blocs répétés
 # des écrans, déclarés une fois. L'`id` d'une instance préfixe les `id`
-# internes : `{ type: statCard, id: stat_count, … }` → valeur `stat_count.value`.
+# internes (`{ type: statCard, id: stat_count }` → `stat_count.value`) ; sans
+# `id` d'instance, ils restent tels quels (un seul exemplaire par écran).
+#
+# Formulaires liés (`bind: racine.champ`, docs/builtins/UI.md « Liaisons ») :
+#   new_car      voiture à ajouter          (context/car/infra/view/form/CarForm.oc)
+#   car          voiture affichée, modifiée sur place (même classe)
+#   maintenance  entretien ajouté ou modifié (context/car/infra/view/form/MaintenanceForm.oc)
+#   settings     préférences                (context/settings/infra/view/SettingsForm.oc)
 
 styles:
-  stat_label: { fontSize: 12, color: "#757575" }
-  stat_value: { fontSize: 20, bold: true, color: "#1565c0" }
+  page_title: { fontSize: 24, bold: true }
+  section_title: { fontSize: 18, bold: true }
+  card_ref: { fontSize: 16, bold: true }
+  muted: { color: "#6b6b6b" }
+  highlight: { bold: true, color: "#2e7d32" }
+  error: { bold: true, color: "#c62828" }
+  saved: { fontSize: 12, color: "#2e7d32" }
+  stat_label: { fontSize: 12, color: "#6b6b6b" }
+  stat_value: { fontSize: 20, bold: true, color: "#7a5c00" }
+  field_label: { fontSize: 12, color: "#6b6b6b" }
+  menu_item: { padding: [2, 0] }
+  # Thème sombre : le jaune de Carfolio pour les chiffres, des gris lisibles.
+  dark:
+    muted: { color: "#b0abb4" }
+    stat_label: { color: "#b0abb4" }
+    field_label: { color: "#b0abb4" }
+    stat_value: { color: "#FFD700" }
+    highlight: { color: "#81c784" }
+    saved: { color: "#81c784" }
 
 components:
   # Chiffre clé dans une carte (tableau de bord).
@@ -41,3 +65,260 @@ components:
       children:
         - { type: text, value: $label, style: stat_label }
         - { type: text, value: $value, style: $tone }
+
+  # Libellé au-dessus d'un champ.
+  label:
+    params:
+      text: text
+    layout: { type: text, value: $text, style: field_label }
+
+  # Menu de l'application : tiroir ouvert par l'icône de la barre de titre,
+  # toujours affiché à partir des très grands écrans (lg).
+  navMenu:
+    layout:
+      type: drawer
+      id: menu
+      permanentFrom: lg
+      spacing: 4
+      children:
+        - type: row
+          spacing: 10
+          padding: [8, 4]
+          children:
+            - type: image
+              src: ../../assets/logo.svg
+              label: "Carfolio"
+              width: 40
+              height: 40
+              android: { src: ../../assets/logo.android.png }
+            - { type: heading, level: 3, value: "Carfolio" }
+        - { type: divider }
+        - { type: button, text: "${nav_home}", icon: home, variant: text, style: menu_item, onClick: go_home }
+        - { type: button, text: "${nav_settings}", icon: settings, variant: text, style: menu_item, onClick: go_settings }
+        - { type: button, text: "${nav_search}", icon: search, variant: text, style: menu_item, onClick: go_search }
+        - { type: button, text: "${nav_about}", icon: info, variant: text, style: menu_item, onClick: go_about }
+
+  # Champs d'une voiture, liés à la racine `$root` (`new_car` ou `car`).
+  # `$save` : action lancée quand un champ est quitté ou un choix fait (la
+  # fiche enregistre à la volée) ; sans elle (formulaire d'ajout), rien.
+  carFields:
+    params:
+      root: text
+      save: { type: action, required: false }
+    layout:
+      type: column
+      spacing: 8
+      children:
+        - { type: label, text: "${field_reference}" }
+        - { type: input, bind: $root.reference, placeholder: "AB-123-CD", required: true, onBlur: $save }
+        - type: row
+          spacing: 8
+          children:
+            - type: column
+              weight: 1
+              children:
+                - { type: label, text: "${field_brand}" }
+                - { type: input, bind: $root.brand, placeholder: "Peugeot", required: true, onBlur: $save }
+            - type: column
+              weight: 1
+              children:
+                - { type: label, text: "${field_model}" }
+                - { type: input, bind: $root.model, placeholder: "308", required: true, onBlur: $save }
+        - type: row
+          spacing: 8
+          children:
+            - type: column
+              weight: 1
+              children:
+                - { type: label, text: "${field_origin}" }
+                - type: select
+                  bind: $root.origin
+                  onChange: $save
+                  options:
+                    - { value: "", text: "${origin_unknown}" }
+                    - { value: FR, text: "${country_FR}" }
+                    - { value: DE, text: "${country_DE}" }
+                    - { value: IT, text: "${country_IT}" }
+                    - { value: GB, text: "${country_GB}" }
+                    - { value: ES, text: "${country_ES}" }
+                    - { value: SE, text: "${country_SE}" }
+                    - { value: CZ, text: "${country_CZ}" }
+                    - { value: US, text: "${country_US}" }
+                    - { value: JP, text: "${country_JP}" }
+                    - { value: KR, text: "${country_KR}" }
+                    - { value: CN, text: "${country_CN}" }
+            - type: column
+              weight: 1
+              children:
+                - { type: label, text: "${field_year}" }
+                - { type: input, bind: $root.year, kind: number, placeholder: "2015", onBlur: $save }
+        - { type: label, text: "${field_price}" }
+        - { type: input, bind: $root.purchase_price, kind: number, placeholder: "8500", required: true, onBlur: $save }
+        - type: row
+          spacing: 8
+          children:
+            - type: column
+              weight: 1
+              children:
+                - { type: label, text: "${field_acquisition}" }
+                - { type: date, bind: $root.acquisition_date, placeholder: "${date_hint}", onChange: $save }
+            - type: column
+              weight: 1
+              children:
+                - { type: label, text: "${field_sale}" }
+                - { type: date, bind: $root.sale_date, placeholder: "${date_hint}", onChange: $save }
+
+  # Ajout d'une voiture : panneau inférieur ouvert par le bouton flottant de
+  # l'accueil ; champs obligatoires vérifiés avant l'action (`submit`).
+  newCarSheet:
+    layout:
+      type: bottomSheet
+      id: new_car_sheet
+      children:
+        - type: column
+          id: new_car_form
+          form: true
+          spacing: 10
+          scroll: true
+          children:
+            - { type: heading, level: 3, value: "${add_car_title}" }
+            - { type: text, id: home_error, style: error, visible: false }
+            - { type: carFields, root: new_car }
+            - type: row
+              spacing: 8
+              children:
+                - { type: spacer }
+                - { type: button, text: "${cancel_button}", variant: text, onClick: close_new_car }
+                - { type: button, text: "${add_car_button}", icon: add, submit: true, onClick: add_car, onInvalid: form_incomplete }
+
+  # Carte d'une voiture dans une liste (accueil, recherche) : lit les champs
+  # de l'élément.
+  carCard:
+    layout:
+      type: card
+      spacing: 6
+      children:
+        - type: row
+          spacing: 8
+          children:
+            - { type: text, bind: reference, style: card_ref }
+            - { type: text, bind: model_line, width: fill }
+            - { type: iconButton, icon: delete, label: "${delete_label}", tooltip: "${delete_label}", onClick: delete_car, color: "#c62828" }
+        - { type: text, bind: origin_line, style: muted, binds: { visible: has_origin_line } }
+        - type: row
+          spacing: 16
+          children:
+            - { type: cardFact, label: "${card_purchase}", value: { bind: purchase } }
+            - { type: cardFact, label: "${card_estimated}", value: { bind: estimated }, tone: highlight }
+            - { type: cardFact, label: "${card_maintenance}", value: { bind: maintenance } }
+
+  # Fiche : champs modifiables sur place (enregistrés en quittant un champ),
+  # chiffres clés et suppression.
+  carInfo:
+    layout:
+      type: card
+      spacing: 10
+      children:
+        - type: row
+          spacing: 8
+          children:
+            - { type: heading, level: 1, bind: car.reference, style: page_title, width: fill }
+            - { type: text, id: car_saved, value: "${car_saved}", style: saved, visible: false }
+        - { type: text, id: car_summary, style: muted }
+        - { type: carFields, root: car, save: save_car }
+        - type: grid
+          columns: 2
+          spacing: 10
+          children:
+            - { type: stat, id: car_purchase, label: "${stat_car_purchase}" }
+            - { type: stat, id: car_estimated, label: "${stat_car_estimated}" }
+            - { type: stat, id: car_maintenance_total, label: "${stat_car_maintenance}" }
+            - { type: stat, id: car_improvement_total, label: "${stat_car_improvement}" }
+        - { type: button, text: "${delete_car_button}", icon: delete, variant: secondary, onClick: delete_current_car, color: "#c62828" }
+
+  # Galerie photo de la fiche.
+  photosCard:
+    layout:
+      type: card
+      spacing: 8
+      children:
+        - { type: heading, level: 3, value: "${photos_title}" }
+        - { type: text, value: "${photos_hint}", style: muted }
+        - { type: button, text: "${add_photo_button}", icon: add, variant: secondary, onClick: add_photo }
+        - { type: text, id: photos_empty, value: "${photos_empty}", style: muted, visible: false }
+        - type: list
+          id: photos
+          spacing: 8
+          onSelect: open_photo
+          item: { type: image, bind: path, label: "${photo_label}", height: 200, width: fill, fit: cover, radius: 4 }
+
+  # Entretien ajouté, ou modifié depuis l'historique (`maintenance.editing`).
+  maintenanceForm:
+    layout:
+      type: card
+      id: maintenance_form
+      form: true
+      spacing: 10
+      children:
+        - { type: heading, level: 3, value: "${maintenance_title}", binds: { visible: maintenance.adding } }
+        - { type: heading, level: 3, value: "${maintenance_edit_title}", binds: { visible: maintenance.editing } }
+        - { type: label, text: "${field_type}" }
+        - type: select
+          bind: maintenance.type
+          options:
+            - { value: maintenance, text: "${type_maintenance}" }
+            - { value: improvement, text: "${type_improvement}" }
+        - { type: label, text: "${field_description}" }
+        - { type: input, bind: maintenance.description, placeholder: "${description_hint}", required: true }
+        - type: row
+          spacing: 8
+          children:
+            - type: column
+              weight: 1
+              children:
+                - { type: label, text: "${field_cost}" }
+                - { type: input, bind: maintenance.cost, kind: number, placeholder: "80", required: true }
+            - type: column
+              weight: 1
+              children:
+                - { type: label, text: "${field_lifespan}" }
+                - { type: input, bind: maintenance.lifespan_days, kind: number, placeholder: "365" }
+        - { type: label, text: "${field_source}" }
+        - { type: input, bind: maintenance.material_source, placeholder: "${source_hint}" }
+        - type: row
+          spacing: 8
+          children:
+            - { type: spacer }
+            - { type: button, text: "${cancel_button}", variant: text, onClick: cancel_maintenance, binds: { visible: maintenance.editing } }
+            - { type: button, text: "${add_maintenance_button}", icon: add, submit: true, onClick: save_maintenance, onInvalid: form_incomplete, binds: { visible: maintenance.adding } }
+            - { type: button, text: "${update_maintenance_button}", icon: check, submit: true, onClick: save_maintenance, onInvalid: form_incomplete, binds: { visible: maintenance.editing } }
+
+  # Historique des entretiens : modifier (remplit le formulaire) ou supprimer.
+  historyCard:
+    layout:
+      type: card
+      spacing: 8
+      children:
+        - { type: heading, level: 3, value: "${history_title}" }
+        - { type: text, id: history_empty, value: "${history_empty}", style: muted, visible: false }
+        - type: list
+          id: maintenances
+          spacing: 6
+          item:
+            type: column
+            spacing: 2
+            children:
+              - type: row
+                spacing: 8
+                children:
+                  - { type: text, bind: badge, bold: true, binds: { color: badge_color } }
+                  - { type: text, bind: description, width: fill }
+                  - { type: text, bind: cost, bold: true }
+                  - { type: iconButton, icon: edit, label: "${edit_label}", tooltip: "${edit_label}", onClick: edit_maintenance }
+                  - { type: iconButton, icon: delete, label: "${delete_label}", tooltip: "${delete_label}", onClick: delete_maintenance, color: "#c62828" }
+              - type: row
+                spacing: 8
+                children:
+                  - { type: text, bind: date, style: muted }
+                  - { type: text, bind: source, style: muted, binds: { visible: has_source } }
+              - { type: text, bind: warning, color: "#ffffff", padding: [2, 8], radius: 4, binds: { visible: has_warning, background: warning_color } }

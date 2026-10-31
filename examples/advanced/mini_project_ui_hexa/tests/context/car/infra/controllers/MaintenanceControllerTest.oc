@@ -1,58 +1,129 @@
 import ocara.UnitTest
 import ocara.UI
 import context.shared.infra.i18n.Language
+import context.shared.infra.settings.Preferences
+import context.car.domain.entity.MaintenanceEntity
+import context.car.domain.contract.MaintenanceContract
+import context.car.infra.controllers.CarController
 import context.car.infra.controllers.MaintenanceController
+import context.car.infra.view.form.CarForm
+import context.car.infra.view.form.MaintenanceForm
 import tests.support.fake.FakeDatabase
 
-// Formulaire « Ajouter un entretien » de la fiche (action add_maintenance).
+// Entretiens de la fiche : ajout, modification, suppression (actions
+// save_maintenance, edit_maintenance, delete_maintenance).
 class MaintenanceControllerTest extends UnitTest {
     wiring tests.support.fake.FakeCarRepository
     wiring tests.support.fake.FakeMaintenanceRepository
     wiring tests.support.fake.FakeCarPhotoRepository
 
+    private method form(type:string, description:string, cost:string, source:string, lifespan:string): MaintenanceForm {
+        const form:MaintenanceForm = use MaintenanceForm()
+        form.type = type
+        form.description = description
+        form.cost = cost
+        form.material_source = source
+        form.lifespan_days = lifespan
+        return form
+    }
+
     // Une amélioration est enregistrée et relève le prix de vente estimé.
-    public method createTest(): int {
+    public method storeTest(): int {
         FakeDatabase::reset()
-        const ui:UI = use UI("../../../../../ui/garage.oc.ui", Language::vars("fr"))
         const id:int = FakeDatabase::car("MAINT", "Peugeot", "308", 10000.0)
-        ui.set("m_description", "value", "Peinture")
-        const error:string = MaintenanceController::create(ui, id, "improvement", " Peinture ", "500", "Garage", "180")
-        self::assertEquals("", error)
+        self::assertEquals("", MaintenanceController::store(id, self.form("improvement", " Peinture ", "500", "Garage", "180")))
         self::assertEquals(1, FakeDatabase::maintenanceCount(id))
         const saved:map<string, mixed> = FakeDatabase::maintenances(id)[0]
         self::assertEquals("Peinture", saved["description"])
         self::assertEquals("Garage", saved["material_source"])
         self::assertEquals(180, saved["lifespan_days"])
         self::assertEquals(10500.0, FakeDatabase::estimatedPrice(id))
-        self::assertEquals("", ui.get("m_description", "value"))
-        self::assertEquals("10500,00 €", ui.get("car_estimated.value", "value"))
         FakeDatabase::cleanup()
         return 0
     }
 
     // Une maintenance simple ne change pas le prix de vente estimé.
-    public method createMaintenanceKeepsPriceTest(): int {
+    public method storeMaintenanceKeepsPriceTest(): int {
         FakeDatabase::reset()
-        const ui:UI = use UI("../../../../../ui/garage.oc.ui", Language::vars("fr"))
         const id:int = FakeDatabase::car("MAINT2", "Peugeot", "308", 10000.0)
-        self::assertEquals("", MaintenanceController::create(ui, id, "maintenance", "Vidange", "80", "", ""))
+        self::assertEquals("", MaintenanceController::store(id, self.form("maintenance", "Vidange", "80", "", "")))
         self::assertEquals(10000.0, FakeDatabase::estimatedPrice(id))
         FakeDatabase::cleanup()
         return 0
     }
 
-    public method createInvalidTest(): int {
+    public method storeInvalidTest(): int {
         FakeDatabase::reset()
-        const ui:UI = use UI("../../../../../ui/garage.oc.ui", Language::vars("fr"))
         const id:int = FakeDatabase::car("MAINT3", "Peugeot", "308", 10000.0)
-        self::assertEquals("invalid_cost", MaintenanceController::create(ui, id, "maintenance", "", "80", "", ""))
-        self::assertEquals("invalid_cost", MaintenanceController::create(ui, id, "maintenance", "Vidange", "0", "", ""))
-        self::assertEquals("invalid_cost", MaintenanceController::create(ui, id, "autre", "Vidange", "80", "", ""))
-        self::assertEquals(
-            "invalid_cost",
-            MaintenanceController::create(ui, id, "maintenance", "Vidange", "80", "", "-3")
-        )
+        self::assertEquals("invalid_cost", MaintenanceController::store(id, self.form("maintenance", "", "80", "", "")))
+        self::assertEquals("invalid_cost", MaintenanceController::store(id, self.form("maintenance", "Vidange", "0", "", "")))
+        self::assertEquals("invalid_cost", MaintenanceController::store(id, self.form("autre", "Vidange", "80", "", "")))
+        self::assertEquals("invalid_cost", MaintenanceController::store(id, self.form("maintenance", "Vidange", "80", "", "-3")))
         self::assertEquals(0, FakeDatabase::maintenanceCount(id))
+        FakeDatabase::cleanup()
+        return 0
+    }
+
+    // Modification : l'entretien chargé dans le formulaire est remplacé ;
+    // une amélioration devenue maintenance sort du prix estimé.
+    public method updateTest(): int {
+        FakeDatabase::reset()
+        const car_id:int = FakeDatabase::car("MUPD", "Peugeot", "308", 10000.0)
+        MaintenanceController::store(car_id, self.form("improvement", "Peinture", "500", "", ""))
+        var m_id:int = FakeDatabase::maintenances(car_id)[0]["id"]
+        const form:MaintenanceForm = use MaintenanceForm()
+        const m:MaintenanceEntity|null = MaintenanceContract::find(m_id)
+        if m is null {
+            self::assertNotNull(m)
+            return 0
+        }
+        form.load(m)
+        self::assertTrue(form.editing)
+        self::assertFalse(form.adding)
+        self::assertEquals("Peinture", form.description)
+        self::assertEquals("500.0", form.cost)
+        form.type = "maintenance"
+        form.description = "Retouche peinture"
+        self::assertEquals("", MaintenanceController::store(car_id, form))
+        self::assertEquals(1, FakeDatabase::maintenanceCount(car_id))
+        self::assertEquals("Retouche peinture", FakeDatabase::maintenances(car_id)[0]["description"])
+        self::assertEquals(10000.0, FakeDatabase::estimatedPrice(car_id))
+        // Entretien d'une autre voiture : refusé.
+        const other:int = FakeDatabase::car("MUPD2", "Renault", "Clio", 8000.0)
+        self::assertEquals("not_found", MaintenanceController::store(other, form))
+        FakeDatabase::cleanup()
+        return 0
+    }
+
+    // Suppression : prix estimé recalculé ; un entretien d'une autre voiture
+    // n'est pas supprimé.
+    public method removeTest(): int {
+        FakeDatabase::reset()
+        const car_id:int = FakeDatabase::car("MDEL", "Peugeot", "308", 10000.0)
+        MaintenanceController::store(car_id, self.form("improvement", "Jantes", "600", "", ""))
+        var m_id:int = FakeDatabase::maintenances(car_id)[0]["id"]
+        self::assertEquals(10600.0, FakeDatabase::estimatedPrice(car_id))
+        const other:int = FakeDatabase::car("MDEL2", "Renault", "Clio", 8000.0)
+        self::assertFalse(MaintenanceController::remove(other, m_id))
+        self::assertTrue(MaintenanceController::remove(car_id, m_id))
+        self::assertEquals(0, FakeDatabase::maintenanceCount(car_id))
+        self::assertEquals(10000.0, FakeDatabase::estimatedPrice(car_id))
+        FakeDatabase::cleanup()
+        return 0
+    }
+
+    // Action save_maintenance (submit) : formulaire remis à zéro, fiche rafraîchie.
+    public method submitTest(): int {
+        FakeDatabase::reset()
+        Preferences::reset()
+        const ui:UI = use UI("../../../../../ui/carfolio.oc.ui", Language::vars("fr"))
+        const car_id:int = FakeDatabase::car("MSUB", "Peugeot", "308", 10000.0)
+        CarController::display(ui, car_id, use CarForm())
+        const form:MaintenanceForm = self.form("improvement", "Peinture", "500", "", "")
+        MaintenanceController::submit(ui, form)
+        self::assertEquals("", form.description)
+        self::assertTrue(form.adding)
+        self::assertEquals("10 500,00 €", ui.get("car_estimated.value", "value"))
         FakeDatabase::cleanup()
         return 0
     }

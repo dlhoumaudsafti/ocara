@@ -1,32 +1,40 @@
-# Garage Ocara — interface native (ocara.UI) : fenêtre Tauri sur desktop,
-# Compose sur Android. Équivalent des pages de mini_project_hexa (templates/,
-# configs/components/), écran par écran :
-#   home    tableau de bord, ajout de voiture, flotte    (templates/home/home.html)
-#   car     fiche, galerie, entretiens                    (templates/car/car_detail.html)
-#   search  recherche voitures et entretiens              (templates/search/search.html)
-#   photo   photo en grand (le lien vers l'image du site)
-# Écrans téléphone et fenêtre étroite ; à partir de 840 px/dp :
-# garage.md.oc.ui. Textes : variables `${…}` (languages/<langue>/ui.yaml).
+# Carfolio — interface native (ocara.UI) : fenêtre Tauri sur desktop,
+# Compose sur Android. Écrans :
+#   home      tableau de bord, flotte, ajout d'une voiture (panneau inférieur)
+#   car       fiche modifiable sur place, galerie, entretiens
+#   search    résultats de la recherche de la barre de titre
+#   settings  langue, devise, fuseau horaire
+#   about     à propos
+#   photo     photo en grand
+# Téléphone et fenêtre étroite ; à partir de 840 px/dp : carfolio.md.oc.ui,
+# 1200 px/dp : carfolio.lg.oc.ui. Textes : variables `${…}` (languages/<langue>/ui.yaml).
 window:
-  title: "${app_title}"
+  title: "Carfolio"
   width: 1200
   height: 800
   minWidth: 380
   minHeight: 520
   theme: auto
-  primary: "#1565c0"
+  # Fond des boutons et du bouton flottant ; texte posé dessus, par thème.
+  primary: "#FFD700"
+  onPrimary: { light: "#000000", dark: "#ffffff" }
+  radius: 6
   android: { systemBars: dark }
 
-# Styles communs ; ceux d'un écran sont déclarés dans son fichier (ui.d/…).
-styles:
-  page_title: { fontSize: 24, bold: true }
-  section_title: { fontSize: 18, bold: true }
-  card_ref: { fontSize: 16, bold: true }
-  muted: { color: "#757575" }
-  highlight: { bold: true, color: "#2e7d32" }
-  error: { bold: true, color: "#c62828" }
+# Barre de titre de tous les écrans : recherche, propositions dans un menu
+# sous le champ pendant la saisie (SearchController::suggest).
+bar:
+  type: row
+  children:
+    - type: input
+      id: top_search
+      placeholder: "${search_placeholder}"
+      width: fill
+      onChange: suggest_search
+      onSubmit: search_submit
+      onSuggestion: open_suggestion
 
-# Composants partagés par les écrans (statCard, stat, cardFact).
+# Composants partagés (menu, formulaires, cartes) et leurs styles.
 components:
   includes:
     - ui.d/components.oc.ui
@@ -37,4 +45,6 @@ screens:
     - ui.d/home.oc.ui
     - ui.d/car.oc.ui
     - ui.d/search.oc.ui
+    - ui.d/settings.oc.ui
+    - ui.d/about.oc.ui
     - ui.d/photo.oc.ui

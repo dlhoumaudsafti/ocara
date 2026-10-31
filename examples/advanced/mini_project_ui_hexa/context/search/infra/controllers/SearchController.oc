@@ -1,6 +1,7 @@
 namespace context.search.infra.controllers
-// Écran `search` — GET /recherche?q=… de mini_project_hexa : recherche lancée
-// depuis l'écran (champ et bouton) ou depuis le champ de l'accueil.
+// Recherche — le champ `top_search` de la barre de titre (tous les écrans) :
+// propositions pendant la saisie (menu sous le champ), Entrée ouvre l'écran
+// `search` avec les résultats, rafraîchis à chaque affichage (onShow).
 
 import ocara.UI
 import ocara.UIEvent
@@ -11,17 +12,27 @@ import context.shared.infra.ui.Screen
 
 class SearchController {
 
-    public static method run(ui:UI, event:UIEvent): void {
-        var term:string = Screen::text(ui, "search_term")
-        self::search(ui, term)
+    // Saisie dans le champ : propositions à partir de deux caractères.
+    public static method suggest(ui:UI, event:UIEvent): void {
+        ui.set("top_search", "suggestions", self::suggestions(Screen::text(ui, "top_search")))
     }
 
-    // Champ de recherche de l'accueil : ouvre l'écran avec ce terme.
-    public static method fromHome(ui:UI, event:UIEvent): void {
-        var term:string = Screen::text(ui, "home_search")
-        ui.set("search_term", "value", term)
+    public static method suggestions(term:string): array<map<string, mixed>> {
+        const q:string = term.trim()
+        if q.len() smaller 2 {
+            return []
+        }
+        return SearchViewPort::suggestions(SearchService::run(q))
+    }
+
+    // Entrée dans le champ : écran des résultats (onShow lance la recherche).
+    public static method submit(ui:UI, event:UIEvent): void {
+        ui.set("top_search", "suggestions", [])
         ui.navigate("search")
-        self::search(ui, term)
+    }
+
+    public static method show(ui:UI, event:UIEvent): void {
+        self::search(ui, Screen::text(ui, "top_search"))
     }
 
     public static method search(ui:UI, term:string): void {

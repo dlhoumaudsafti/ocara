@@ -1,0 +1,22 @@
+import ocara.UnitTest
+import context.settings.infra.controllers.SettingsController
+import context.shared.infra.settings.Preferences
+import tests.support.fake.FakeDatabase
+
+class SettingsControllerTest extends UnitTest {
+    wiring tests.support.fake.FakeSettingsRepository
+
+    // Démarrage : préférences enregistrées appliquées, langue rendue.
+    public method bootTest(): int {
+        FakeDatabase::reset()
+        FakeDatabase::setSetting("language", "en")
+        FakeDatabase::setSetting("currency", "JPY")
+        FakeDatabase::setSetting("timezone", "Asia/Tokyo")
+        self::assertEquals("en", SettingsController::boot())
+        self::assertEquals("JPY", Preferences::currency())
+        self::assertEquals("Asia/Tokyo", Preferences::timezone())
+        Preferences::reset()
+        FakeDatabase::reset()
+        return 0
+    }
+}

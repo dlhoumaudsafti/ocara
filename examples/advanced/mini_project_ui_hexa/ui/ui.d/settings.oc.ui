@@ -1,0 +1,61 @@
+# Paramètres (toutes les tailles) — SettingsController : choix liés à la
+# racine `settings`, enregistrés dès qu'ils changent (save_settings) ;
+# l'exemple montre un montant et une date dans les formats choisis.
+screens:
+  settings:
+    title: "${settings_title}"
+    onShow: show_settings
+    layout:
+      type: column
+      spacing: 14
+      padding: 16
+      scroll: true
+      children:
+        - type: card
+          spacing: 10
+          width: fill
+          children:
+            - { type: heading, level: 3, value: "${settings_display}" }
+            - { type: label, text: "${field_language}" }
+            - type: select
+              bind: settings.language
+              onChange: save_settings
+              options:
+                - { value: fr, text: "Français" }
+                - { value: en, text: "English" }
+            - { type: label, text: "${field_currency}" }
+            - type: select
+              bind: settings.currency
+              onChange: save_settings
+              options:
+                - { value: EUR, text: "${currency_EUR}" }
+                - { value: USD, text: "${currency_USD}" }
+                - { value: GBP, text: "${currency_GBP}" }
+                - { value: CHF, text: "${currency_CHF}" }
+                - { value: CAD, text: "${currency_CAD}" }
+                - { value: JPY, text: "${currency_JPY}" }
+            - { type: label, text: "${field_timezone}" }
+            - type: select
+              bind: settings.timezone
+              onChange: save_settings
+              options:
+                - { value: UTC, text: "UTC" }
+                - { value: Europe/London, text: "Europe/London (UTC+0)" }
+                - { value: Europe/Lisbon, text: "Europe/Lisbon (UTC+0)" }
+                - { value: Europe/Paris, text: "Europe/Paris (UTC+1)" }
+                - { value: Europe/Berlin, text: "Europe/Berlin (UTC+1)" }
+                - { value: Europe/Athens, text: "Europe/Athens (UTC+2)" }
+                - { value: America/New_York, text: "America/New_York (UTC−5)" }
+                - { value: America/Chicago, text: "America/Chicago (UTC−6)" }
+                - { value: America/Los_Angeles, text: "America/Los_Angeles (UTC−8)" }
+                - { value: Asia/Dubai, text: "Asia/Dubai (UTC+4)" }
+                - { value: Asia/Tokyo, text: "Asia/Tokyo (UTC+9)" }
+            - { type: text, value: "${timezone_dst_hint}", style: muted }
+        - type: card
+          spacing: 6
+          width: fill
+          children:
+            - { type: heading, level: 3, value: "${settings_preview}" }
+            - { type: text, id: settings_price_example, style: stat_value }
+            - { type: text, id: settings_date_example, style: muted }
+        - { type: navMenu, id: settings_menu }

@@ -128,6 +128,71 @@ var OcaraLayers = (function () {
     return e;
   }
 
+  /// Propositions d'un champ (`suggestions`, menu flottant sous lui) : choix
+  /// à la souris ou au clavier (↑ ↓ Entrée, Échap), action `onSuggestion`
+  /// avec sa valeur. `e.ocSuggest(liste)` les remplace sans reconstruire le
+  /// champ (saisie et focus gardés).
+  var menu = null;
+  function suggest(e, node, p, api) {
+    var items = [], active = -1;
+    function normalized(list) {
+      return (list || []).map(function (o) {
+        return o != null && typeof o === "object" ? { value: o.value, text: o.text != null ? o.text : String(o.value) } : { value: o, text: String(o) };
+      });
+    }
+    function close() {
+      if (menu && menu.ocOwner === e) { menu.remove(); menu = null; }
+      active = -1;
+    }
+    function pick(item) {
+      close();
+      api.fire(p, "onSuggestion", node.id, item.value);
+    }
+    function show() {
+      if (!items.length || document.activeElement !== e) return close();
+      if (!menu || menu.ocOwner !== e) {
+        if (menu) menu.remove();
+        menu = api.el("div", "oc-suggestions");
+        menu.setAttribute("role", "listbox");
+        menu.ocOwner = e;
+        document.body.appendChild(menu);
+      }
+      var r = e.getBoundingClientRect();
+      menu.style.left = r.left + "px";
+      menu.style.top = r.bottom + 4 + "px";
+      menu.style.minWidth = r.width + "px";
+      menu.textContent = "";
+      items.forEach(function (item, i) {
+        var row = api.el("div", "oc-suggestion" + (i === active ? " oc-active" : ""));
+        row.setAttribute("role", "option");
+        row.textContent = item.text;
+        // Avant le `blur` du champ : le choix ne ferme pas le menu trop tôt.
+        row.addEventListener("mousedown", function (ev) { ev.preventDefault(); pick(item); });
+        menu.appendChild(row);
+      });
+    }
+    e.ocSuggest = function (list) { items = normalized(list); active = -1; show(); };
+    items = normalized(p.suggestions);
+    e.addEventListener("focus", show);
+    e.addEventListener("blur", close);
+    e.addEventListener("input", function () { active = -1; });
+    e.addEventListener("keydown", function (ev) {
+      if (!menu || menu.ocOwner !== e) return;
+      if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+        ev.preventDefault();
+        active = (active + (ev.key === "ArrowDown" ? 1 : items.length - 1)) % items.length;
+        show();
+      } else if (ev.key === "Enter" && active >= 0) {
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        pick(items[active]);
+      } else if (ev.key === "Escape") {
+        ev.stopPropagation();
+        close();
+      }
+    });
+  }
+
   /// Bouton de la barre de titre qui ouvre le tiroir `wrap` (sauf permanent).
   function menuButton(wrap, node, api) {
     var b = api.el("button", "oc-button oc-icon-button oc-menu-button");
@@ -152,7 +217,7 @@ var OcaraLayers = (function () {
 
   return {
     layered: layered, collect: collect, permanent: permanent, place: place,
-    panel: panel, fab: fab, floating: floating, spinner: spinner,
+    panel: panel, fab: fab, floating: floating, spinner: spinner, suggest: suggest,
     menuButton: menuButton, closeTop: closeTop,
   };
 })();

@@ -1,0 +1,11 @@
+namespace configs.actions
+// À propos.
+
+import ocara.UI
+import context.about.infra.controllers.AboutController
+
+class AboutActions {
+    init(ui:UI) {
+        ui.on("show_about", AboutController::show)
+    }
+}

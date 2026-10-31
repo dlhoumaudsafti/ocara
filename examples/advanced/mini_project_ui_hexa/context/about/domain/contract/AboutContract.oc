@@ -1,0 +1,7 @@
+namespace context.about.domain.contract
+
+interface AboutContract {
+    wiring context.about.infra.db.AboutRepository
+    // Nombre de lignes de chaque table : `cars`, `maintenances`, `photos`.
+    public static method counts(): map<string, int>
+}

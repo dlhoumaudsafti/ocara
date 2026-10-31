@@ -12,6 +12,8 @@ class CarSearchResultEntity {
     public property purchase_price:float
     public property estimated_price:float
     public property maintenance_total:float
+    public property origin:string
+    public property year:int
 
     init(
         id:int,
@@ -20,7 +22,9 @@ class CarSearchResultEntity {
         model:string,
         purchase_price:float,
         estimated_price:float,
-        maintenance_total:float
+        maintenance_total:float,
+        origin:string = "",
+        year:int = 0
     ) {
         self.id = id
         self.reference = reference
@@ -29,5 +33,7 @@ class CarSearchResultEntity {
         self.purchase_price = purchase_price
         self.estimated_price = estimated_price
         self.maintenance_total = maintenance_total
+        self.origin = origin
+        self.year = year
     }
 }

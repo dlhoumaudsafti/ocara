@@ -1,0 +1,34 @@
+namespace context.settings.app.usecase
+
+import context.settings.domain.entity.SettingsEntity
+import context.settings.domain.contract.SettingsContract
+
+class SettingsService {
+
+    // Préférences enregistrées ; une valeur qui n'est plus proposée (base
+    // ancienne, modifiée à la main) revient à sa valeur par défaut.
+    public static method load(): SettingsEntity {
+        const settings:SettingsEntity = SettingsContract::load()
+        const defaults:SettingsEntity = SettingsEntity::defaults()
+        if not SettingsEntity::languages().contains(settings.language) {
+            settings.language = defaults.language
+        }
+        if not SettingsEntity::currencies().contains(settings.currency) {
+            settings.currency = defaults.currency
+        }
+        if not SettingsEntity::timezones().contains(settings.timezone) {
+            settings.timezone = defaults.timezone
+        }
+        return settings
+    }
+
+    // Enregistre les préférences ; `null` si l'une n'est pas proposée.
+    public static method update(language:string, currency:string, timezone:string): SettingsEntity|null {
+        const settings:SettingsEntity = use SettingsEntity(language, currency, timezone)
+        if not settings.valid() {
+            return null
+        }
+        SettingsContract::save(settings)
+        return settings
+    }
+}

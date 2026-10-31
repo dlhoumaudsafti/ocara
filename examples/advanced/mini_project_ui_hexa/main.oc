@@ -1,9 +1,9 @@
 namespace .
 // examples/advanced/mini_project_ui_hexa/main.oc
-// Garage Ocara avec une interface native (ocara.UI) au lieu du serveur web
-// de mini_project_hexa : mêmes fonctionnalités, mêmes contextes, même
-// domaine et mêmes cas d'usage ; seuls les adaptateurs d'entrée et de sortie
-// changent (actions au lieu de routes, état d'écran au lieu de HTML).
+// Carfolio : suivi d'une flotte de voitures avec une interface native
+// (ocara.UI). Né du garage de mini_project_hexa (serveur web) : mêmes
+// contextes, même domaine ; les adaptateurs d'entrée et de sortie sont des
+// actions et des états d'écran au lieu de routes et de HTML.
 //
 // Une seule source pour les deux plateformes : fenêtre Tauri sur desktop,
 // Compose sur Android (ocara.UI choisit selon la cible) — plus de serveur

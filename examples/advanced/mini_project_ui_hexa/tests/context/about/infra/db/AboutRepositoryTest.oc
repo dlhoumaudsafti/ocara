@@ -1,0 +1,20 @@
+import ocara.UnitTest
+import context.about.infra.db.AboutRepository
+import tests.support.Fixture
+
+class AboutRepositoryTest extends UnitTest {
+
+    // Une voiture et un entretien de plus se comptent.
+    public method countsTest(): int {
+        Fixture::reset()
+        const before:map<string, int> = AboutRepository::counts()
+        const id:int = Fixture::car("ABOUT", "Peugeot", "308", 10000.0)
+        Fixture::maintenance(id, "maintenance", "Vidange", 80.0)
+        const after:map<string, int> = AboutRepository::counts()
+        self::assertEquals(before["cars"] + 1, after["cars"])
+        self::assertEquals(before["maintenances"] + 1, after["maintenances"])
+        self::assertEquals(before["photos"], after["photos"])
+        Fixture::cleanup()
+        return 0
+    }
+}

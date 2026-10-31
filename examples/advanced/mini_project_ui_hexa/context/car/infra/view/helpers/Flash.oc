@@ -9,16 +9,20 @@ class Flash {
 
     public static method message(code:string): string {
         return match code {
-            "missing_fields"    => "${flash_missing_fields}"
-            "invalid_price"     => "${flash_invalid_price}"
-            "invalid_cost"      => "${flash_invalid_cost}"
-            "not_found"         => "${flash_not_found}"
-            "car_added"         => "${flash_car_added}"
-            "car_deleted"       => "${flash_car_deleted}"
-            "photo_added"       => "${flash_photo_added}"
-            "invalid_photo"     => "${flash_invalid_photo}"
-            "maintenance_added" => "${flash_maintenance_added}"
-            default             => ""
+            "missing_fields"      => "${flash_missing_fields}"
+            "invalid_price"       => "${flash_invalid_price}"
+            "invalid_year"        => "${flash_invalid_year}"
+            "invalid_origin"      => "${flash_invalid_origin}"
+            "invalid_cost"        => "${flash_invalid_cost}"
+            "not_found"           => "${flash_not_found}"
+            "car_added"           => "${flash_car_added}"
+            "car_deleted"         => "${flash_car_deleted}"
+            "photo_added"         => "${flash_photo_added}"
+            "invalid_photo"       => "${flash_invalid_photo}"
+            "maintenance_added"   => "${flash_maintenance_added}"
+            "maintenance_updated" => "${flash_maintenance_updated}"
+            "maintenance_deleted" => "${flash_maintenance_deleted}"
+            default               => ""
         }
     }
 }

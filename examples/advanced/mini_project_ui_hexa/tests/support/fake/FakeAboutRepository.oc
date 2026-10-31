@@ -1,0 +1,21 @@
+// AboutContract en mémoire (tests.support.fake.FakeDatabase) — remplace
+// context.about.infra.db.AboutRepository dans un test qui déclare
+// `wiring tests.support.fake.FakeAboutRepository`.
+
+import context.about.domain.contract.AboutContract
+import tests.support.fake.FakeDatabase
+
+class FakeAboutRepository implements AboutContract {
+    public static method counts(): map<string, int> {
+        var photos:int = 0
+        for row in FakeDatabase::cars() {
+            var id:int = row["id"]
+            photos += FakeDatabase::photos(id).len()
+        }
+        return {
+            "cars": FakeDatabase::cars().len(),
+            "maintenances": FakeDatabase::maintenanceCount(0),
+            "photos": photos
+        }
+    }
+}

@@ -1,0 +1,62 @@
+import ocara.UnitTest
+import ocara.DateTime
+import context.shared.infra.i18n.Format
+import context.shared.infra.settings.Preferences
+
+// Montants et dates selon les préférences (langue, devise, fuseau horaire).
+class FormatTest extends UnitTest {
+
+    public method priceFrenchTest(): int {
+        Preferences::apply("fr", "EUR", "UTC")
+        self::assertEquals("0,00 €", Format::price(0.0))
+        self::assertEquals("5 800,50 €", Format::price(5800.5))
+        self::assertEquals("1 234 567,89 €", Format::price(1234567.894))
+        self::assertEquals("999,99 €", Format::price(999.99))
+        self::assertEquals("1 000,00 €", Format::price(999.999))
+        self::assertEquals("-80,05 €", Format::price(-80.05))
+        Preferences::reset()
+        return 0
+    }
+
+    public method priceEnglishTest(): int {
+        Preferences::apply("en", "USD", "UTC")
+        self::assertEquals("$5,800.50", Format::price(5800.5))
+        Preferences::apply("en", "GBP", "UTC")
+        self::assertEquals("£1,000.00", Format::price(1000.0))
+        Preferences::apply("en", "CHF", "UTC")
+        self::assertEquals("CHF 12.30", Format::price(12.3))
+        Preferences::apply("en", "CAD", "UTC")
+        self::assertEquals("CA$7.00", Format::price(7.0))
+        Preferences::reset()
+        return 0
+    }
+
+    // Le yen n'a pas de décimales.
+    public method priceYenTest(): int {
+        Preferences::apply("fr", "JPY", "UTC")
+        self::assertEquals("1 235 ¥", Format::price(1234.6))
+        Preferences::reset()
+        return 0
+    }
+
+    public method symbolTest(): int {
+        self::assertEquals("€", Format::symbol("EUR"))
+        self::assertEquals("XYZ", Format::symbol("XYZ"))
+        return 0
+    }
+
+    // Date dans le fuseau choisi : 23:30 UTC est déjà le lendemain à Paris.
+    public method dateTest(): int {
+        const ts:int = DateTime::parse("2026-01-10T23:30:00")
+        Preferences::apply("fr", "EUR", "UTC")
+        self::assertEquals("10/01/2026", Format::date(ts))
+        Preferences::apply("fr", "EUR", "Europe/Paris")
+        self::assertEquals("11/01/2026", Format::date(ts))
+        self::assertEquals("11/01/2026 00:30", Format::dateTime(ts))
+        Preferences::apply("en", "USD", "America/New_York")
+        self::assertEquals("01/10/2026", Format::date(ts))
+        self::assertEquals("01/10/2026 18:30", Format::dateTime(ts))
+        Preferences::reset()
+        return 0
+    }
+}

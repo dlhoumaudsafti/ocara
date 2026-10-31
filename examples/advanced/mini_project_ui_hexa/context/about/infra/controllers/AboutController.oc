@@ -1,0 +1,14 @@
+namespace context.about.infra.controllers
+// Écran `about` (onShow) : version et contenu de la base.
+
+import ocara.UI
+import ocara.UIEvent
+import context.about.app.usecase.AboutService
+import context.about.app.port.AboutViewPort
+import context.shared.infra.ui.Screen
+
+class AboutController {
+    public static method show(ui:UI, event:UIEvent): void {
+        Screen::apply(ui, AboutViewPort::present(AboutService::build()))
+    }
+}

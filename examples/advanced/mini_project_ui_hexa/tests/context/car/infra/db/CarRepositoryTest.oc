@@ -30,16 +30,41 @@ class CarRepositoryTest extends UnitTest {
     public method createTest(): int {
         Fixture::reset()
         const id:int = CarRepository::create(
-            "TEST-OCUNIT-NEW", "Renault", "Clio", 8000.25, "2024-02-01", "2025-03-01"
+            "TEST-OCUNIT-NEW", "Renault", "Clio", "FR", 2019, 8000.25, "2024-02-01", "2025-03-01"
         )
         self::assertTrue(id greater 0)
         const car:CarEntity|null = CarRepository::find(id)
         self::assertNotNull(car)
         self::assertEquals("Renault", car.brand)
+        self::assertEquals("FR", car.origin)
+        self::assertEquals(2019, car.year)
         self::assertEquals(8000.25, car.purchase_price)
         self::assertEquals(8000.25, car.estimated_price)
         self::assertEquals("2024-02-01", car.acquisition_date)
         self::assertEquals("2025-03-01", car.sale_date)
+        Fixture::cleanup()
+        return 0
+    }
+
+    // Champs de la fiche enregistrés ; le prix de vente estimé n'est pas touché.
+    public method updateTest(): int {
+        Fixture::reset()
+        const id:int = Fixture::car("UPD", "Citroen", "C3", 7000.0)
+        CarRepository::updateEstimatedPrice(id, 7500.0)
+        CarRepository::update(use CarEntity(
+            id, "TEST-OCUNIT-UPD2", "Citroën", "C3 Aircross", "FR", 2018, 7200.0, 0.0, "2023-05-01", "2026-01-15"
+        ))
+        const car:CarEntity|null = CarRepository::find(id)
+        self::assertNotNull(car)
+        self::assertEquals("TEST-OCUNIT-UPD2", car.reference)
+        self::assertEquals("Citroën", car.brand)
+        self::assertEquals("C3 Aircross", car.model)
+        self::assertEquals("FR", car.origin)
+        self::assertEquals(2018, car.year)
+        self::assertEquals(7200.0, car.purchase_price)
+        self::assertEquals(7500.0, car.estimated_price)
+        self::assertEquals("2023-05-01", car.acquisition_date)
+        self::assertEquals("2026-01-15", car.sale_date)
         Fixture::cleanup()
         return 0
     }

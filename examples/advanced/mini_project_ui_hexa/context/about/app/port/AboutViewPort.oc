@@ -1,0 +1,9 @@
+namespace context.about.app.port
+
+import context.about.domain.entity.AboutEntity
+
+// État de l'écran `about` (ui/ui.d/about.oc.ui).
+interface AboutViewPort {
+    wiring context.about.infra.view.AboutView
+    public static method present(about:AboutEntity): map<string, map<string, mixed>>
+}

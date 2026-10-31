@@ -1,0 +1,16 @@
+namespace context.settings.infra.view
+// Écran `settings` : exemple de montant et de date (les préférences sont déjà
+// appliquées à context.shared.infra.settings.Preferences par le contrôleur).
+
+import context.settings.domain.entity.SettingsEntity
+import context.settings.app.port.SettingsViewPort
+import context.shared.infra.i18n.Format
+
+class SettingsView implements SettingsViewPort {
+    public static method present(settings:SettingsEntity, now:int): map<string, map<string, mixed>> {
+        return {
+            "settings_price_example": {"value": Format::price(12345.6)},
+            "settings_date_example": {"value": "${settings_now} : " + Format::dateTime(now) + " (" + settings.timezone + ")"},
+        }
+    }
+}

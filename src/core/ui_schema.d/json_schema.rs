@@ -113,6 +113,11 @@ fn ty_within(t: Ty, within: Within) -> Json {
             json!({ "anyOf": [one.clone(), { "type": "array", "items": one }] })
         }
         Ty::Transition => object(effects::TRANSITION_PROPS),
+        Ty::ThemeColor => {
+            let color = ty(Ty::Color);
+            json!({ "anyOf": [color.clone(), { "type": "object", "additionalProperties": false, "minProperties": 1,
+                "properties": { "light": color.clone(), "dark": color } }] })
+        }
         Ty::Animation => json!({ "anyOf": [
             { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
             { "type": "object", "additionalProperties": false, "required": ["name"],
@@ -233,6 +238,7 @@ pub fn schema() -> Json {
                 "additionalProperties": object(schema::SCREEN_PROPS),
             },
             "layout": { "$ref": "#/definitions/node" },
+            "bar": { "$ref": "#/definitions/node" },
             "menu": ty(Ty::Menu),
         },
         "definitions": {

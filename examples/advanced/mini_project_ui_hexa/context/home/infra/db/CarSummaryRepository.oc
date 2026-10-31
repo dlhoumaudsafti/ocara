@@ -21,6 +21,8 @@ class CarSummaryRepository implements CarSummaryContract {
         var estimated_price:float = row["estimated_sale_price"]
         var maintenance_total:float = row["maintenance_total"]
         var photo:string = row["photo"]
+        var origin:string = row["origin"]
+        var year:int = row["year"]
         return use CarSummaryEntity(
             id,
             reference,
@@ -29,7 +31,9 @@ class CarSummaryRepository implements CarSummaryContract {
             purchase_price,
             estimated_price,
             maintenance_total,
-            photo
+            photo,
+            origin,
+            year
         )
     }
 

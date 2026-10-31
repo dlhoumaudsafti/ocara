@@ -17,9 +17,11 @@ class FakeSearchRepository implements SearchContract {
         var model:string = row["model"]
         var purchase_price:float = row["purchase_price"]
         var estimated_price:float = row["estimated_sale_price"]
+        var origin:string = row["origin"]
+        var year:int = row["year"]
         const maintenance_total:float = FakeDatabase::total(id, "maintenance")
         return use CarSearchResultEntity(
-            id, reference, brand, model, purchase_price, estimated_price, maintenance_total
+            id, reference, brand, model, purchase_price, estimated_price, maintenance_total, origin, year
         )
     }
 
@@ -38,7 +40,11 @@ class FakeSearchRepository implements SearchContract {
             var reference:string = row["reference"]
             var brand:string = row["brand"]
             var model:string = row["model"]
-            if self::like(reference, term) or self::like(brand, term) or self::like(model, term) {
+            var origin:string = row["origin"]
+            var year:int = row["year"]
+            // Pays (code) et année : valeur exacte, comme la requête SQL.
+            const exact:bool = origin.lower() equal term.lower() or year.toStr() equal term
+            if self::like(reference, term) or self::like(brand, term) or self::like(model, term) or exact {
                 items.push(self::carFromRow(row))
             }
         }

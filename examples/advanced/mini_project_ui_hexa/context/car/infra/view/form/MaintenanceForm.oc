@@ -1,0 +1,48 @@
+namespace context.car.infra.view.form
+// Formulaire d'entretien de la fiche, lié à l'interface (racine
+// `maintenance`, ui/ui.d/components.oc.ui `maintenanceForm`) : ajout
+// (`id` 0), ou modification d'un entretien de l'historique. `adding` et
+// `editing` montrent les titres et boutons de chaque cas.
+
+import context.car.domain.entity.MaintenanceEntity
+
+class MaintenanceForm {
+    public property id:int = 0
+    public property type:string = "maintenance"
+    public property description:string = ""
+    public property cost:string = ""
+    public property material_source:string = ""
+    public property lifespan_days:string = ""
+    public property adding:bool = true
+    public property editing:bool = false
+
+    // Entretien de l'historique à corriger.
+    public method load(m:MaintenanceEntity): void {
+        self.id = 0
+        if m.id is int {
+            self.id = m.id
+        }
+        self.type = m.type
+        self.description = m.description
+        self.cost = m.cost.toStr()
+        self.material_source = m.material_source
+        self.lifespan_days = ""
+        if m.lifespan_days greater 0 {
+            self.lifespan_days = m.lifespan_days.toStr()
+        }
+        self.adding = false
+        self.editing = true
+    }
+
+    // Formulaire vide, prêt pour un ajout.
+    public method reset(): void {
+        self.id = 0
+        self.type = "maintenance"
+        self.description = ""
+        self.cost = ""
+        self.material_source = ""
+        self.lifespan_days = ""
+        self.adding = true
+        self.editing = false
+    }
+}

@@ -74,13 +74,25 @@ fn collect_nodes(node: &Value, out: &mut HashMap<String, Map<String, Value>>) {
     // Les nœuds du gabarit `item` d'une liste se répètent : pas d'état propre.
 }
 
+/// Racines des nœuds d'un arbre : disposition de chaque écran, barre de
+/// titre d'un écran (`bar`) et celle de tous les écrans.
+pub(crate) fn roots(tree: &Value) -> Vec<&Value> {
+    let mut out = Vec::new();
+    for screen in tree.get("screens").and_then(Value::as_object).into_iter().flat_map(|s| s.values()) {
+        out.push(&screen["layout"]);
+        out.extend(screen.get("bar"));
+    }
+    out.extend(tree.get("bar"));
+    out
+}
+
 /// Nœuds à `id` de l'arbre et de ses variantes de taille.
 fn nodes_of(tree: &Value) -> HashMap<String, Map<String, Value>> {
     let mut nodes = HashMap::new();
     let variants = tree.get("variants").and_then(Value::as_object).into_iter().flat_map(|v| v.values());
     for t in std::iter::once(tree).chain(variants) {
-        for screen in t.get("screens").and_then(Value::as_object).into_iter().flat_map(|s| s.values()) {
-            collect_nodes(&screen["layout"], &mut nodes);
+        for root in roots(t) {
+            collect_nodes(root, &mut nodes);
         }
     }
     nodes
@@ -171,9 +183,7 @@ pub fn size_class(this: i64) -> String {
 /// l'affichage) ? Les gabarits `item` des listes comptent.
 pub fn has(this: i64, id: &str) -> bool {
     with(this, |ui| {
-        let shown = displayed(&ui.tree, &ui.size_class);
-        shown.get("screens").and_then(Value::as_object).into_iter().flat_map(|s| s.values())
-            .any(|screen| declares(&screen["layout"], id))
+        roots(displayed(&ui.tree, &ui.size_class)).into_iter().any(|root| declares(root, id))
     }).unwrap_or(false)
 }
 
@@ -463,6 +473,21 @@ mod tests {
         assert!(shown("lg"));
         assert!(shown("xl"));
         assert!(super::declares(&tree["screens"]["home"]["layout"], "cars"));
+    }
+
+    /// Barre de titre (de tous les écrans, d'un écran) : ses nœuds ont un état.
+    #[test]
+    fn bar_nodes_are_indexed() {
+        let tree = json!({
+            "bar": { "type": "input", "id": "top_search" },
+            "screens": { "home": {
+                "bar": { "type": "button", "id": "home_action" },
+                "layout": { "type": "column", "children": [{ "type": "text", "id": "title" }] },
+            } },
+        });
+        let nodes = super::nodes_of(&tree);
+        assert!(nodes.contains_key("top_search") && nodes.contains_key("home_action") && nodes.contains_key("title"));
+        assert_eq!(super::roots(&tree).len(), 3);
     }
 
     /// Instance d'une action propre : le plus long `id` d'instance du bon composant.

@@ -1,0 +1,44 @@
+namespace context.settings.infra.db
+// Table `settings` (clé → valeur, context.shared.infra.db.Database).
+
+import ocara.SQLite
+import context.shared.infra.db.Database
+import context.settings.domain.entity.SettingsEntity
+import context.settings.domain.contract.SettingsContract
+
+class SettingsRepository implements SettingsContract {
+
+    public static method load(): SettingsEntity {
+        const settings:SettingsEntity = SettingsEntity::defaults()
+        const db:SQLite = Database::connect()
+        const rows:array<map<string, mixed>> = db.query("SELECT key, value FROM settings")
+        db.close()
+        for row in rows {
+            var key:string = row["key"]
+            var value:string = row["value"]
+            if key equal "language" {
+                settings.language = value
+            }
+            if key equal "currency" {
+                settings.currency = value
+            }
+            if key equal "timezone" {
+                settings.timezone = value
+            }
+        }
+        return settings
+    }
+
+    public static method save(settings:SettingsEntity): void {
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.begin()
+            for key has value in {"language": settings.language, "currency": settings.currency, "timezone": settings.timezone} {
+                db.execute(
+                    "INSERT INTO settings (key, value) VALUES (:key, :value) ON CONFLICT(key) DO UPDATE SET value = :value",
+                    {"key": key, "value": value}
+                )
+            }
+            db.commit()
+        })
+    }
+}

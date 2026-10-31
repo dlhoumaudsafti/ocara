@@ -22,6 +22,29 @@ class FakeMaintenanceRepository implements MaintenanceContract {
         )
     }
 
+    public static method find(id:int): MaintenanceEntity|null {
+        const row:map<string, mixed> = FakeDatabase::maintenanceRow(id)
+        if row.size() equal 0 {
+            return null
+        }
+        return self::fromRow(row)
+    }
+
+    public static method update(
+        id:int,
+        type:string,
+        description:string,
+        cost:float,
+        material_source:string,
+        lifespan_days:int
+    ): void {
+        FakeDatabase::updateMaintenance(id, type, description, cost, material_source, lifespan_days)
+    }
+
+    public static method delete(id:int): void {
+        FakeDatabase::deleteMaintenance(id)
+    }
+
     public static method create(
         car_id:int,
         type:string,

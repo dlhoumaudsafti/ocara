@@ -1,0 +1,15 @@
+namespace context.about.infra.view
+
+import context.about.domain.entity.AboutEntity
+import context.about.app.port.AboutViewPort
+
+class AboutView implements AboutViewPort {
+    public static method present(about:AboutEntity): map<string, map<string, mixed>> {
+        return {
+            "about_version": {"value": "${about_version} " + about.version},
+            "about_cars.value": {"value": about.cars.toStr()},
+            "about_maintenances.value": {"value": about.maintenances.toStr()},
+            "about_photos.value": {"value": about.photos.toStr()},
+        }
+    }
+}

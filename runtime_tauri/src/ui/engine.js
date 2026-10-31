@@ -39,6 +39,8 @@
   /// Propriétés effectives : style nommé, nœud, surcharge de plateforme,
   /// état ; dans un élément de liste, `binds` lit les champs de l'élément.
   /// Les tables d'état (`states`) complètent celles de la couche précédente.
+  var VALUE_BOUND = { select: 1, radio: 1, date: 1, time: 1, slider: 1 };
+
   function props(node, ctx) {
     var out = {};
     var item = ctx && ctx.item;
@@ -55,6 +57,8 @@
     if (item && node.binds) {
       for (var prop in node.binds) out[prop] = field(item, node.binds[prop]);
     }
+    // Choix, date, heure, curseur : `bind` lit leur valeur dans l'élément.
+    if (item && out.bind && VALUE_BOUND[node.type]) out.value = field(item, out.bind);
     return out;
   }
 
@@ -240,6 +244,7 @@
     e.value = p.bind ? text(p, ctx) : (p.value == null ? "" : p.value);
     if (p.placeholder) e.placeholder = p.placeholder;
     if (p.readonly) e.readOnly = true;
+    if (node.type === "input" && !multiline) OcaraLayers.suggest(e, node, p, layerApi);
     e.addEventListener(node.type === "input" ? "input" : "change", function () {
       changed(node.id, "value", e.value);
       fire(p, "onChange", node.id, e.value);
@@ -580,8 +585,22 @@
     var win = tree.window || {};
     if (win.title) document.title = win.title;
     document.documentElement.dataset.theme = win.theme || "auto";
-    if (win.primary) document.documentElement.style.setProperty("--oc-primary", win.primary);
     return changed;
+  }
+
+  /// Couleurs et coins de `window` : `primary`/`onPrimary` (une couleur, ou
+  /// une par thème : `{ light, dark }`), `radius`.
+  var RADII = ["card", "small", "button", "fab", "panel"];
+  function applyWindow(win) {
+    var s = document.documentElement.style;
+    [["primary", "--oc-primary"], ["onPrimary", "--oc-on-primary"]].forEach(function (c) {
+      var v = win[c[0]];
+      if (v && typeof v === "object") v = v[theme()];
+      if (v) s.setProperty(c[1], v); else s.removeProperty(c[1]);
+    });
+    RADII.forEach(function (r) {
+      if (win.radius != null) s.setProperty("--oc-radius-" + r, win.radius + "px"); else s.removeProperty("--oc-radius-" + r);
+    });
   }
 
   // Thème `auto` : les surcharges `styles.dark`/`styles.light` suivent le système.
@@ -616,6 +635,7 @@
 
   function render() {
     mounted = {};
+    applyWindow(tree.window || {});
     OcaraEffects.setTree(tree);
     if (gridObserver) gridObserver.disconnect();
     var screen = tree.screens[current];
@@ -632,7 +652,8 @@
     var permanent = drawer && drawer.el.classList.contains("oc-permanent");
     root.className = permanent ? "oc-drawer-permanent oc-drawer-" + (props(drawer.node, {}).side || "start") : "";
     hasPermanentDrawer = !!(drawer && props(drawer.node, {}).permanentFrom);
-    if (screen.title || history.length || (drawer && !permanent)) {
+    var barNode = screen.bar || tree.bar;
+    if (screen.title || history.length || (drawer && !permanent) || barNode) {
       var bar = el("header", "oc-bar");
       if (drawer && !permanent) bar.appendChild(OcaraLayers.menuButton(drawer.el, drawer.node, layerApi));
       if (history.length) {
@@ -643,6 +664,12 @@
       var title = el("span", "oc-bar-title");
       title.textContent = screen.title || "";
       bar.appendChild(title);
+      // `bar` : nœud de la barre (champ de recherche, actions), à droite du titre.
+      if (barNode) {
+        var content = build(barNode, {}, "row");
+        content.classList.add("oc-bar-content");
+        bar.appendChild(content);
+      }
       root.appendChild(bar);
     }
     var body = el("main", "oc-screen");
@@ -680,6 +707,11 @@
       // Tiroir, panneau : ouverture animée, sans reconstruire.
       if (prop === "open" && m.el.classList.contains("oc-panel")) {
         m.el.classList.toggle("oc-open", !!value);
+        return;
+      }
+      // Propositions d'un champ : menu remplacé, saisie et focus gardés.
+      if (prop === "suggestions" && m.el.ocSuggest) {
+        m.el.ocSuggest(value);
         return;
       }
       // Sans reconstruire : le champ en cours de saisie garde le focus.

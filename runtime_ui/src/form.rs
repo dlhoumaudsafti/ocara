@@ -9,7 +9,7 @@
 
 use serde_json::{Map, Value};
 
-use crate::{displayed, props, with};
+use crate::{displayed, props, roots, with};
 
 /// Chemin de nœuds de `node` jusqu'au nœud `id` (lui compris).
 fn path_to<'t>(node: &'t Value, id: &str, path: &mut Vec<&'t Value>) -> bool {
@@ -57,16 +57,15 @@ fn value_prop(ty: &str) -> &'static str {
 fn form_fields(this: i64, id: &str, whole: bool) -> Vec<(String, String)> {
     with(this, |ui| {
         let shown = displayed(&ui.tree, &ui.size_class);
-        let screens = shown.get("screens").and_then(Value::as_object).into_iter().flat_map(|s| s.values());
         let mut fields = Vec::new();
-        for screen in screens {
+        for root in roots(shown) {
             let mut path = Vec::new();
-            if !path_to(&screen["layout"], id, &mut path) {
+            if !path_to(root, id, &mut path) {
                 continue;
             }
             let scope = match whole {
                 true => *path.last().expect("nœud trouvé"),
-                false => path.iter().rev().find(|n| n.get("form") == Some(&Value::Bool(true))).copied().unwrap_or(&screen["layout"]),
+                false => path.iter().rev().find(|n| n.get("form") == Some(&Value::Bool(true))).copied().unwrap_or(root),
             };
             required_fields(scope, &mut fields);
             break;

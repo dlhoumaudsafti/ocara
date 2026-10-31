@@ -1,21 +1,24 @@
 namespace context.car.infra.controllers
-// Fiche d'une voiture, création, suppression et galerie photo — les routes
-// /voitures/… de mini_project_hexa (configs/routes/CarRoutes.oc), devenues
-// des actions de l'interface (configs/actions/CarActions.oc). La voiture
+// Fiche d'une voiture (modifiée sur place), création, suppression et galerie
+// photo — actions de l'interface (configs/actions/CarActions.oc). La voiture
 // affichée est dans le nœud caché `car_id` de l'écran `car` ; un élément de
-// liste (accueil, recherche) porte l'`id` de la sienne.
+// liste (accueil, recherche) porte l'`id` de la sienne. Les formulaires
+// (CarForm) sont liés à l'interface : leurs champs suivent la saisie.
 
 import ocara.UI
 import ocara.UIEvent
 import ocara.File
 import ocara.Directory
+import ocara.DateTime
 import ocara.ConvertException
 import context.car.domain.entity.CarEntity
 import context.car.domain.contract.CarContract
 import context.car.domain.contract.CarPhotoContract
 import context.car.app.port.CarViewPort
 import context.car.app.usecase.CarDetailsService
+import context.car.app.usecase.PricingService
 import context.car.app.dto.CarDetailsDTO
+import context.car.infra.view.form.CarForm
 import context.car.infra.view.helpers.Flash
 import context.shared.infra.ui.Screen
 
@@ -25,20 +28,45 @@ class CarController {
     public static method open(ui:UI, event:UIEvent): void {
         var row:map<string, mixed> = event.value()
         var id:int = row["id"]
+        self::openId(ui, id)
+    }
+
+    // Proposition de la recherche (barre de titre) : sa valeur est l'`id`
+    // de la voiture.
+    public static method openSuggestion(ui:UI, event:UIEvent): void {
+        var id:int = event.value()
+        ui.set("top_search", "value", "")
+        self::openId(ui, id)
+    }
+
+    public static method openId(ui:UI, id:int): void {
         ui.set("car_id", "value", id.toStr())
         ui.navigate("car")
     }
 
-    // Écran `car` affiché (onShow) : la fiche de la voiture courante — GET
-    // /voitures/<id>. Voiture disparue : retour à l'accueil.
-    public static method show(ui:UI, event:UIEvent): void {
-        if not self::display(ui, self::current(ui)) {
+    // Écran `car` affiché (onShow) : la fiche de la voiture courante.
+    // Voiture disparue : retour à l'accueil.
+    public static method show(ui:UI, event:UIEvent, form:CarForm): void {
+        if not self::display(ui, self::current(ui), form) {
             ui.toast(Flash::message("not_found"))
             ui.navigate("home")
         }
     }
 
-    public static method display(ui:UI, id:int): bool {
+    // Fiche complète : formulaire rempli depuis la base, chiffres, galerie,
+    // historique.
+    public static method display(ui:UI, id:int, form:CarForm): bool {
+        const car:CarEntity|null = CarContract::find(id)
+        if car is null or not self::refresh(ui, id) {
+            return false
+        }
+        form.load(car)
+        ui.set("car_saved", "visible", false)
+        return true
+    }
+
+    // Chiffres, galerie et historique (après un enregistrement).
+    public static method refresh(ui:UI, id:int): bool {
         const details:CarDetailsDTO|null = CarDetailsService::build(id)
         if details is null {
             return false
@@ -55,59 +83,137 @@ class CarController {
         return id.toInt()
     }
 
-    // Formulaire « Ajouter une voiture » de l'accueil — POST /voitures/ajouter.
-    public static method add(ui:UI, event:UIEvent): void {
-        var reference:string = Screen::text(ui, "new_reference")
-        var brand:string = Screen::text(ui, "new_brand")
-        var model:string = Screen::text(ui, "new_model")
-        var price:string = Screen::text(ui, "new_price")
-        var acquisition:string = Screen::text(ui, "new_acquisition")
-        var sale:string = Screen::text(ui, "new_sale")
-        const error:string = self::create(ui, reference, brand, model, price, acquisition, sale)
-        Screen::error(ui, "home_error", Flash::message(error))
+    // Bouton flottant de l'accueil : panneau d'ajout, formulaire vide.
+    public static method openNew(ui:UI, event:UIEvent, form:CarForm): void {
+        form.clear()
+        Screen::error(ui, "home_error", "")
+        ui.set("new_car_sheet", "open", true)
     }
 
-    // Crée la voiture et ouvre sa fiche ; rend le code d'erreur, "" si créée.
-    public static method create(
-        ui:UI,
-        reference:string,
-        brand:string,
-        model:string,
-        price_text:string,
-        acquisition:string,
-        sale:string
-    ): string {
-        const ref:string = reference.trim()
-        const b:string = brand.trim()
-        const m:string = model.trim()
-        const price:float = self::number(price_text)
-        if ref.empty() or b.empty() or m.empty() {
+    public static method closeNew(ui:UI, event:UIEvent): void {
+        ui.set("new_car_sheet", "open", false)
+    }
+
+    // « Ajouter la voiture » (champs obligatoires déjà remplis : `submit`).
+    public static method add(ui:UI, event:UIEvent, form:CarForm): void {
+        Screen::error(ui, "home_error", Flash::message(self::create(ui, form)))
+    }
+
+    // Crée la voiture du formulaire et ouvre sa fiche ; rend le code
+    // d'erreur, "" si créée.
+    public static method create(ui:UI, form:CarForm): string {
+        const error:string = self::check(form)
+        if not error.empty() {
+            return error
+        }
+        const id:int = CarContract::create(
+            form.reference.trim(), form.brand.trim(), form.model.trim(), form.origin,
+            self::year(form.year), self::number(form.purchase_price),
+            form.acquisition_date.trim(), form.sale_date.trim()
+        )
+        form.clear()
+        ui.set("new_car_sheet", "open", false)
+        ui.toast(Flash::message("car_added"))
+        self::openId(ui, id)
+        return ""
+    }
+
+    // Champ de la fiche quitté, ou choix fait : la voiture est enregistrée
+    // si elle a changé (prix de vente estimé recalculé si le prix d'achat
+    // change). Erreur : message sur la fiche, rien d'enregistré.
+    public static method save(ui:UI, event:UIEvent, form:CarForm): void {
+        self::commit(ui, form)
+    }
+
+    public static method commit(ui:UI, form:CarForm): void {
+        const id:int = self::current(ui)
+        const error:string = self::update(id, form)
+        Screen::error(ui, "car_error", Flash::message(error))
+        if error.empty() {
+            self::refresh(ui, id)
+            ui.set("car_saved", "visible", true)
+        }
+    }
+
+    // Rend le code d'erreur ; "" si enregistrée ou inchangée.
+    public static method update(id:int, form:CarForm): string {
+        const before:CarEntity|null = CarContract::find(id)
+        if before is null {
+            return "not_found"
+        }
+        const error:string = self::check(form)
+        if not error.empty() {
+            return error
+        }
+        const after:CarEntity = use CarEntity(
+            id, form.reference.trim(), form.brand.trim(), form.model.trim(), form.origin,
+            self::year(form.year), self::number(form.purchase_price), before.estimated_price,
+            form.acquisition_date.trim(), form.sale_date.trim()
+        )
+        if self::same(before, after) {
+            return ""
+        }
+        CarContract::update(after)
+        if after.purchase_price not equal before.purchase_price {
+            PricingService::recalculateEstimatedPrice(id)
+        }
+        return ""
+    }
+
+    // Contrôles du site : champs texte remplis, prix positif ; plus ici
+    // l'année (vide, ou de 1886 à l'an prochain) et le pays proposé.
+    public static method check(form:CarForm): string {
+        if form.reference.trim().empty() or form.brand.trim().empty() or form.model.trim().empty() {
             return "missing_fields"
         }
-        if price smaller or equal 0.0 {
+        if self::number(form.purchase_price) smaller or equal 0.0 {
             return "invalid_price"
         }
-        const id:int = CarContract::create(ref, b, m, price, acquisition.trim(), sale.trim())
-        for field in ["new_reference", "new_brand", "new_model", "new_price", "new_acquisition", "new_sale"] {
-            ui.set(field, "value", "")
+        const year:int = self::year(form.year)
+        if year smaller 0 or not CarEntity::validYear(year, DateTime::year(DateTime::now())) {
+            return "invalid_year"
         }
-        ui.toast(Flash::message("car_added"))
-        ui.set("car_id", "value", id.toStr())
-        ui.navigate("car")
+        if not form.origin.empty() and not CarEntity::origins().contains(form.origin) {
+            return "invalid_origin"
+        }
         return ""
+    }
+
+    private static method same(a:CarEntity, b:CarEntity): bool {
+        return a.reference equal b.reference and a.brand equal b.brand and a.model equal b.model
+            and a.origin equal b.origin and a.year equal b.year and a.purchase_price equal b.purchase_price
+            and a.acquisition_date equal b.acquisition_date and a.sale_date equal b.sale_date
     }
 
     // Nombre saisi ; 0.0 si le texte n'en est pas un (refusé ensuite comme
     // le site refusait un prix invalide).
     public static method number(text:string): float {
         try {
-            return text.trim().toFloat()
+            return text.trim().replace(",", ".").toFloat()
         } on e is ConvertException {
             return 0.0
         }
     }
 
-    // Corbeille d'une carte (accueil, recherche) — POST /voitures/<id>/supprimer.
+    // Année saisie : 0 si vide, -1 si ce n'est pas un entier.
+    public static method year(text:string): int {
+        const t:string = text.trim()
+        if t.empty() {
+            return 0
+        }
+        try {
+            return t.toInt()
+        } on e is ConvertException {
+            return -1
+        }
+    }
+
+    // Champs obligatoires vides au moment d'envoyer un formulaire (`onInvalid`).
+    public static method incomplete(ui:UI, event:UIEvent): void {
+        ui.toast(Flash::message("missing_fields"))
+    }
+
+    // Corbeille d'une carte (accueil, recherche).
     public static method delete(ui:UI, event:UIEvent): void {
         var row:map<string, mixed> = event.value()
         var id:int = row["id"]
@@ -119,7 +225,7 @@ class CarController {
         self::confirmDelete(ui, self::current(ui))
     }
 
-    // Confirmation native (la fenêtre modale du site), puis retour à l'accueil.
+    // Confirmation native, puis retour à l'accueil.
     private static method confirmDelete(ui:UI, id:int): void {
         if not ui.confirm("${confirm_title}", "${confirm_delete_car}") {
             return
@@ -134,7 +240,7 @@ class CarController {
         CarContract::delete(id)
     }
 
-    // « Ajouter une photo » : sélecteur natif — POST /voitures/<id>/photos.
+    // « Ajouter une photo » : sélecteur natif.
     public static method addPhoto(ui:UI, event:UIEvent): void {
         const source:string = ui.pickFile(["jpg", "jpeg", "png", "webp", "gif"])
         if source.empty() {
@@ -146,7 +252,7 @@ class CarController {
             return
         }
         ui.toast(Flash::message("photo_added"))
-        self::display(ui, id)
+        self::refresh(ui, id)
     }
 
     // Copie la photo `source` dans ./uploads après les contrôles du site :
@@ -200,7 +306,7 @@ class CarController {
         return false
     }
 
-    // Photo de la galerie : en grand (l'image ouverte par le lien du site).
+    // Photo de la galerie : en grand.
     public static method openPhoto(ui:UI, event:UIEvent): void {
         var row:map<string, mixed> = event.value()
         ui.set("photo_full", "src", row["path"])

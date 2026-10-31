@@ -31,6 +31,21 @@ class MaintenanceRepository implements MaintenanceContract {
         )
     }
 
+    public static method find(id:int): MaintenanceEntity|null {
+        const db:SQLite = Database::connect()
+        const row:map<string, mixed> = db.queryOne(
+            `SELECT id, car_id, type, description, cost, created_at, material_source,
+                COALESCE(lifespan_days, 0) AS lifespan_days
+            FROM maintenances WHERE id = :id`,
+            {"id": id}
+        )
+        db.close()
+        if row.size() equal 0 {
+            return null
+        }
+        return self::fromRow(row)
+    }
+
     public static async method forCar(car_id:int): array<MaintenanceEntity> {
         const db:SQLite = Database::connect()
         consumed rows:array<map<string, mixed>> = db.query(
@@ -76,6 +91,41 @@ class MaintenanceRepository implements MaintenanceContract {
             id = db.lastInsertId()
         })
         return id
+    }
+
+    // Entretien corrigé depuis l'historique de la fiche (sa date reste celle
+    // de sa création).
+    public static method update(
+        id:int,
+        type:string,
+        description:string,
+        cost:float,
+        material_source:string,
+        lifespan_days:int
+    ): void {
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.prepare(`UPDATE maintenances SET
+                type = :type, description = :description, cost = :cost,
+                material_source = :materialSource, lifespan_days = :lifespanDays
+                WHERE id = :id`)
+            db.bind({
+                "type": type,
+                "description": description,
+                "cost": cost,
+                "materialSource": material_source,
+                "lifespanDays": lifespan_days,
+                "id": id
+            })
+            db.commit()
+        })
+    }
+
+    public static method delete(id:int): void {
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.prepare("DELETE FROM maintenances WHERE id = :id")
+            db.bind({"id": id})
+            db.commit()
+        })
     }
 
     // Somme des entretiens d'amélioration d'une voiture — base du recalcul

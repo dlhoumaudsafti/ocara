@@ -1,15 +1,19 @@
 namespace context.car.domain.entity
 
-// Modèle de lecture/écriture propre à ce contexte (fiche détail + création).
-// home et search ont leurs propres modèles de lecture (context.home.domain.entity,
-// context.search.domain.entity) — jamais celui-ci, pour ne pas dépendre du
-// domaine d'un autre contexte.
+// Modèle de lecture/écriture propre à ce contexte (fiche détail, création,
+// modification). home et search ont leurs propres modèles de lecture
+// (context.home.domain.entity, context.search.domain.entity) — jamais
+// celui-ci, pour ne pas dépendre du domaine d'un autre contexte.
+// `origin` : code ISO du pays d'origine ("" : non renseigné) ; `year` :
+// année du modèle (0 : non renseignée).
 
 class CarEntity {
     public property id:int|null
     public property reference:string
     public property brand:string
     public property model:string
+    public property origin:string
+    public property year:int
     public property purchase_price:float
     public property estimated_price:float
     public property acquisition_date:string
@@ -20,6 +24,8 @@ class CarEntity {
         reference:string,
         brand:string,
         model:string,
+        origin:string,
+        year:int,
         purchase_price:float,
         estimated_price:float,
         acquisition_date:string,
@@ -29,9 +35,21 @@ class CarEntity {
         self.reference = reference
         self.brand = brand
         self.model = model
+        self.origin = origin
+        self.year = year
         self.purchase_price = purchase_price
         self.estimated_price = estimated_price
         self.acquisition_date = acquisition_date
         self.sale_date = sale_date
+    }
+
+    // Pays d'origine proposés (codes ISO).
+    public static method origins(): array<string> {
+        return ["FR", "DE", "IT", "GB", "ES", "SE", "CZ", "US", "JP", "KR", "CN"]
+    }
+
+    // Première voiture de série : 1886 ; au plus l'an prochain (millésime).
+    public static method validYear(year:int, current:int): bool {
+        return year equal 0 or (year greater or equal 1886 and year smaller or equal current + 1)
     }
 }

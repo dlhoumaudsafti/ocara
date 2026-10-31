@@ -1,5 +1,5 @@
 namespace context.shared.infra.db
-// examples/advanced/mini_project_hexa/context/shared/infra/db/Database.oc
+// examples/advanced/mini_project_ui_hexa/context/shared/infra/db/Database.oc
 // Accès SQLite bas niveau : ouverture de connexion + migration du schéma.
 //
 // Comme dans examples/advanced/tauri_httpserver/configs/Database.oc : pas de propriété
@@ -63,6 +63,13 @@ class Database {
         if not has_sale_date {
             db.execute("ALTER TABLE cars ADD COLUMN sale_date TEXT NOT NULL DEFAULT ''")
         }
+        // Pays d'origine (code ISO, "" : non renseigné) et année du modèle (0 : non renseignée).
+        if not self::hasColumn(db, "cars", "origin") {
+            db.execute("ALTER TABLE cars ADD COLUMN origin TEXT NOT NULL DEFAULT ''")
+        }
+        if not self::hasColumn(db, "cars", "year") {
+            db.execute("ALTER TABLE cars ADD COLUMN year INTEGER NOT NULL DEFAULT 0")
+        }
         db.execute(`CREATE TABLE IF NOT EXISTS maintenances (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             car_id INTEGER NOT NULL,
@@ -95,6 +102,21 @@ class Database {
             path TEXT NOT NULL DEFAULT '',
             FOREIGN KEY(car_id) REFERENCES cars(id) ON DELETE CASCADE
         )`)
+        // Préférences (contexte settings) : langue, devise, fuseau horaire.
+        db.execute(`CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )`)
+    }
+
+    private static method hasColumn(db:SQLite, table:string, column:string): bool {
+        for row in db.query("SELECT name FROM pragma_table_info(:table)", {"table": table}) {
+            var name:string = row["name"]
+            if name equal column {
+                return true
+            }
+        }
+        return false
     }
 
 }

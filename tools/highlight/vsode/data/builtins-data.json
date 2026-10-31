@@ -4099,7 +4099,7 @@
         ],
         "returns": "void",
         "static": false,
-        "doc": "`ui.set(id, prop, value)` — change une propriété (`value`, `text`, `checked`, `visible`, `enabled`…) ; le nœud est réaffiché",
+        "doc": "`ui.set(id, prop, value)` — change une propriété (`value`, `text`, `checked`, `visible`, `enabled`, `suggestions` d'un champ…) ; le nœud est réaffiché (sauf `suggestions` : le menu seul)",
         "docFile": "UI.md"
       },
       {

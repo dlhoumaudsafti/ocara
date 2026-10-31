@@ -1,8 +1,21 @@
+import java.awt.RenderingHints
+import java.awt.image.BufferedImage
+import javax.imageio.ImageIO
+import java.io.File as JFile
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
 }
+
+// Nom et icône de l'app, fournis par le programme empaqueté (Makefile de
+// l'exemple : `-PocaraAppName=Carfolio -PocaraIcon=/chemin/logo.png`) ;
+// absents : ceux de l'app de démonstration. L'icône (PNG carré, idéalement
+// 512 px) devient les icônes du lanceur de chaque densité.
+val ocaraAppName = (findProperty("ocaraAppName") as String?) ?: "Ocara UIHybrid Demo"
+val ocaraIcon = (findProperty("ocaraIcon") as String?)?.let { file(it) }
+val ocaraIconRes = layout.buildDirectory.dir("generated/ocaraIcon/res")
 
 android {
     namespace = "com.ocara.demo"
@@ -13,6 +26,14 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+        resValue("string", "app_name", ocaraAppName)
+    }
+
+    // Icône du programme : par-dessus celles de src/main (les jeux de sources
+    // d'un type de build passent devant `main`).
+    if (ocaraIcon != null) {
+        sourceSets.getByName("debug").res.directories.add(ocaraIconRes.get().asFile.path)
+        sourceSets.getByName("release").res.directories.add(ocaraIconRes.get().asFile.path)
     }
 
     // Build de production : signé avec un vrai keystore, jamais celui de
@@ -55,6 +76,7 @@ android {
       compose = true
       aidl = false
       buildConfig = false
+      resValues = true
       shaders = false
     }
 
@@ -68,6 +90,44 @@ android {
 kotlin {
     jvmToolchain(17)
 }
+
+/**
+ * Icônes du lanceur depuis `ocaraIcon` : repli des API 24/25 (`ic_launcher`,
+ * `ic_launcher_round`, 48 dp) et premier plan de l'icône adaptative
+ * (`ic_launcher_foreground`, 108 dp, image réduite à la zone sûre de 72 dp).
+ */
+val generateOcaraIcon by tasks.registering {
+    val source = ocaraIcon
+    val out = ocaraIconRes
+    onlyIf { source != null }
+    if (source != null) inputs.file(source)
+    outputs.dir(out)
+    doLast {
+        val image = ImageIO.read(source!!) ?: error("ocaraIcon : image illisible (${source})")
+        fun write(file: JFile, size: Int, content: Int) {
+            val canvas = BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB)
+            val g = canvas.createGraphics()
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
+            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            val offset = (size - content) / 2
+            g.drawImage(image, offset, offset, content, content, null)
+            g.dispose()
+            file.parentFile.mkdirs()
+            ImageIO.write(canvas, "png", file)
+        }
+        val root = out.get().asFile
+        root.deleteRecursively()
+        for ((density, scale) in listOf("mdpi" to 1.0, "hdpi" to 1.5, "xhdpi" to 2.0, "xxhdpi" to 3.0, "xxxhdpi" to 4.0)) {
+            val dir = JFile(root, "mipmap-$density")
+            val legacy = (48 * scale).toInt()
+            write(JFile(dir, "ic_launcher.png"), legacy, legacy)
+            write(JFile(dir, "ic_launcher_round.png"), legacy, legacy)
+            write(JFile(dir, "ic_launcher_foreground.png"), (108 * scale).toInt(), (72 * scale).toInt())
+        }
+    }
+}
+tasks.named("preBuild") { dependsOn(generateOcaraIcon) }
 
 dependencies {
   val composeBom = platform(libs.androidx.compose.bom)

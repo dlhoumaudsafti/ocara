@@ -1,19 +1,39 @@
 namespace configs.actions
-// Voitures — routes /voitures/… de mini_project_hexa (configs/routes/CarRoutes.oc).
+// Voitures : fiche modifiable sur place, ajout, suppression, photos,
+// entretiens. Les formulaires sont liés à l'interface (`ui.bind`) et passés
+// aux gestionnaires : leurs champs suivent la saisie.
 
 import ocara.UI
+import ocara.UIEvent
 import context.car.infra.controllers.CarController
 import context.car.infra.controllers.MaintenanceController
+import context.car.infra.view.form.CarForm
+import context.car.infra.view.form.MaintenanceForm
 
 class CarActions {
     init(ui:UI) {
-        ui.on("open_car", CarController::open)                // GET /voitures/<id>
-        ui.on("show_car", CarController::show)
-        ui.on("add_car", CarController::add)                  // POST /voitures/ajouter
-        ui.on("delete_car", CarController::delete)            // POST /voitures/<id>/supprimer
+        const new_car:CarForm = use CarForm()
+        const car:CarForm = use CarForm()
+        const maintenance:MaintenanceForm = use MaintenanceForm()
+        ui.bind("new_car", new_car)
+        ui.bind("car", car)
+        ui.bind("maintenance", maintenance)
+
+        ui.on("open_car", CarController::open)
+        ui.on("open_suggestion", CarController::openSuggestion)
+        ui.on("show_car", nameless(u:UI, e:UIEvent): void { CarController::show(u, e, car) })
+        ui.on("save_car", nameless(u:UI, e:UIEvent): void { CarController::save(u, e, car) })
+        ui.on("open_new_car", nameless(u:UI, e:UIEvent): void { CarController::openNew(u, e, new_car) })
+        ui.on("close_new_car", CarController::closeNew)
+        ui.on("add_car", nameless(u:UI, e:UIEvent): void { CarController::add(u, e, new_car) })
+        ui.on("form_incomplete", CarController::incomplete)
+        ui.on("delete_car", CarController::delete)
         ui.on("delete_current_car", CarController::deleteCurrent)
-        ui.on("add_photo", CarController::addPhoto)           // POST /voitures/<id>/photos
+        ui.on("add_photo", CarController::addPhoto)
         ui.on("open_photo", CarController::openPhoto)
-        ui.on("add_maintenance", MaintenanceController::add)  // POST /voitures/<car_id>/entretiens
+        ui.on("save_maintenance", nameless(u:UI, e:UIEvent): void { MaintenanceController::save(u, e, maintenance) })
+        ui.on("edit_maintenance", nameless(u:UI, e:UIEvent): void { MaintenanceController::edit(u, e, maintenance) })
+        ui.on("cancel_maintenance", nameless(u:UI, e:UIEvent): void { MaintenanceController::cancel(u, e, maintenance) })
+        ui.on("delete_maintenance", nameless(u:UI, e:UIEvent): void { MaintenanceController::delete(u, e, maintenance) })
     }
 }

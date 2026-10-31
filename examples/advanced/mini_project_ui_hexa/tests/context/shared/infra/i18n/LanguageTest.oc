@@ -21,8 +21,8 @@ class LanguageTest extends UnitTest {
     public method varsTest(): int {
         const fr:map<string, mixed> = Language::vars("fr")
         const en:map<string, mixed> = Language::vars("en")
-        self::assertEquals("Flotte de véhicules", fr["home_title"])
-        self::assertEquals("Vehicle fleet", en["home_title"])
+        self::assertEquals("Ma flotte", fr["home_title"])
+        self::assertEquals("My fleet", en["home_title"])
         self::assertEquals(fr.size(), en.size())
         for key in fr.keys() {
             self::assertTrue(en.has(key))

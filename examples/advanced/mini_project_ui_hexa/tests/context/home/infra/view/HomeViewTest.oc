@@ -2,23 +2,27 @@ import ocara.UnitTest
 import context.home.domain.entity.CarSummaryEntity
 import context.home.app.dto.DashboardDto
 import context.home.infra.view.HomeView
+import context.shared.infra.settings.Preferences
 
 // État de l'écran `home` : statistiques et cartes de templates/home/home.html.
 class HomeViewTest extends UnitTest {
 
     public method presentTest(): int {
+        Preferences::reset()
         var cars:array<CarSummaryEntity> = []
-        cars.push(use CarSummaryEntity(3, "REF-HOME", "Peugeot", "308", 10000.0, 10500.0, 120.0))
+        cars.push(use CarSummaryEntity(3, "REF-HOME", "Peugeot", "308", 10000.0, 10500.0, 120.0, "", "FR", 2015))
         const state:map<string, map<string, mixed>> = HomeView::present(use DashboardDto(cars, 10000.0, 10500.0))
         self::assertEquals("1", state["stat_count.value"]["value"])
-        self::assertEquals("10000,00 €", state["stat_purchase.value"]["value"])
-        self::assertEquals("10500,00 €", state["stat_estimated.value"]["value"])
+        self::assertEquals("10 000,00 €", state["stat_purchase.value"]["value"])
+        self::assertEquals("10 500,00 €", state["stat_estimated.value"]["value"])
         self::assertEquals("500,00 €", state["stat_profit.value"]["value"])
         self::assertEquals(false, state["cars_empty"]["visible"])
         var items:array<map<string, mixed>> = state["cars"]["items"]
         self::assertEquals(3, items[0]["id"])
         self::assertEquals("Peugeot 308", items[0]["model_line"])
-        self::assertEquals("10500,00 €", items[0]["estimated"])
+        self::assertEquals("${country_FR} · 2015", items[0]["origin_line"])
+        self::assertEquals(true, items[0]["has_origin_line"])
+        self::assertEquals("10 500,00 €", items[0]["estimated"])
         self::assertEquals("120,00 €", items[0]["maintenance"])
         self::assertEquals(false, items[0]["has_photo"])
         return 0
@@ -32,6 +36,21 @@ class HomeViewTest extends UnitTest {
         var items:array<map<string, mixed>> = state["cars"]["items"]
         self::assertEquals("uploads/pic.jpg", items[0]["photo"])
         self::assertEquals(true, items[0]["has_photo"])
+        // Ni pays ni année : pas de ligne d'origine.
+        self::assertEquals(false, items[0]["has_origin_line"])
+        return 0
+    }
+
+    // Préférences : montants dans la devise et la langue choisies.
+    public method presentInDollarsTest(): int {
+        Preferences::apply("en", "USD", "UTC")
+        var cars:array<CarSummaryEntity> = []
+        cars.push(use CarSummaryEntity(6, "REF-US", "Ford", "Mustang", 25000.0, 26000.5, 0.0, "", "US", 0))
+        const state:map<string, map<string, mixed>> = HomeView::present(use DashboardDto(cars, 25000.0, 26000.5))
+        self::assertEquals("$25,000.00", state["stat_purchase.value"]["value"])
+        var items:array<map<string, mixed>> = state["cars"]["items"]
+        self::assertEquals("${country_US}", items[0]["origin_line"])
+        Preferences::reset()
         return 0
     }
 

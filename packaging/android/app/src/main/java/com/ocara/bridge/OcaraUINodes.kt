@@ -71,6 +71,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Shapes
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.shadow
@@ -110,6 +117,7 @@ private val FILL_IN_COLUMN = setOf(
 /** Types de taille fixe dans une ligne (jamais réduits). */
 private val FIXED_IN_ROW = setOf("icon", "iconButton", "button", "spacer", "divider", "image")
 
+private val VALUE_BOUND = setOf("select", "radio", "date", "time", "slider")
 private val CONTAINERS = setOf("column", "row", "stack", "grid", "card", "list", "floating")
 
 /**
@@ -153,13 +161,21 @@ private fun Screen(tree: JSONObject, sizeClass: String) {
         else -> isSystemInDarkTheme()
     }
     val base = if (dark) darkColorScheme() else lightColorScheme()
-    val scheme = parseColor(window.opt("primary"))?.let { base.copy(primary = it) } ?: base
+    // `primary` (fond des boutons, du bouton flottant) et `onPrimary` (leur
+    // texte) : une couleur, ou une par thème (`{ light, dark }`).
+    val primary = themedColor(window.opt("primary"), dark)
+    val onPrimary = themedColor(window.opt("onPrimary"), dark)
+    var scheme = primary?.let { base.copy(primary = it, primaryContainer = it) } ?: base
+    onPrimary?.let { scheme = scheme.copy(onPrimary = it, onPrimaryContainer = it) }
+    // `radius` : mêmes coins partout (cartes, champs, boutons, panneaux).
+    val corner = (window.opt("radius") as? Number)?.let { RoundedCornerShape(it.toFloat().dp) }
+    val shapes = corner?.let { Shapes(it, it, it, it, it) } ?: MaterialTheme.shapes
     val bars = window.optJSONObject("android")?.optString("systemBars")?.takeIf { it.isNotEmpty() }
     LaunchedEffect(dark, bars) {
         // Icônes des barres système lisibles sur le fond du thème.
         runCatching { OcaraUI.setSystemBarsStyle(bars ?: if (dark) "dark" else "light") }
     }
-    MaterialTheme(colorScheme = scheme) {
+    MaterialTheme(colorScheme = scheme, shapes = shapes) { CompositionLocalProvider(LocalCorner provides corner) {
         val stack = OcaraUIEngine.backStack
         val screens = tree.getJSONObject("screens")
         // Écran absent de cette variante : celui de départ.
@@ -177,9 +193,16 @@ private fun Screen(tree: JSONObject, sizeClass: String) {
             Scaffold(
                 topBar = {
                     val title = screen.optString("title", window.optString("title"))
-                    if (title.isNotEmpty() || stack.size > 1 || openDrawer != null) {
+                    // `bar` : nœud de la barre (champ de recherche, actions), à droite du titre.
+                    val bar = screen.optJSONObject("bar") ?: tree.optJSONObject("bar")
+                    if (title.isNotEmpty() || stack.size > 1 || openDrawer != null || bar != null) {
                         TopAppBar(
-                            title = { Text(title) },
+                            title = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = bar == null))
+                                    bar?.let { Spacer(Modifier.width(8.dp)); Node(it, ctx, Modifier.weight(1f)) }
+                                }
+                            },
                             navigationIcon = {
                                 when {
                                     stack.size > 1 -> IconButton(onClick = { OcaraUIEngine.back() }) {
@@ -210,8 +233,15 @@ private fun Screen(tree: JSONObject, sizeClass: String) {
             }
         }
         for (sheet in material.sheets) BottomSheet(sheet, ctx)
-    }
+    } }
 }
+
+/** Coins de `window.radius` (boutons) ; `null` : ceux de Material. */
+internal val LocalCorner = staticCompositionLocalOf<Shape?> { null }
+
+/** Couleur, ou `{ light, dark }` : celle du thème affiché. */
+internal fun themedColor(value: Any?, dark: Boolean): Color? =
+    parseColor(if (value is JSONObject) value.opt(if (dark) "dark" else "light") else value)
 
 private const val BACK_PATH = "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"
 private const val MENU_PATH = "M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"
@@ -248,15 +278,19 @@ internal fun props(node: JSONObject, ctx: Ctx): Map<String, Any?> {
     node.optString("id").takeIf { it.isNotEmpty() && ctx.item == null }?.let { id ->
         out.putAll(OcaraUIEngine.stateOf(id))
     }
-    // Élément de liste : `binds` lit les champs de l'élément.
+    // Élément de liste : `binds` lit les champs de l'élément ; `bind` la
+    // valeur d'un choix, d'une date, d'une heure, d'un curseur.
     val binds = node.optJSONObject("binds")
-    if (ctx.item != null && binds != null) {
-        for (prop in binds.keys()) {
-            var value: Any? = ctx.item
-            for (part in binds.getString(prop).split(".")) value = (value as? JSONObject)?.opt(part)
-            out[prop] = value
-        }
+    fun field(path: String): Any? {
+        var value: Any? = ctx.item
+        for (part in path.split(".")) value = (value as? JSONObject)?.opt(part)
+        return value
     }
+    if (ctx.item != null && binds != null) {
+        for (prop in binds.keys()) out[prop] = field(binds.getString(prop))
+    }
+    val bind = out["bind"] as? String
+    if (ctx.item != null && bind != null && node.optString("type") in VALUE_BOUND) out["value"] = field(bind)
     return out.mapValues { OcaraUIEngine.plain(it.value) }
 }
 
@@ -483,9 +517,9 @@ internal fun Node(node: JSONObject, ctx: Ctx, modifier: Modifier) {
                 Text(p.text("text") ?: "")
             }
             when (p.text("variant")) {
-                "secondary" -> OutlinedButton(click, m, enabled, content = content)
-                "text" -> TextButton(click, m, enabled, content = content)
-                else -> Button(click, m, enabled, content = content)
+                "secondary" -> OutlinedButton(click, m, enabled, shape = LocalCorner.current ?: ButtonDefaults.outlinedShape, content = content)
+                "text" -> TextButton(click, m, enabled, shape = LocalCorner.current ?: ButtonDefaults.textShape, content = content)
+                else -> Button(click, m, enabled, shape = LocalCorner.current ?: ButtonDefaults.shape, content = content)
             }
         }
         "link" -> {
@@ -635,6 +669,11 @@ private fun Input(type: String, p: Map<String, Any?>, id: String?, ctx: Ctx, ena
         else -> KeyboardType.Text
     }
     val placeholder = p.text("placeholder")
+    // `suggestions` : menu sous le champ tant qu'il a le focus ; un choix lance `onSuggestion`.
+    val suggestions = suggestionsOf(p["suggestions"])
+    var focused by remember { mutableStateOf(false) }
+    var dismissed by remember(suggestions) { mutableStateOf(false) }
+    Box(modifier) {
     OutlinedTextField(
         value = value,
         onValueChange = { text ->
@@ -642,7 +681,7 @@ private fun Input(type: String, p: Map<String, Any?>, id: String?, ctx: Ctx, ena
             OcaraUIEngine.changed(id, "value", text)
             OcaraUIEngine.fire(p, "onChange", id, text)
         },
-        modifier = modifier,
+        modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
         enabled = enabled,
         readOnly = p["readonly"] == true,
         isError = p["invalid"] == true,
@@ -653,6 +692,20 @@ private fun Input(type: String, p: Map<String, Any?>, id: String?, ctx: Ctx, ena
         keyboardOptions = KeyboardOptions(keyboardType = keyboard, imeAction = if (multiline) ImeAction.Default else ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { OcaraUIEngine.fire(p, "onSubmit", id, value) }),
     )
+    DropdownMenu(
+        expanded = focused && !dismissed && suggestions.isNotEmpty(),
+        onDismissRequest = { dismissed = true },
+        // Le clavier reste ouvert : la saisie continue pendant que le menu est affiché.
+        properties = PopupProperties(focusable = false),
+    ) {
+        for ((choice, label) in suggestions) {
+            DropdownMenuItem(text = { Text(label) }, onClick = {
+                dismissed = true
+                OcaraUIEngine.fire(p, "onSuggestion", id, choice)
+            })
+        }
+    }
+    }
 }
 
 /** Date (`AAAA-MM-JJ`) ou heure (`HH:MM`) choisie dans la boîte native de Material 3. */
@@ -712,6 +765,17 @@ private fun options(p: Map<String, Any?>): List<Pair<String, String>> {
     val array = p["options"] as? JSONArray ?: return emptyList()
     return (0 until array.length()).mapNotNull { array.optJSONObject(it) }
         .map { it.optString("value") to it.optString("text") }
+}
+
+/** Propositions d'un champ : chaînes ou `{ value, text }` (posées aussi par `ui.set`, non normalisées). */
+private fun suggestionsOf(value: Any?): List<Pair<Any?, String>> {
+    val array = value as? JSONArray ?: return emptyList()
+    return (0 until array.length()).map { i ->
+        when (val item = array.get(i)) {
+            is JSONObject -> OcaraUIEngine.plain(item.opt("value")) to item.optString("text", item.opt("value")?.toString() ?: "")
+            else -> OcaraUIEngine.plain(item) to item.toString()
+        }
+    }
 }
 
 private fun pick(p: Map<String, Any?>, id: String?, value: String) {

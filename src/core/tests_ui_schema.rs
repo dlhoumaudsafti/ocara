@@ -551,3 +551,26 @@ fn link_url_and_target() {
     single_error(&screen("    - { type: link, text: Doc, url: \"https://example.com\", target: t }\n    - { type: text, id: t }\n"), 4, "'target' doit désigner une 'webview' ('t' est un 'text')");
     single_error(&screen("    - { type: link, text: Doc, target: page }\n    - { type: webview, id: page }\n"), 4, "'target' sans 'url'");
 }
+
+#[test]
+fn window_theme_colors_radius_and_bar() {
+    let spec = ok("window:\n  primary: \"#FFD700\"\n  onPrimary: { light: \"#000000\", dark: \"#ffffff\" }\n  radius: 6\nbar: { type: input, id: q, onSuggestion: pick, suggestions: [a, { value: 2, text: Deux }] }\nlayout:\n  type: column\n  children: []\n");
+    assert_eq!(spec.tree["window"]["onPrimary"]["dark"], "#ffffff");
+    assert_eq!(spec.tree["window"]["radius"], 6);
+    assert_eq!(spec.tree["bar"]["id"], "q");
+    assert!(spec.actions.contains("pick"));
+    single_error("window:\n  onPrimary: { light: red }\nlayout: { type: column, children: [] }\n", 2, "couleur attendue");
+    single_error("window:\n  onPrimary: { sombre: \"#fff\" }\nlayout: { type: column, children: [] }\n", 2, "'sombre' inconnue");
+    single_error("window:\n  radius: 200\nlayout: { type: column, children: [] }\n", 2, "hors de l'intervalle");
+    // Barre propre à un écran.
+    ok("screens:\n  main:\n    bar: { type: text, value: Hello }\n    layout: { type: column, children: [] }\n");
+}
+
+#[test]
+fn bind_on_choices_and_dates() {
+    let spec = ok(&screen("    - { type: select, bind: car.origin, options: [FR, DE] }\n    - { type: date, bind: car.bought }\n    - { type: slider, bind: car.year, min: 1900, max: 2100 }\n"));
+    let nodes = spec.tree["roots"]["car"]["nodes"].as_array().unwrap().clone();
+    assert_eq!(nodes.len(), 3);
+    assert!(nodes.iter().all(|n| n["prop"] == "value"));
+    assert_eq!(nodes[2]["kind"], "number");
+}

@@ -1,0 +1,17 @@
+import ocara.UnitTest
+import ocara.UI
+import context.shared.infra.i18n.Language
+import context.shared.infra.ui.NavController
+
+class NavControllerTest extends UnitTest {
+
+    // Chaque écran a son tiroir (`navMenu`) : NavController les ferme tous.
+    public method menusTest(): int {
+        const ui:UI = use UI("../../../../../ui/carfolio.oc.ui", Language::vars("fr"))
+        self::assertEquals(5, NavController::menus().len())
+        for menu in NavController::menus() {
+            self::assertTrue(ui.has(menu))
+        }
+        return 0
+    }
+}

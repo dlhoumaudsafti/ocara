@@ -1,0 +1,16 @@
+namespace context.settings.infra.view
+// Choix de l'écran `settings`, liés à l'interface (racine `settings`).
+
+import context.settings.domain.entity.SettingsEntity
+
+class SettingsForm {
+    public property language:string = "fr"
+    public property currency:string = "EUR"
+    public property timezone:string = "Europe/Paris"
+
+    public method load(settings:SettingsEntity): void {
+        self.language = settings.language
+        self.currency = settings.currency
+        self.timezone = settings.timezone
+    }
+}

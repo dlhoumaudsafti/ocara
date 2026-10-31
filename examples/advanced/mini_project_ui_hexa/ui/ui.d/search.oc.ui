@@ -1,51 +1,26 @@
-# Recherche (téléphone, fenêtre étroite) — SearchController::run, comme
-# GET /recherche?q=… ; une voiture ou un entretien ouvre la fiche (open_car).
+# Résultats de la recherche (téléphone, fenêtre étroite) — le champ est dans
+# la barre de titre (`bar` de carfolio.oc.ui) : Entrée lance
+# SearchController::submit ; une voiture ou un entretien ouvre la fiche.
 screens:
   search:
     title: "${search_title}"
+    onShow: show_search
     layout:
       type: column
       spacing: 14
       padding: 16
       scroll: true
       children:
-        - type: row
-          spacing: 8
-          android: { visible: false }
-          children:
-            - { type: button, text: "${nav_cars}", icon: home, variant: secondary, onClick: go_home }
-            - { type: button, text: "${nav_search}", icon: search, variant: secondary, onClick: go_search }
-            - { type: spacer }
-            - { type: button, text: "${other_lang}", variant: text, onClick: switch_lang }
-        - type: row
-          spacing: 8
-          children:
-            - { type: input, id: search_term, placeholder: "${search_placeholder}", onSubmit: run_search, width: fill }
-            - { type: button, text: "${search_button}", icon: search, onClick: run_search }
         - { type: text, id: search_hint, value: "${search_hint}", style: muted }
-        - { type: heading, level: 2, value: "${search_cars}", style: section_title }
+        - { type: heading, level: 2, id: search_summary, style: section_title, visible: false }
+        - { type: heading, level: 3, value: "${search_cars}" }
         - { type: text, id: search_cars_empty, style: muted, visible: false }
         - type: list
           id: search_cars
           spacing: 8
           onSelect: open_car
-          item:
-            type: card
-            spacing: 4
-            children:
-              - type: row
-                spacing: 8
-                children:
-                  - { type: text, bind: reference, style: card_ref }
-                  - { type: text, bind: model_line, width: fill }
-                  - { type: iconButton, icon: delete, label: "${delete_label}", onClick: delete_car, color: "#c62828" }
-              - type: row
-                spacing: 16
-                children:
-                  - { type: text, bind: purchase }
-                  - { type: text, bind: estimated, style: highlight }
-                  - { type: text, bind: maintenance }
-        - { type: heading, level: 2, value: "${search_maintenances}", style: section_title }
+          item: { type: carCard }
+        - { type: heading, level: 3, value: "${search_maintenances}" }
         - { type: text, id: search_maintenances_empty, style: muted, visible: false }
         - type: list
           id: search_maintenances
@@ -59,11 +34,4 @@ screens:
               - { type: text, bind: description, width: fill }
               - { type: text, bind: car_reference, style: muted }
               - { type: text, bind: cost, bold: true }
-        - type: drawer
-          id: search_drawer
-          children:
-            - { type: heading, level: 3, value: "${app_title}" }
-            - { type: button, text: "${nav_cars}", icon: home, variant: text, onClick: go_home }
-            - { type: button, text: "${nav_search}", icon: search, variant: text, onClick: go_search }
-            - { type: divider }
-            - { type: button, text: "${other_lang}", variant: text, onClick: switch_lang }
+        - { type: navMenu, id: search_menu }

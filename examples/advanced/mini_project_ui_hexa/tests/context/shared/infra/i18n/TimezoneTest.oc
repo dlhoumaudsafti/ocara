@@ -1,0 +1,53 @@
+import ocara.UnitTest
+import ocara.DateTime
+import context.shared.infra.i18n.Timezone
+
+// Décalages et heure d'été (Europe, États-Unis).
+class TimezoneTest extends UnitTest {
+
+    public method weekdayTest(): int {
+        self::assertEquals(4, Timezone::weekday(0))
+        // 31/10/2026 : un samedi ; 01/11/2026 : un dimanche.
+        self::assertEquals(6, Timezone::weekday(DateTime::parse("2026-10-31T12:00:00")))
+        self::assertEquals(0, Timezone::weekday(DateTime::parse("2026-11-01T00:00:00")))
+        // Avant 1970 (timestamp négatif) : 31/12/1969, un mercredi.
+        self::assertEquals(3, Timezone::weekday(-3600))
+        return 0
+    }
+
+    // 2026 : heure d'été européenne du 29 mars au 25 octobre (01:00 UTC).
+    public method europeTest(): int {
+        self::assertEquals(3600, Timezone::offset("Europe/Paris", DateTime::parse("2026-01-15T12:00:00")))
+        self::assertEquals(7200, Timezone::offset("Europe/Paris", DateTime::parse("2026-07-15T12:00:00")))
+        self::assertEquals(3600, Timezone::offset("Europe/Paris", DateTime::parse("2026-03-29T00:59:59")))
+        self::assertEquals(7200, Timezone::offset("Europe/Paris", DateTime::parse("2026-03-29T01:00:00")))
+        self::assertEquals(7200, Timezone::offset("Europe/Paris", DateTime::parse("2026-10-25T00:59:59")))
+        self::assertEquals(3600, Timezone::offset("Europe/Paris", DateTime::parse("2026-10-25T01:00:00")))
+        self::assertEquals(3600, Timezone::offset("Europe/London", DateTime::parse("2026-07-15T12:00:00")))
+        self::assertEquals(10800, Timezone::offset("Europe/Athens", DateTime::parse("2026-07-15T12:00:00")))
+        return 0
+    }
+
+    // 2026 : heure d'été américaine du 8 mars au 1er novembre (02:00 locale).
+    public method unitedStatesTest(): int {
+        self::assertEquals(-18000, Timezone::offset("America/New_York", DateTime::parse("2026-01-15T12:00:00")))
+        self::assertEquals(-14400, Timezone::offset("America/New_York", DateTime::parse("2026-07-15T12:00:00")))
+        // 08/03 à 02:00 EST = 07:00 UTC.
+        self::assertEquals(-18000, Timezone::offset("America/New_York", DateTime::parse("2026-03-08T06:59:59")))
+        self::assertEquals(-14400, Timezone::offset("America/New_York", DateTime::parse("2026-03-08T07:00:00")))
+        // 01/11 à 02:00 EDT = 06:00 UTC.
+        self::assertEquals(-14400, Timezone::offset("America/New_York", DateTime::parse("2026-11-01T05:59:59")))
+        self::assertEquals(-18000, Timezone::offset("America/New_York", DateTime::parse("2026-11-01T06:00:00")))
+        self::assertEquals(-25200, Timezone::offset("America/Los_Angeles", DateTime::parse("2026-07-15T12:00:00")))
+        return 0
+    }
+
+    // Sans heure d'été ; zone inconnue : UTC.
+    public method fixedTest(): int {
+        self::assertEquals(32400, Timezone::offset("Asia/Tokyo", DateTime::parse("2026-07-15T12:00:00")))
+        self::assertEquals(14400, Timezone::offset("Asia/Dubai", DateTime::parse("2026-01-15T12:00:00")))
+        self::assertEquals(0, Timezone::offset("UTC", DateTime::parse("2026-07-15T12:00:00")))
+        self::assertEquals(0, Timezone::offset("Mars/Olympus", DateTime::parse("2026-07-15T12:00:00")))
+        return 0
+    }
+}

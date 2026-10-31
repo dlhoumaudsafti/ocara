@@ -23,6 +23,8 @@ class SearchRepository implements SearchContract {
         var purchase_price:float = row["purchase_price"]
         var estimated_price:float = row["estimated_sale_price"]
         var maintenance_total:float = row["maintenance_total"]
+        var origin:string = row["origin"]
+        var year:int = row["year"]
         return use CarSearchResultEntity(
             id,
             reference,
@@ -30,7 +32,9 @@ class SearchRepository implements SearchContract {
             model,
             purchase_price,
             estimated_price,
-            maintenance_total
+            maintenance_total,
+            origin,
+            year
         )
     }
 
@@ -61,8 +65,9 @@ class SearchRepository implements SearchContract {
                 0) as maintenance_total
             FROM cars LEFT JOIN maintenances ON maintenances.car_id = cars.id
             WHERE cars.reference LIKE :pattern OR cars.brand LIKE :pattern OR cars.model LIKE :pattern
+                OR cars.origin LIKE :term OR CAST(cars.year AS TEXT) = :term
             GROUP BY cars.id ORDER BY cars.created_at DESC
-        `,{"pattern": pattern})
+        `,{"pattern": pattern, "term": term})
         db.close()
         var items:array<CarSearchResultEntity> = []
         for row in rows {

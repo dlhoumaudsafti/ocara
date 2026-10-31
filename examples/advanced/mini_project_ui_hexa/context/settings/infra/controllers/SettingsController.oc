@@ -1,0 +1,49 @@
+namespace context.settings.infra.controllers
+// Écran `settings` : langue, devise et fuseau horaire, enregistrés dès qu'un
+// choix change. Les préférences passent dans
+// context.shared.infra.settings.Preferences (formats des autres écrans) ; la
+// langue remplace les textes de l'interface (`ui.setVars`).
+
+import ocara.UI
+import ocara.UIEvent
+import ocara.DateTime
+import context.settings.domain.entity.SettingsEntity
+import context.settings.app.usecase.SettingsService
+import context.settings.app.port.SettingsViewPort
+import context.settings.infra.view.SettingsForm
+import context.shared.infra.settings.Preferences
+import context.shared.infra.i18n.Language
+import context.shared.infra.ui.Screen
+
+class SettingsController {
+
+    // Démarrage : préférences enregistrées appliquées ; rend la langue de
+    // l'interface.
+    public static method boot(): string {
+        const settings:SettingsEntity = SettingsService::load()
+        Preferences::apply(settings.language, settings.currency, settings.timezone)
+        return settings.language
+    }
+
+    public static method show(ui:UI, event:UIEvent, form:SettingsForm): void {
+        const settings:SettingsEntity = SettingsService::load()
+        form.load(settings)
+        Screen::apply(ui, SettingsViewPort::present(settings, DateTime::now()))
+    }
+
+    // Un choix a changé : enregistré et appliqué.
+    public static method save(ui:UI, event:UIEvent, form:SettingsForm): void {
+        const before:string = Preferences::language()
+        const settings:SettingsEntity|null = SettingsService::update(form.language, form.currency, form.timezone)
+        if settings is null {
+            ui.toast("${flash_invalid_settings}")
+            return
+        }
+        Preferences::apply(settings.language, settings.currency, settings.timezone)
+        if settings.language not equal before {
+            ui.setVars(Language::vars(settings.language))
+        }
+        Screen::apply(ui, SettingsViewPort::present(settings, DateTime::now()))
+        ui.toast("${flash_settings_saved}")
+    }
+}

@@ -56,6 +56,15 @@ class Fixture {
         return id
     }
 
+    // Pays d'origine et année d'une voiture de test.
+    public static method origin(car_id:int, origin:string, year:int): void {
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.prepare("UPDATE cars SET origin = :origin, year = :year WHERE id = :id")
+            db.bind({"origin": origin, "year": year, "id": car_id})
+            db.commit()
+        })
+    }
+
     public static method maintenance(car_id:int, type:string, description:string, cost:float): void {
         SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
             db.prepare(`INSERT INTO maintenances

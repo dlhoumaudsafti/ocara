@@ -1,42 +1,49 @@
 namespace context.car.infra.controllers
-// Formulaire « Ajouter un entretien » de la fiche — POST
-// /voitures/<id>/entretiens de mini_project_hexa : mêmes contrôles, puis
-// recalcul immédiat du prix de vente estimé (PricingService).
+// Entretiens de la fiche : ajout et modification par le formulaire lié
+// (MaintenanceForm, `id` 0 pour un ajout), suppression depuis l'historique.
+// Chaque changement recalcule le prix de vente estimé (PricingService).
 
 import ocara.UI
 import ocara.UIEvent
+import context.car.domain.entity.MaintenanceEntity
 import context.car.domain.contract.MaintenanceContract
 import context.car.app.usecase.PricingService
 import context.car.infra.controllers.CarController
+import context.car.infra.view.form.MaintenanceForm
 import context.car.infra.view.helpers.Flash
 import context.shared.infra.ui.Screen
 
 class MaintenanceController {
 
-    public static method add(ui:UI, event:UIEvent): void {
-        var type:string = Screen::text(ui, "m_type")
-        var description:string = Screen::text(ui, "m_description")
-        var cost:string = Screen::text(ui, "m_cost")
-        var source:string = Screen::text(ui, "m_source")
-        var lifespan:string = Screen::text(ui, "m_lifespan")
-        const error:string = self::create(ui, CarController::current(ui), type, description, cost, source, lifespan)
-        Screen::error(ui, "car_error", Flash::message(error))
+    // « Ajouter l'entretien » ou « Mettre à jour » (champs obligatoires déjà
+    // remplis : `submit`).
+    public static method save(ui:UI, event:UIEvent, form:MaintenanceForm): void {
+        self::submit(ui, form)
     }
 
-    // Enregistre l'entretien et réaffiche la fiche ; rend le code d'erreur,
-    // "" si enregistré.
-    public static method create(
-        ui:UI,
-        car_id:int,
-        type:string,
-        description:string,
-        cost_text:string,
-        source:string,
-        lifespan_text:string
-    ): string {
-        const desc:string = description.trim()
-        const cost:float = CarController::number(cost_text)
-        const lifespan_str:string = lifespan_text.trim()
+    public static method submit(ui:UI, form:MaintenanceForm): void {
+        const car_id:int = CarController::current(ui)
+        const updating:bool = form.id greater 0
+        const error:string = self::store(car_id, form)
+        Screen::error(ui, "car_error", Flash::message(error))
+        if not error.empty() {
+            return
+        }
+        form.reset()
+        var message:string = "maintenance_added"
+        if updating {
+            message = "maintenance_updated"
+        }
+        ui.toast(Flash::message(message))
+        CarController::refresh(ui, car_id)
+    }
+
+    // Enregistre l'entretien du formulaire (ajout, ou modification s'il a un
+    // `id`) ; rend le code d'erreur, "" si enregistré.
+    public static method store(car_id:int, form:MaintenanceForm): string {
+        const desc:string = form.description.trim()
+        const cost:float = CarController::number(form.cost)
+        const lifespan_str:string = form.lifespan_days.trim()
         var lifespan_days:int = 0
         var invalid_lifespan:bool = false
         if not lifespan_str.empty() {
@@ -45,18 +52,69 @@ class MaintenanceController {
                 invalid_lifespan = true
             }
         }
-        var invalid_type:bool = not (type equal "maintenance" or type equal "improvement")
+        var invalid_type:bool = not (form.type equal "maintenance" or form.type equal "improvement")
         if desc.empty() or cost smaller or equal 0.0 or invalid_type or invalid_lifespan {
             return "invalid_cost"
         }
-        MaintenanceContract::create(car_id, type, desc, cost, source.trim(), lifespan_days)
+        if form.id greater 0 {
+            const existing:MaintenanceEntity|null = MaintenanceContract::find(form.id)
+            if existing is null or existing.car_id not equal car_id {
+                return "not_found"
+            }
+            MaintenanceContract::update(form.id, form.type, desc, cost, form.material_source.trim(), lifespan_days)
+        } else {
+            MaintenanceContract::create(car_id, form.type, desc, cost, form.material_source.trim(), lifespan_days)
+        }
         // Recalcul complet (pas un simple +=) : voir PricingService.
         PricingService::recalculateEstimatedPrice(car_id)
-        for field in ["m_description", "m_cost", "m_source", "m_lifespan"] {
-            ui.set(field, "value", "")
-        }
-        ui.toast(Flash::message("maintenance_added"))
-        CarController::display(ui, car_id)
         return ""
+    }
+
+    // Crayon d'une ligne de l'historique : l'entretien dans le formulaire.
+    public static method edit(ui:UI, event:UIEvent, form:MaintenanceForm): void {
+        var row:map<string, mixed> = event.value()
+        var id:int = row["id"]
+        const m:MaintenanceEntity|null = MaintenanceContract::find(id)
+        if m is null {
+            ui.toast(Flash::message("not_found"))
+            return
+        }
+        form.load(m)
+        ui.set("maintenance_form", "focus", true)
+    }
+
+    public static method cancel(ui:UI, event:UIEvent, form:MaintenanceForm): void {
+        form.reset()
+    }
+
+    // Corbeille d'une ligne de l'historique, après confirmation.
+    public static method delete(ui:UI, event:UIEvent, form:MaintenanceForm): void {
+        var row:map<string, mixed> = event.value()
+        var id:int = row["id"]
+        if not ui.confirm("${confirm_title}", "${confirm_delete_maintenance}") {
+            return
+        }
+        const car_id:int = CarController::current(ui)
+        if not self::remove(car_id, id) {
+            ui.toast(Flash::message("not_found"))
+            return
+        }
+        if form.id equal id {
+            form.reset()
+        }
+        ui.toast(Flash::message("maintenance_deleted"))
+        CarController::refresh(ui, car_id)
+    }
+
+    // Supprime l'entretien `id` de la voiture `car_id` et recalcule son prix
+    // de vente estimé ; faux s'il n'est pas à elle.
+    public static method remove(car_id:int, id:int): bool {
+        const m:MaintenanceEntity|null = MaintenanceContract::find(id)
+        if m is null or m.car_id not equal car_id {
+            return false
+        }
+        MaintenanceContract::delete(id)
+        PricingService::recalculateEstimatedPrice(car_id)
+        return true
     }
 }

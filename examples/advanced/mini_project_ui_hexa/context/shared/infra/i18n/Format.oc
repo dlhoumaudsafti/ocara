@@ -1,0 +1,100 @@
+namespace context.shared.infra.i18n
+// Formatage d'affichage des montants et des dates, commun aux vues de tous
+// les contextes, selon les préférences en cours (Preferences : langue,
+// devise, fuseau horaire) :
+//   fr  1 234,50 €    31/10/2026     (symbole après le montant)
+//   en  €1,234.50     10/31/2026     (symbole avant)
+// Le yen n'a pas de décimales.
+
+import ocara.Math
+import ocara.DateTime
+import context.shared.infra.settings.Preferences
+import context.shared.infra.i18n.Timezone
+
+class Format {
+
+    public static method price(amount:float): string {
+        const currency:string = Preferences::currency()
+        const french:bool = Preferences::language() equal "fr"
+        var decimals:int = 2
+        if currency equal "JPY" {
+            decimals = 0
+        }
+        var negative:bool = amount smaller 0.0
+        var value:float = amount
+        if negative {
+            value = 0.0 - amount
+        }
+        const scale:int = Math::pow(10, decimals)
+        const units:int = Math::round(value * scale.toFloat())
+        var number:string = self::grouped(units / scale, french)
+        if decimals greater 0 {
+            var rest:string = (units % scale).toStr()
+            while rest.len() smaller decimals {
+                rest = "0" + rest
+            }
+            var point:string = "."
+            if french {
+                point = ","
+            }
+            number = number + point + rest
+        }
+        if negative {
+            number = "-" + number
+        }
+        const symbol:string = self::symbol(currency)
+        if french {
+            return number + " " + symbol
+        }
+        if symbol.len() greater 1 and symbol not equal "CA$" {
+            return symbol + " " + number
+        }
+        return symbol + number
+    }
+
+    public static method symbol(currency:string): string {
+        return match currency {
+            "EUR" => "€"
+            "USD" => "$"
+            "GBP" => "£"
+            "JPY" => "¥"
+            "CAD" => "CA$"
+            default => currency
+        }
+    }
+
+    // Date du jour de `timestamp` dans le fuseau choisi.
+    public static method date(timestamp:int): string {
+        const local:int = timestamp + Timezone::offset(Preferences::timezone(), timestamp)
+        if Preferences::language() equal "fr" {
+            return DateTime::format(local, "%d/%m/%Y")
+        }
+        return DateTime::format(local, "%m/%d/%Y")
+    }
+
+    // Date et heure (exemple des paramètres).
+    public static method dateTime(timestamp:int): string {
+        const local:int = timestamp + Timezone::offset(Preferences::timezone(), timestamp)
+        return self::date(timestamp) + " " + DateTime::format(local, "%H:%M")
+    }
+
+    // Partie entière par groupes de trois chiffres (espace en français,
+    // virgule en anglais).
+    private static method grouped(whole:int, french:bool): string {
+        var separator:string = ","
+        if french {
+            separator = " "
+        }
+        var rest:int = whole
+        var out:string = ""
+        while rest greater or equal 1000 {
+            var group:string = (rest % 1000).toStr()
+            while group.len() smaller 3 {
+                group = "0" + group
+            }
+            out = separator + group + out
+            rest = rest / 1000
+        }
+        return rest.toStr() + out
+    }
+}

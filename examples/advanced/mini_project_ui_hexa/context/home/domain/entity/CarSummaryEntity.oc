@@ -4,7 +4,8 @@ namespace context.home.domain.entity
 // context.car.domain.entity.CarEntity : ce contexte n'a besoin que d'un
 // résumé déjà agrégé (total d'entretiens inclus) pour l'affichage de chaque
 // carte, jamais d'écrire quoi que ce soit. `photo` : chemin de la première
-// photo, "" sans photo ou quand l'interface ne l'affiche pas.
+// photo, "" sans photo ou quand l'interface ne l'affiche pas. `origin` : code
+// ISO du pays d'origine ("" : non renseigné) ; `year` : année (0 : non renseignée).
 
 class CarSummaryEntity {
     public property id:int
@@ -15,6 +16,8 @@ class CarSummaryEntity {
     public property estimated_price:float
     public property maintenance_total:float
     public property photo:string
+    public property origin:string
+    public property year:int
 
     init(
         id:int,
@@ -24,7 +27,9 @@ class CarSummaryEntity {
         purchase_price:float,
         estimated_price:float,
         maintenance_total:float,
-        photo:string = ""
+        photo:string = "",
+        origin:string = "",
+        year:int = 0
     ) {
         self.id = id
         self.reference = reference
@@ -34,5 +39,7 @@ class CarSummaryEntity {
         self.estimated_price = estimated_price
         self.maintenance_total = maintenance_total
         self.photo = photo
+        self.origin = origin
+        self.year = year
     }
 }

@@ -1,5 +1,5 @@
 namespace configs.actions
-// Barre de navigation et tiroir (Android) : Voitures, Recherche, langue.
+// Menu de l'application (tiroir) : Accueil, Paramètres, Recherche, À propos.
 
 import ocara.UI
 import context.shared.infra.ui.NavController
@@ -7,7 +7,8 @@ import context.shared.infra.ui.NavController
 class NavActions {
     init(ui:UI) {
         ui.on("go_home", NavController::home)
+        ui.on("go_settings", NavController::settings)
         ui.on("go_search", NavController::search)
-        ui.on("switch_lang", NavController::switchLanguage)
+        ui.on("go_about", NavController::about)
     }
 }

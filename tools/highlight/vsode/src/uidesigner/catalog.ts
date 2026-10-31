@@ -12,7 +12,7 @@ import * as fs from 'fs';
 export type Kind =
     | 'text' | 'bool' | 'int' | 'number' | 'length' | 'spacing' | 'color' | 'enum' | 'id'
     | 'icon' | 'action' | 'style' | 'field' | 'node' | 'children' | 'strings' | 'options'
-    | 'menu' | 'actionMap' | 'binds' | 'override' | 'object' | 'animation' | 'webview' | 'iterations';
+    | 'menu' | 'actionMap' | 'binds' | 'override' | 'object' | 'animation' | 'webview' | 'iterations' | 'themeColor';
 
 /** `object` : table aux champs `fields` (table d'état, `shadow`, `transition`) ;
  *  `list` : une liste de ces tables est aussi acceptée (`shadow`). */
@@ -58,6 +58,8 @@ function kindOf(name: string, s: Schema): PropSpec {
         case 'target': return spec('webview');
         case 'iterations': return spec('iterations');
     }
+    // Couleur, ou `{ light, dark }` (`window.primary`, `window.onPrimary`).
+    if (s.anyOf?.some((a: Schema) => a.properties?.light && a.properties?.dark)) { return spec('themeColor'); }
     const table = (x: Schema) => x?.type === 'object' && x.properties;
     if (table(s)) { return spec('object', { fields: props(s.properties) }); }
     const listed = s.anyOf?.find(table);

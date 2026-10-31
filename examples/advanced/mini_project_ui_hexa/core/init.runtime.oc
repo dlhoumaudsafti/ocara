@@ -1,2 +1,2 @@
-IO::writeln("Initialisation de Garage Ocara...")
+IO::writeln("Initialisation de Carfolio...")
 Database::migrate()

@@ -371,7 +371,13 @@ export function renderCanvas() {
     frame.style.height = (S.platform === 'android' ? 780 : Number(win.height) || 720) + 'px';
     canvas.dataset.theme = effectiveTheme();
     canvas.dataset.platform = S.platform;
-    canvas.style.setProperty('--oc-primary', win.primary || '#3f51b5');
+    // `primary`/`onPrimary` : une couleur, ou une par thème ; `radius` : tous les coins.
+    const themed = v => (v && typeof v === 'object' ? v[effectiveTheme()] : v);
+    canvas.style.setProperty('--oc-primary', themed(win.primary) || '#3f51b5');
+    canvas.style.setProperty('--oc-on-primary', themed(win.onPrimary) || '#ffffff');
+    for (const r of ['card', 'small', 'button', 'fab', 'panel']) {
+        if (typeof win.radius === 'number') { canvas.style.setProperty(`--oc-radius-${r}`, `${win.radius}px`); } else { canvas.style.removeProperty(`--oc-radius-${r}`); }
+    }
     if (!S.model) { return; }
     animationTable = animations();
     if (window.OcaraEffects) { OcaraEffects.setTree({ animations: animationTable }); }
@@ -381,6 +387,13 @@ export function renderCanvas() {
     if (!component && !rootLayout() && S.screen !== startScreen()) { bar.appendChild(icon('back')); }
     bar.appendChild(el('span', 'oc-bar-title', component ? `◆ ${component} — composant` : String((!rootLayout() && screen.title) || win.title || '')));
     bar.dataset.screen = '1';
+    // `bar` de l'écran, sinon celui de la racine : à droite du titre.
+    const barPath = !component && screen.bar ? [...screenPath(), 'bar'] : !component && S.model.bar ? ['bar'] : null;
+    if (barPath) {
+        const content = build(getIn(S.model, barPath), barPath, 'row');
+        content.classList.add('oc-bar-content');
+        bar.appendChild(content);
+    }
     canvas.appendChild(bar);
     const body = el('div', 'oc-screen');
     body.dataset.screen = '1';

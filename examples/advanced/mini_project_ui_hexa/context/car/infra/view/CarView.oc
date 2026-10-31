@@ -9,9 +9,11 @@ import ocara.Math
 import context.car.app.dto.CarDetailsDTO
 import context.car.app.port.CarViewPort
 import context.car.domain.entity.MaintenanceEntity
-import context.car.infra.view.helpers.Format
+import context.shared.infra.i18n.Format
 
 class CarView implements CarViewPort {
+    // Les champs de la voiture sont liés au formulaire (CarForm) ; la vue
+    // pose le résumé, les chiffres, la galerie et l'historique.
     public static method present(details:CarDetailsDTO): map<string, map<string, mixed>> {
         var rows:array<map<string, mixed>> = []
         for m in details.maintenances {
@@ -21,14 +23,6 @@ class CarView implements CarViewPort {
         for photo in details.photos {
             photos.push({"path": photo})
         }
-        var acquisition_date:string = details.car.acquisition_date
-        var sale_date:string = details.car.sale_date
-        if acquisition_date.empty() {
-            acquisition_date = "${not_set}"
-        }
-        if sale_date.empty() {
-            sale_date = "${not_set}"
-        }
         // Voiture lue en base : son `id` est toujours connu.
         var id:string = ""
         if details.car.id is int {
@@ -37,9 +31,7 @@ class CarView implements CarViewPort {
         return {
             "car_id": {"value": id},
             "car_error": {"visible": false},
-            "car_reference": {"value": details.car.reference},
-            "car_model_line": {"value": `${details.car.brand} ${details.car.model}`},
-            "car_dates": {"value": "${label_acquisition} : " + acquisition_date + " · ${label_sale} : " + sale_date},
+            "car_summary": {"value": self::summary(details)},
             "car_purchase.value": {"value": Format::price(details.car.purchase_price)},
             "car_estimated.value": {"value": Format::price(details.car.estimated_price)},
             "car_maintenance_total.value": {"value": Format::price(details.maintenance_total)},
@@ -49,6 +41,28 @@ class CarView implements CarViewPort {
             "maintenances": {"items": rows},
             "history_empty": {"visible": rows.len() equal 0},
         }
+    }
+
+    // « Peugeot 308 · France · 2015 · Acquisition : … · Cession : … ».
+    public static method summary(details:CarDetailsDTO): string {
+        var parts:array<string> = [`${details.car.brand} ${details.car.model}`]
+        if not details.car.origin.empty() {
+            parts.push("${country_" + details.car.origin + "}")
+        }
+        if details.car.year greater 0 {
+            parts.push(details.car.year.toStr())
+        }
+        var acquisition:string = details.car.acquisition_date
+        var sale:string = details.car.sale_date
+        if acquisition.empty() {
+            acquisition = "${not_set}"
+        }
+        if sale.empty() {
+            sale = "${not_set}"
+        }
+        parts.push("${label_acquisition} : " + acquisition)
+        parts.push("${label_sale} : " + sale)
+        return parts.join(" · ")
     }
 
     // Ligne d'historique : badge, source, et alerte de remplacement quand la
@@ -76,8 +90,9 @@ class CarView implements CarViewPort {
             source = "${source_label} : " + m.material_source
         }
         return {
+            "id": m.id,
             "badge": match m.type { "improvement" => "${badge_improvement}" default => "${badge_maintenance}" },
-            "badge_color": match m.type { "improvement" => "#6a1b9a" default => "#1565c0" },
+            "badge_color": match m.type { "improvement" => "#8e24aa" default => "#b8860b" },
             "description": m.description,
             "cost": Format::price(m.cost),
             "date": Format::date(m.created_at),

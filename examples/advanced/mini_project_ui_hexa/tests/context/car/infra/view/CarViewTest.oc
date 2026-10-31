@@ -4,14 +4,16 @@ import context.car.domain.entity.CarEntity
 import context.car.domain.entity.MaintenanceEntity
 import context.car.app.dto.CarDetailsDTO
 import context.car.infra.view.CarView
+import context.shared.infra.settings.Preferences
 
 // État de l'écran `car` : la fiche de templates/car/car_detail.html de
 // mini_project_hexa, sous forme de propriétés de nœuds.
 class CarViewTest extends UnitTest {
 
     public method presentTest(): int {
+        Preferences::reset()
         const car:CarEntity = use CarEntity(
-            7, "REF-VIEW", "Peugeot", "308", 12000.5, 12500.5, "2024-01-01", ""
+            7, "REF-VIEW", "Peugeot", "308", "FR", 2015, 12000.5, 12500.5, "2024-01-01", ""
         )
         var maintenances:array<MaintenanceEntity> = []
         maintenances.push(use MaintenanceEntity(1, 7, "maintenance", "Vidange moteur", 80.0, "Garage", 0, 1790251200))
@@ -20,21 +22,21 @@ class CarViewTest extends UnitTest {
 
         const state:map<string, map<string, mixed>> = CarView::present(details)
         self::assertEquals("7", state["car_id"]["value"])
-        self::assertEquals("REF-VIEW", state["car_reference"]["value"])
-        self::assertEquals("Peugeot 308", state["car_model_line"]["value"])
-        self::assertEquals("12000,50 €", state["car_purchase.value"]["value"])
-        self::assertEquals("12500,50 €", state["car_estimated.value"]["value"])
+        self::assertEquals(
+            "Peugeot 308 · ${country_FR} · 2015 · ${label_acquisition} : 2024-01-01 · ${label_sale} : ${not_set}",
+            state["car_summary"]["value"]
+        )
+        self::assertEquals("12 000,50 €", state["car_purchase.value"]["value"])
+        self::assertEquals("12 500,50 €", state["car_estimated.value"]["value"])
         self::assertEquals("80,00 €", state["car_maintenance_total.value"]["value"])
         self::assertEquals("500,00 €", state["car_improvement_total.value"]["value"])
-        self::assertEquals(
-            "${label_acquisition} : 2024-01-01 · ${label_sale} : ${not_set}",
-            state["car_dates"]["value"]
-        )
         self::assertEquals(false, state["history_empty"]["visible"])
         self::assertEquals(false, state["photos_empty"]["visible"])
 
         var rows:array<map<string, mixed>> = state["maintenances"]["items"]
         self::assertEquals(2, rows.len())
+        // `id` : pour modifier ou supprimer l'entretien depuis l'historique.
+        self::assertEquals(1, rows[0]["id"])
         self::assertEquals("${badge_maintenance}", rows[0]["badge"])
         self::assertEquals("Vidange moteur", rows[0]["description"])
         self::assertEquals("${source_label} : Garage", rows[0]["source"])
@@ -50,21 +52,22 @@ class CarViewTest extends UnitTest {
     }
 
     public method presentWithoutDataTest(): int {
-        const car:CarEntity = use CarEntity(8, "REF-EMPTY", "Renault", "Clio", 8000.0, 8000.0, "", "")
+        const car:CarEntity = use CarEntity(8, "REF-EMPTY", "Renault", "Clio", "", 0, 8000.0, 8000.0, "", "")
         const details:CarDetailsDTO = use CarDetailsDTO(car, [], [], 0.0, 0.0)
         const state:map<string, map<string, mixed>> = CarView::present(details)
         self::assertEquals(true, state["history_empty"]["visible"])
         self::assertEquals(true, state["photos_empty"]["visible"])
+        // Ni pays ni année : absents du résumé.
         self::assertEquals(
-            "${label_acquisition} : ${not_set} · ${label_sale} : ${not_set}",
-            state["car_dates"]["value"]
+            "Renault Clio · ${label_acquisition} : ${not_set} · ${label_sale} : ${not_set}",
+            state["car_summary"]["value"]
         )
         return 0
     }
 
     // Remplacement dû dans moins de 90 jours : alerte orange ; dépassé : rouge.
     public method replacementWarningTest(): int {
-        const car:CarEntity = use CarEntity(9, "REF-WARN", "Peugeot", "208", 9000.0, 9000.0, "", "")
+        const car:CarEntity = use CarEntity(9, "REF-WARN", "Peugeot", "208", "FR", 2019, 9000.0, 9000.0, "", "")
         const now:int = DateTime::now()
         var maintenances:array<MaintenanceEntity> = []
         maintenances.push(use MaintenanceEntity(1, 9, "maintenance", "Pneus", 300.0, "", 30, now))

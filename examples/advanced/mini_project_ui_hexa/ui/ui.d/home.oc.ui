@@ -1,9 +1,10 @@
 # Tableau de bord (téléphone, fenêtre étroite) — HomeController::show à chaque
-# affichage (onShow), comme GET / ; ajout : CarController::add.
+# affichage (onShow) ; ajout d'une voiture : panneau inférieur (newCarSheet),
+# ouvert par le bouton flottant, CarController::add.
 
 screens:
   home:
-    title: "${app_title}"
+    title: "${home_title}"
     onShow: show_home
     layout:
       type: column
@@ -11,22 +12,6 @@ screens:
       padding: 16
       scroll: true
       children:
-        - { type: text, id: lang_code, value: fr, visible: false }
-        # Navigation desktop ; sur Android : tiroir (menu) et bouton flottant.
-        - type: row
-          spacing: 8
-          android: { visible: false }
-          children:
-            - { type: button, text: "${nav_cars}", icon: home, variant: secondary, onClick: go_home }
-            - { type: button, text: "${nav_search}", icon: search, variant: secondary, onClick: go_search }
-            - { type: spacer }
-            - { type: button, text: "${other_lang}", variant: text, onClick: switch_lang }
-        - { type: heading, level: 1, value: "${home_title}", style: page_title }
-        - type: row
-          spacing: 8
-          children:
-            - { type: input, id: home_search, placeholder: "${search_placeholder}", onSubmit: search_from_home, width: fill }
-            - { type: iconButton, icon: search, label: "${search_button}", onClick: search_from_home }
         - type: grid
           columns: 2
           spacing: 10
@@ -35,48 +20,13 @@ screens:
             - { type: statCard, id: stat_purchase, label: "${stat_purchase}" }
             - { type: statCard, id: stat_estimated, label: "${stat_estimated}" }
             - { type: statCard, id: stat_profit, label: "${stat_profit}" }
-        - type: card
-          spacing: 10
-          children:
-            - { type: heading, level: 3, value: "${add_car_title}" }
-            - { type: text, id: home_error, style: error, visible: false }
-            - { type: input, id: new_reference, placeholder: "${field_reference}" }
-            - { type: input, id: new_brand, placeholder: "${field_brand}" }
-            - { type: input, id: new_model, placeholder: "${field_model}" }
-            - { type: input, id: new_price, kind: number, placeholder: "${field_price}" }
-            - { type: text, value: "${field_acquisition}", style: muted }
-            - { type: date, id: new_acquisition, placeholder: "${date_hint}" }
-            - { type: text, value: "${field_sale}", style: muted }
-            - { type: date, id: new_sale, placeholder: "${date_hint}" }
-            - { type: button, text: "${add_car_button}", icon: add, onClick: add_car }
         - { type: heading, level: 2, value: "${cars_title}", style: section_title }
         - { type: text, id: cars_empty, value: "${cars_empty}", style: muted, visible: false }
         - type: list
           id: cars
           spacing: 8
           onSelect: open_car
-          item:
-            type: card
-            spacing: 6
-            children:
-              - type: row
-                spacing: 8
-                children:
-                  - { type: text, bind: reference, style: card_ref }
-                  - { type: text, bind: model_line, width: fill }
-                  - { type: iconButton, icon: delete, label: "${delete_label}", tooltip: "${delete_label}", onClick: delete_car, color: "#c62828" }
-              - type: row
-                spacing: 16
-                children:
-                  - { type: cardFact, label: "${card_purchase}", value: { bind: purchase } }
-                  - { type: cardFact, label: "${card_estimated}", value: { bind: estimated }, tone: highlight }
-                  - { type: cardFact, label: "${card_maintenance}", value: { bind: maintenance } }
-        - { type: fab, icon: search, label: "${nav_search}", onClick: go_search }
-        - type: drawer
-          id: home_drawer
-          children:
-            - { type: heading, level: 3, value: "${app_title}" }
-            - { type: button, text: "${nav_cars}", icon: home, variant: text, onClick: go_home }
-            - { type: button, text: "${nav_search}", icon: search, variant: text, onClick: go_search }
-            - { type: divider }
-            - { type: button, text: "${other_lang}", variant: text, onClick: switch_lang }
+          item: { type: carCard }
+        - { type: fab, icon: add, label: "${add_car_title}", text: "${add_car_short}", onClick: open_new_car }
+        - { type: newCarSheet }
+        - { type: navMenu, id: home_menu }

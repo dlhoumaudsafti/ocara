@@ -1,0 +1,34 @@
+namespace context.shared.infra.settings
+// Préférences d'affichage en cours — langue, devise, fuseau horaire —, lues
+// par les vues de tous les contextes pour formater montants et dates
+// (context.shared.infra.i18n.Format). Posées au démarrage puis à chaque
+// enregistrement par le contexte settings (SettingsController), qui les garde
+// en base ; valeurs par défaut sinon.
+
+const PREFERENCES:map<string, string> = {"language": "fr", "currency": "EUR", "timezone": "Europe/Paris"}
+
+class Preferences {
+
+    public static method language(): string {
+        return PREFERENCES["language"]
+    }
+
+    public static method currency(): string {
+        return PREFERENCES["currency"]
+    }
+
+    public static method timezone(): string {
+        return PREFERENCES["timezone"]
+    }
+
+    public static method apply(language:string, currency:string, timezone:string): void {
+        PREFERENCES["language"] = language
+        PREFERENCES["currency"] = currency
+        PREFERENCES["timezone"] = timezone
+    }
+
+    // Valeurs par défaut (premier lancement, tests).
+    public static method reset(): void {
+        self::apply("fr", "EUR", "Europe/Paris")
+    }
+}

@@ -1,0 +1,17 @@
+namespace configs.actions
+// Paramètres : choix liés à l'interface (racine `settings`), enregistrés dès
+// qu'ils changent.
+
+import ocara.UI
+import ocara.UIEvent
+import context.settings.infra.controllers.SettingsController
+import context.settings.infra.view.SettingsForm
+
+class SettingsActions {
+    init(ui:UI) {
+        const settings:SettingsForm = use SettingsForm()
+        ui.bind("settings", settings)
+        ui.on("show_settings", nameless(u:UI, e:UIEvent): void { SettingsController::show(u, e, settings) })
+        ui.on("save_settings", nameless(u:UI, e:UIEvent): void { SettingsController::save(u, e, settings) })
+    }
+}

@@ -1,0 +1,23 @@
+import ocara.UnitTest
+import context.settings.domain.entity.SettingsEntity
+
+class SettingsEntityTest extends UnitTest {
+
+    public method defaultsTest(): int {
+        const s:SettingsEntity = SettingsEntity::defaults()
+        self::assertEquals("fr", s.language)
+        self::assertEquals("EUR", s.currency)
+        self::assertEquals("Europe/Paris", s.timezone)
+        self::assertTrue(s.valid())
+        return 0
+    }
+
+    // Seuls les choix proposés par l'écran sont valides.
+    public method validTest(): int {
+        self::assertTrue((use SettingsEntity("en", "JPY", "Asia/Tokyo")).valid())
+        self::assertFalse((use SettingsEntity("de", "EUR", "UTC")).valid())
+        self::assertFalse((use SettingsEntity("fr", "BTC", "UTC")).valid())
+        self::assertFalse((use SettingsEntity("fr", "EUR", "Mars/Olympus")).valid())
+        return 0
+    }
+}

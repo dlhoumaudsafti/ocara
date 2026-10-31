@@ -1,0 +1,23 @@
+import ocara.UnitTest
+import context.about.domain.entity.AboutEntity
+import context.about.app.usecase.AboutService
+import tests.support.fake.FakeDatabase
+
+class AboutServiceTest extends UnitTest {
+    wiring tests.support.fake.FakeAboutRepository
+
+    public method buildTest(): int {
+        FakeDatabase::reset()
+        const id:int = FakeDatabase::car("ABOUT", "Peugeot", "308", 10000.0)
+        FakeDatabase::maintenance(id, "maintenance", "Vidange", 80.0)
+        FakeDatabase::maintenance(id, "improvement", "Peinture", 500.0)
+        FakeDatabase::addPhoto(id, "uploads/a.jpg")
+        const about:AboutEntity = AboutService::build()
+        self::assertEquals(AboutService::version(), about.version)
+        self::assertEquals(1, about.cars)
+        self::assertEquals(2, about.maintenances)
+        self::assertEquals(1, about.photos)
+        FakeDatabase::cleanup()
+        return 0
+    }
+}

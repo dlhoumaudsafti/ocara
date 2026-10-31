@@ -1,0 +1,10 @@
+namespace context.settings.domain.contract
+
+import context.settings.domain.entity.SettingsEntity
+
+interface SettingsContract {
+    wiring context.settings.infra.db.SettingsRepository
+    // Préférences enregistrées ; valeurs par défaut pour celles qui manquent.
+    public static method load(): SettingsEntity
+    public static method save(settings:SettingsEntity): void
+}

@@ -6,6 +6,15 @@ window:
   height: 720
   theme: auto
   primary: "#00796b"
+  # Texte sur `primary`, par thème ; coins de tous les composants.
+  onPrimary: { light: "#ffffff", dark: "#e0f2f1" }
+  radius: 6
+
+# Barre de titre de tous les écrans : recherche avec propositions.
+bar:
+  type: row
+  children:
+    - { type: input, id: quick, placeholder: "Aller à…", width: fill, onChange: quick_typed, onSuggestion: quick_pick }
 
 styles:
   section: { fontSize: 13, bold: true, color: "#00796b" }

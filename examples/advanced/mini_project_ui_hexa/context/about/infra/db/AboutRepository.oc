@@ -1,0 +1,20 @@
+namespace context.about.infra.db
+
+import ocara.SQLite
+import context.shared.infra.db.Database
+import context.about.domain.contract.AboutContract
+
+class AboutRepository implements AboutContract {
+    public static method counts(): map<string, int> {
+        const db:SQLite = Database::connect()
+        const row:map<string, mixed> = db.queryOne(`SELECT
+            (SELECT COUNT(*) FROM cars) AS cars,
+            (SELECT COUNT(*) FROM maintenances) AS maintenances,
+            (SELECT COUNT(*) FROM car_photos WHERE path != '') AS photos`)
+        db.close()
+        var cars:int = row["cars"]
+        var maintenances:int = row["maintenances"]
+        var photos:int = row["photos"]
+        return {"cars": cars, "maintenances": maintenances, "photos": photos}
+    }
+}

@@ -9,6 +9,7 @@ import ocara.DateTime
 const FAKE_CARS:array<map<string, mixed>> = []
 const FAKE_MAINTENANCES:array<map<string, mixed>> = []
 const FAKE_CAR_PHOTOS:array<map<string, mixed>> = []
+const FAKE_SETTINGS:map<string, string> = {}
 const FAKE_SEQUENCE:map<string, int> = {"id": 0}
 
 class FakeDatabase {
@@ -18,6 +19,10 @@ class FakeDatabase {
         self::clear(FAKE_CARS)
         self::clear(FAKE_MAINTENANCES)
         self::clear(FAKE_CAR_PHOTOS)
+        for key in FAKE_SETTINGS.keys() {
+            var name:string = key
+            FAKE_SETTINGS.remove(name)
+        }
     }
 
     public static method cleanup(): void {
@@ -26,7 +31,7 @@ class FakeDatabase {
 
     // Voiture de test `TEST-OCUNIT-<suffix>` ; prix de vente estimé = prix d'achat.
     public static method car(suffix:string, brand:string, model:string, price:float): int {
-        return self::insertCar("TEST-OCUNIT-" + suffix, brand, model, price, "", "")
+        return self::insertCar("TEST-OCUNIT-" + suffix, brand, model, "", 0, price, "", "")
     }
 
     public static method maintenance(car_id:int, type:string, description:string, cost:float): void {
@@ -37,6 +42,8 @@ class FakeDatabase {
         reference:string,
         brand:string,
         model:string,
+        origin:string,
+        year:int,
         price:float,
         acquisition_date:string,
         sale_date:string
@@ -47,6 +54,8 @@ class FakeDatabase {
             "reference": reference,
             "brand": brand,
             "model": model,
+            "origin": origin,
+            "year": year,
             "purchase_price": price,
             "estimated_sale_price": price,
             "acquisition_date": acquisition_date,
@@ -117,6 +126,75 @@ class FakeDatabase {
             }
         }
         return sum
+    }
+
+    // Champs modifiables d'une voiture (CarContract::update).
+    public static method updateCar(
+        id:int,
+        reference:string,
+        brand:string,
+        model:string,
+        origin:string,
+        year:int,
+        price:float,
+        acquisition_date:string,
+        sale_date:string
+    ): void {
+        const row:map<string, mixed> = self::carRow(id)
+        if row.size() equal 0 {
+            return
+        }
+        row["reference"] = reference
+        row["brand"] = brand
+        row["model"] = model
+        row["origin"] = origin
+        row["year"] = year
+        row["purchase_price"] = price
+        row["acquisition_date"] = acquisition_date
+        row["sale_date"] = sale_date
+    }
+
+    // Ligne de l'entretien `id`, vide s'il n'existe pas.
+    public static method maintenanceRow(id:int): map<string, mixed> {
+        for row in FAKE_MAINTENANCES {
+            var row_id:int = row["id"]
+            if row_id equal id {
+                return row
+            }
+        }
+        return {}
+    }
+
+    public static method updateMaintenance(
+        id:int,
+        type:string,
+        description:string,
+        cost:float,
+        material_source:string,
+        lifespan_days:int
+    ): void {
+        const row:map<string, mixed> = self::maintenanceRow(id)
+        if row.size() equal 0 {
+            return
+        }
+        row["type"] = type
+        row["description"] = description
+        row["cost"] = cost
+        row["material_source"] = material_source
+        row["lifespan_days"] = lifespan_days
+    }
+
+    public static method deleteMaintenance(id:int): void {
+        self::removeWhere(FAKE_MAINTENANCES, "id", id)
+    }
+
+    // Table `settings` (clé → valeur).
+    public static method settings(): map<string, string> {
+        return FAKE_SETTINGS
+    }
+
+    public static method setSetting(key:string, value:string): void {
+        FAKE_SETTINGS[key] = value
     }
 
     public static method setEstimatedPrice(id:int, price:float): void {

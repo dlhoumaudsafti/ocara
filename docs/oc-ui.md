@@ -104,9 +104,10 @@ screens:
 | `components` | composants déclarés : `nom: { params, layout }`, `includes` (voir « Composants ») |
 | `styles` | styles nommés : `nom: { propriétés de présentation }` (aussi dans les fichiers inclus, voir « Écrans inclus ») ; `dark:` et `light:` y surchargent des styles pour un thème (voir « Styles par thème ») |
 | `animations` | animations nommées, sur le modèle des `@keyframes` CSS (voir « Animations ») |
-| `screens` | écrans nommés : `nom: { title, layout, onShow }` (`onShow` : action lancée à chaque affichage de l'écran, valeur : son nom) |
+| `screens` | écrans nommés : `nom: { title, layout, bar, onShow }` (`onShow` : action lancée à chaque affichage de l'écran, valeur : son nom) |
 | `start` | écran affiché au lancement ; facultatif s'il n'y a qu'un écran |
 | `layout` | à la place de `screens` : un seul écran, nommé `main` |
+| `bar` | nœud de la barre de titre de tous les écrans, à droite du titre (champ de recherche, actions) ; un écran peut avoir le sien (`screens.<nom>.bar`) |
 | `menu` | menu de l'application (entrées décrites plus bas) |
 
 ### `window`
@@ -117,7 +118,9 @@ screens:
 | `width`, `height`, `minWidth`, `minHeight` | entier, en pixels logiques (ignorés sur Android) |
 | `resizable` | booléen |
 | `theme` | `auto`, `light`, `dark` |
-| `primary` | couleur principale |
+| `primary` | couleur principale : fond des boutons et du bouton flottant, accents ; une couleur, ou une par thème : `{ light: "#…", dark: "#…" }` |
+| `onPrimary` | texte et icônes posés sur `primary` (blanc par défaut) ; une couleur, ou une par thème |
+| `radius` | coins des cartes, boutons, champs, listes et panneaux, en pixels (0 à 100) ; absent : ceux de Material |
 | `tauri` | `decorations`, `alwaysOnTop`, `transparent`, `center`, `devtools` (booléens) |
 | `android` | `orientation` (`portrait`, `landscape`, `auto`), `fullscreen`, `keepScreenOn`, `systemBars` (`light`, `dark`) |
 
@@ -138,11 +141,11 @@ Un nœud est une table dont `type` est l'un des types ci-dessous.
 | `progress` | `value` (0 à 1 ; absente : indéterminée) | |
 | `list` | `item` (gabarit d'un élément), `spacing`, `onSelect` ; `display` (`list`, `grid`) et, en grille, `itemWidth`, `minColumns`, `maxColumns` (1 à 64), `direction` (`ltr`, `rtl`, `ltr-snake`, `rtl-snake`) | `item` |
 | `webview` | une source parmi `url`, `file`, `html` ; `javascript`, `storage`, `allow` (liste d'hôtes), `zoom`, `userAgent`, `webHandlers` (nom → action), `onLoad`, `onError`, `onMessage` | |
-| `input` | `value`, `bind`, `placeholder`, `kind` (`text`, `password`, `email`, `number`, `multiline`), `readonly`, `required`, `onChange`, `onSubmit` | |
+| `input` | `value`, `bind`, `placeholder`, `kind` (`text`, `password`, `email`, `number`, `multiline`), `readonly`, `required`, `onChange`, `onSubmit`, `suggestions`, `onSuggestion` (voir « Propositions ») | |
 | `checkbox`, `switch` | `checked`, `bind`, `required`, `onChange` | |
-| `radio`, `select` | `options`, `value`, `required`, `onChange` | `options` |
-| `slider` | `min` (< `max`), `max`, `step`, `value`, `onChange` | |
-| `date`, `time` | `value` (ISO), `placeholder`, `required`, `onChange` | |
+| `radio`, `select` | `options`, `value`, `bind`, `required`, `onChange` | `options` |
+| `slider` | `min` (< `max`), `max`, `step`, `value`, `bind`, `onChange` | |
+| `date`, `time` | `value` (ISO), `bind`, `placeholder`, `required`, `onChange` | |
 | `button` | `text`, `icon`, `variant` (`primary`, `secondary`, `text`), `onClick`, `submit`, `onInvalid` | |
 | `iconButton` | `icon`, `onClick`, `submit`, `onInvalid` | `icon`, `label` |
 | `link` | `text`, `url`, `target` (voir ci-dessous), `onClick` ; état `visited` après le premier clic (voir « Styles d'état et effets ») | `text` |
@@ -244,6 +247,30 @@ Un `link` lance son `onClick` et, avec `url`, ouvre cette adresse :
   `target` qui ne désigne pas une `webview` est une erreur ; `target` sans
   `url` aussi.
 
+### Propositions
+
+Un `input` montre `suggestions` dans un menu flottant sous lui tant qu'il a
+le focus : chaînes, ou `{ value, text }` comme les `options` d'un
+`select`. Souvent posées pendant la saisie :
+
+```yaml
+bar:
+  type: row
+  children:
+    - { type: input, id: q, placeholder: "Rechercher…", width: fill, onChange: suggest, onSuggestion: open }
+```
+
+```ocara
+ui.on("suggest", nameless(u:UI, e:UIEvent): void {
+    u.set("q", "suggestions", [{"value": 12, "text": "AB-123 · Peugeot 308"}])
+})
+```
+
+Un choix (clic, ou ↑ ↓ puis Entrée sur desktop) ferme le menu et lance
+`onSuggestion` avec sa valeur (`event.value()`) ; Échap le ferme. Remplacer
+les propositions ne reconstruit pas le champ : la saisie et le focus
+restent.
+
 ### Tailles par défaut
 
 Les deux moteurs suivent les mêmes règles :
@@ -262,8 +289,8 @@ Les deux moteurs suivent les mêmes règles :
 
 `icon.name`, `button.icon` et `iconButton.icon` nomment une icône du jeu
 commun (Material Icons) : `add`, `back`, `check`, `close`, `delete`,
-`edit`, `favorite`, `forward`, `home`, `info`, `menu`, `more`, `person`,
-`refresh`, `search`, `share`, `star`. Le dessin des icônes utilisées est
+`car`, `edit`, `favorite`, `forward`, `home`, `info`, `menu`, `more`,
+`person`, `refresh`, `search`, `settings`, `share`, `star`. Le dessin des icônes utilisées est
 copié dans l'arbre (`icons`) : il est le même sur les deux plateformes.
 
 ### Images embarquées

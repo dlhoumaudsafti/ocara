@@ -1,0 +1,42 @@
+namespace context.settings.domain.entity
+
+// Préférences de l'application : langue de l'interface, devise des montants,
+// fuseau horaire des dates.
+
+class SettingsEntity {
+    public property language:string
+    public property currency:string
+    public property timezone:string
+
+    init(language:string, currency:string, timezone:string) {
+        self.language = language
+        self.currency = currency
+        self.timezone = timezone
+    }
+
+    public static method defaults(): SettingsEntity {
+        return use SettingsEntity("fr", "EUR", "Europe/Paris")
+    }
+
+    public static method languages(): array<string> {
+        return ["fr", "en"]
+    }
+
+    public static method currencies(): array<string> {
+        return ["EUR", "USD", "GBP", "CHF", "CAD", "JPY"]
+    }
+
+    public static method timezones(): array<string> {
+        return [
+            "UTC", "Europe/London", "Europe/Lisbon", "Europe/Paris", "Europe/Berlin", "Europe/Athens",
+            "America/New_York", "America/Chicago", "America/Los_Angeles", "Asia/Dubai", "Asia/Tokyo"
+        ]
+    }
+
+    // Chaque valeur fait partie des choix proposés.
+    public method valid(): bool {
+        return SettingsEntity::languages().contains(self.language)
+            and SettingsEntity::currencies().contains(self.currency)
+            and SettingsEntity::timezones().contains(self.timezone)
+    }
+}

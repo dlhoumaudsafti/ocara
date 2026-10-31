@@ -7,7 +7,7 @@ class ScreenTest extends UnitTest {
 
     // Un état d'écran se pose nœud par nœud ; ses `${…}` sont remplis.
     public method applyTest(): int {
-        const ui:UI = use UI("../../../../../ui/garage.oc.ui", Language::vars("fr"))
+        const ui:UI = use UI("../../../../../ui/carfolio.oc.ui", Language::vars("fr"))
         Screen::apply(ui, {
             "stat_count.value": {"value": "4"},
             "cars_empty": {"visible": true, "value": "${cars_empty}"},
@@ -15,23 +15,23 @@ class ScreenTest extends UnitTest {
         self::assertEquals("4", ui.get("stat_count.value", "value"))
         self::assertEquals(true, ui.get("cars_empty", "visible"))
         self::assertEquals(
-            "Aucune voiture pour le moment — ajoutez la première ci-dessus.",
+            "Aucune voiture pour le moment — ajoutez la première avec le bouton « Ajouter ».",
             ui.get("cars_empty", "value")
         )
         return 0
     }
 
-    // Champ jamais rempli (une date laissée vide) : "" et non `null`.
+    // Champ jamais rempli (la recherche de la barre de titre) : "" et non `null`.
     public method textTest(): int {
-        const ui:UI = use UI("../../../../../ui/garage.oc.ui", Language::vars("fr"))
-        self::assertEquals("", Screen::text(ui, "new_acquisition"))
-        ui.set("new_acquisition", "value", "2025-04-01")
-        self::assertEquals("2025-04-01", Screen::text(ui, "new_acquisition"))
+        const ui:UI = use UI("../../../../../ui/carfolio.oc.ui", Language::vars("fr"))
+        self::assertEquals("", Screen::text(ui, "top_search"))
+        ui.set("top_search", "value", "Clio")
+        self::assertEquals("Clio", Screen::text(ui, "top_search"))
         return 0
     }
 
     public method errorTest(): int {
-        const ui:UI = use UI("../../../../../ui/garage.oc.ui", Language::vars("fr"))
+        const ui:UI = use UI("../../../../../ui/carfolio.oc.ui", Language::vars("fr"))
         Screen::error(ui, "home_error", "${flash_invalid_price}")
         self::assertEquals(true, ui.get("home_error", "visible"))
         self::assertEquals("Le prix d'achat doit être un nombre positif.", ui.get("home_error", "value"))

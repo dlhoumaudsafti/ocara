@@ -1,8 +1,7 @@
 namespace configs
-// L'interface native de l'application — le pendant de configs/Server.oc de
-// mini_project_hexa : l'interface (ui/garage.oc.ui, lue et validée à la
-// compilation) remplace le serveur HTTP, les actions (configs/actions/)
-// remplacent les routes. Textes : languages/fr/ui.yaml au démarrage.
+// L'interface native de Carfolio : l'interface (ui/carfolio.oc.ui, lue et
+// validée à la compilation) et ses actions (configs/actions/). Langue des
+// textes : celle des paramètres enregistrés (SettingsController::boot).
 
 import ocara.UI
 import ocara.IO
@@ -10,14 +9,17 @@ import configs.actions.NavActions
 import configs.actions.HomeActions
 import configs.actions.CarActions
 import configs.actions.SearchActions
+import configs.actions.SettingsActions
+import configs.actions.AboutActions
 import context.shared.infra.i18n.Language
+import context.settings.infra.controllers.SettingsController
 
 class App {
     private property ui:UI
 
     init() {
         IO::writeln("Configuration de l'interface...")
-        self.ui = use UI("../ui/garage.oc.ui", Language::vars("fr"))
+        self.ui = use UI("../ui/carfolio.oc.ui", Language::vars(SettingsController::boot()))
     }
 
     public method actions(): void {
@@ -26,6 +28,8 @@ class App {
         use HomeActions(self.ui)
         use CarActions(self.ui)
         use SearchActions(self.ui)
+        use SettingsActions(self.ui)
+        use AboutActions(self.ui)
     }
 
     // Affiche l'interface et rend la main à sa fermeture.

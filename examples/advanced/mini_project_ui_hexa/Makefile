@@ -1,4 +1,4 @@
-# examples/advanced/mini_project_ui_hexa/Makefile — build desktop/Android en une commande.
+# examples/advanced/mini_project_ui_hexa/Makefile — Carfolio : build desktop/Android en une commande.
 #
 #   make desktop            Compile pour l'hôte et lance (fenêtre native, ocara.UI)
 #   make preview            Aperçu de l'interface dans un navigateur (sans programme)
@@ -25,15 +25,21 @@ ASSETS     := $(PACKAGING)/app/src/main/assets
 # de répertoire avant de les lire (un chemin relatif à CE dossier serait alors faux).
 APK_DEBUG    := $(abspath $(PACKAGING)/app/build/outputs/apk/debug/app-debug.apk)
 APK_RELEASE  := $(abspath $(PACKAGING)/app/build/outputs/apk/release/app-release.apk)
+# Nom et icône de l'app Android (packaging/android/app/build.gradle.kts) :
+# l'icône est le logo (assets/logo.svg) rendu en PNG 512 px, Android
+# n'affichant pas le SVG — `make logo` le refait après une retouche du SVG.
+APP_NAME     := Carfolio
+APP_ICON     := $(abspath assets/logo.android.png)
+GRADLE_APP   := -PocaraAppName="$(APP_NAME)" -PocaraIcon="$(APP_ICON)"
 
-.PHONY: desktop preview android android-production simulator tests _android_native_libs _android_assets clean
+.PHONY: desktop preview android android-production simulator tests logo _android_native_libs _android_assets clean
 
 desktop:
 	$(OCARA) main.oc -o out
 	./out
 
 preview:
-	$(OCARA) ui/garage.oc.ui --preview -o preview.html
+	$(OCARA) ui/carfolio.oc.ui --preview -o preview.html
 	@echo "Aperçu : file://$(abspath preview.html)"
 
 # Runtime, pont JNI et backend Compose d'ocara.UI (arm64 ET x86_64), puis le
@@ -61,7 +67,7 @@ _android_assets:
 	cp -r languages $(ASSETS)/languages
 
 android: _android_native_libs _android_assets
-	cd $(PACKAGING) && ./gradlew assembleDebug
+	cd $(PACKAGING) && ./gradlew assembleDebug $(GRADLE_APP)
 
 android-production: _android_native_libs _android_assets
 	@if [ -z "$$OCARA_RELEASE_KEYSTORE" ] || [ -z "$$OCARA_RELEASE_KEYSTORE_PASSWORD" ] || [ -z "$$OCARA_RELEASE_KEY_ALIAS" ] || [ -z "$$OCARA_RELEASE_KEY_PASSWORD" ]; then \
@@ -72,7 +78,7 @@ android-production: _android_native_libs _android_assets
 		echo "Keystore introuvable : $$OCARA_RELEASE_KEYSTORE"; \
 		exit 1; \
 	fi
-	cd $(PACKAGING) && ./gradlew assembleRelease
+	cd $(PACKAGING) && ./gradlew assembleRelease $(GRADLE_APP)
 	@echo "APK de production : $(APK_RELEASE)"
 
 simulator:
@@ -96,6 +102,10 @@ simulator:
 tests:
 	$(ROOT)/target/release/ocaraunit --coverage=. tests
 	$(ROOT)/target/release/ocaraunit --line-coverage=. tests
+
+# PNG du logo pour Android (icône du lanceur, logo dans l'app) depuis le SVG.
+logo:
+	convert -background none -density 115 assets/logo.svg -resize 512x512 -depth 8 PNG32:assets/logo.android.png
 
 clean:
 	rm -rf out out.o app.db uploads preview.html

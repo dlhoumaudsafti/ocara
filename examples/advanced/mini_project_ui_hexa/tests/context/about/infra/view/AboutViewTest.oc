@@ -1,0 +1,14 @@
+import ocara.UnitTest
+import context.about.domain.entity.AboutEntity
+import context.about.infra.view.AboutView
+
+class AboutViewTest extends UnitTest {
+    public method presentTest(): int {
+        const state:map<string, map<string, mixed>> = AboutView::present(use AboutEntity("2.0.0", 3, 12, 5))
+        self::assertEquals("${about_version} 2.0.0", state["about_version"]["value"])
+        self::assertEquals("3", state["about_cars.value"]["value"])
+        self::assertEquals("12", state["about_maintenances.value"]["value"])
+        self::assertEquals("5", state["about_photos.value"]["value"])
+        return 0
+    }
+}

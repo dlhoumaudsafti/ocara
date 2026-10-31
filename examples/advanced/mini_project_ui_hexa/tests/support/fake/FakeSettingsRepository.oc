@@ -1,0 +1,31 @@
+// SettingsContract en mémoire (tests.support.fake.FakeDatabase) — remplace
+// context.settings.infra.db.SettingsRepository dans un test qui déclare
+// `wiring tests.support.fake.FakeSettingsRepository`.
+
+import context.settings.domain.entity.SettingsEntity
+import context.settings.domain.contract.SettingsContract
+import tests.support.fake.FakeDatabase
+
+class FakeSettingsRepository implements SettingsContract {
+
+    public static method load(): SettingsEntity {
+        const settings:SettingsEntity = SettingsEntity::defaults()
+        const stored:map<string, string> = FakeDatabase::settings()
+        if stored.has("language") {
+            settings.language = stored["language"]
+        }
+        if stored.has("currency") {
+            settings.currency = stored["currency"]
+        }
+        if stored.has("timezone") {
+            settings.timezone = stored["timezone"]
+        }
+        return settings
+    }
+
+    public static method save(settings:SettingsEntity): void {
+        FakeDatabase::setSetting("language", settings.language)
+        FakeDatabase::setSetting("currency", settings.currency)
+        FakeDatabase::setSetting("timezone", settings.timezone)
+    }
+}

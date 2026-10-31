@@ -56,6 +56,8 @@ pub enum Ty {
     Transition,
     /// Animation d'un nœud : nom déclaré sous `animations:`, ou `{ name, on }`.
     Animation,
+    /// Couleur, ou `{ light, dark }` : une couleur par thème (`window.primary`).
+    ThemeColor,
 }
 
 pub const ALIGN: &[&str] = &["start", "center", "end", "stretch"];
@@ -181,6 +183,10 @@ const INPUT: &[(&str, Ty)] = &[
     ("required", Ty::Bool),
     ("onChange", Ty::Action),
     ("onSubmit", Ty::Action),
+    // Propositions dans un menu sous le champ (souvent posées par `ui.set`
+    // pendant la saisie) ; `onSuggestion` reçoit la valeur choisie.
+    ("suggestions", Ty::Options),
+    ("onSuggestion", Ty::Action),
 ];
 const CHECK: &[(&str, Ty)] = &[
     ("checked", Ty::Bool),
@@ -191,6 +197,7 @@ const CHECK: &[(&str, Ty)] = &[
 const CHOICE: &[(&str, Ty)] = &[
     ("options", Ty::Options),
     ("value", Ty::Text),
+    ("bind", Ty::Field),
     ("required", Ty::Bool),
     ("onChange", Ty::Action),
 ];
@@ -199,9 +206,10 @@ const SLIDER: &[(&str, Ty)] = &[
     ("max", Ty::Number(f64::MIN, f64::MAX)),
     ("step", Ty::Number(0.0, f64::MAX)),
     ("value", Ty::Number(f64::MIN, f64::MAX)),
+    ("bind", Ty::Field),
     ("onChange", Ty::Action),
 ];
-const DATE: &[(&str, Ty)] = &[("value", Ty::Text), ("placeholder", Ty::Text), ("required", Ty::Bool), ("onChange", Ty::Action)];
+const DATE: &[(&str, Ty)] = &[("value", Ty::Text), ("bind", Ty::Field), ("placeholder", Ty::Text), ("required", Ty::Bool), ("onChange", Ty::Action)];
 // `submit` : l'action n'est envoyée que si les champs `required` du
 // formulaire sont renseignés, sinon `onInvalid` (runtime_ui/src/form.rs).
 const BUTTON: &[(&str, Ty)] = &[
@@ -341,7 +349,11 @@ pub const WINDOW_PROPS: &[(&str, Ty)] = &[
     ("minHeight", Ty::Int(1, 100_000)),
     ("resizable", Ty::Bool),
     ("theme", Ty::Enum(THEMES)),
-    ("primary", Ty::Color),
+    ("primary", Ty::ThemeColor),
+    // Texte et icônes posés sur `primary` (boutons, bouton flottant).
+    ("onPrimary", Ty::ThemeColor),
+    // Rayon des coins des cartes, boutons, champs et panneaux (px).
+    ("radius", Ty::Number(0.0, 100.0)),
     ("tauri", Ty::Override),
     ("android", Ty::Override),
 ];
@@ -364,7 +376,8 @@ pub const WINDOW_ANDROID: &[(&str, Ty)] = &[
 ];
 
 /// Clés d'un écran (`screens.<nom>`).
-pub const SCREEN_PROPS: &[(&str, Ty)] = &[("title", Ty::Text), ("layout", Ty::Node), ("onShow", Ty::Action)];
+// `bar` : nœud de la barre de titre, à la place de celui de la racine.
+pub const SCREEN_PROPS: &[(&str, Ty)] = &[("title", Ty::Text), ("layout", Ty::Node), ("bar", Ty::Node), ("onShow", Ty::Action)];
 
 /// Clés d'une entrée de menu.
 pub const MENU_PROPS: &[(&str, Ty)] = &[
@@ -382,4 +395,4 @@ pub const MENU_PROPS: &[(&str, Ty)] = &[
 pub const THEME_OVERRIDES: &[&str] = &["dark", "light"];
 
 /// Clés à la racine du fichier.
-pub const ROOT_KEYS: &[&str] = &["window", "styles", "animations", "components", "start", "screens", "layout", "menu"];
+pub const ROOT_KEYS: &[&str] = &["window", "styles", "animations", "components", "start", "screens", "layout", "bar", "menu"];

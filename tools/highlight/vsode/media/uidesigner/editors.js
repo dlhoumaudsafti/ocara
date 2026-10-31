@@ -168,6 +168,20 @@ function objectEditor(spec, value, set) {
     return wrap;
 }
 
+/** Couleur commune, ou une par thème (`{ light, dark }`) : une seule
+ *  valeur pour les deux thèmes s'écrit comme une couleur simple. */
+function themeColor(value, set) {
+    const pair = value && typeof value === 'object' ? { ...value } : { light: value, dark: value };
+    const commit = () => set(pair.light === pair.dark ? pair.light : (pair.light || pair.dark ? { ...(pair.light ? { light: pair.light } : {}), ...(pair.dark ? { dark: pair.dark } : {}) } : undefined));
+    const wrap = h('div', 'd-rows');
+    for (const theme of ['light', 'dark']) {
+        const r = h('div', 'd-inline');
+        r.append(h('span', 'd-muted', theme === 'light' ? '☀' : '☾'), color(pair[theme], v => { pair[theme] = v; commit(); }));
+        wrap.appendChild(r);
+    }
+    return wrap;
+}
+
 /** `animation` d'un nœud : nom (sous `animations:`) et déclencheur ; le nom
  *  seul se lit `appear`. */
 function animationEditor(value, set) {
@@ -288,6 +302,7 @@ export function editor(spec, value, set, ctx = {}) {
         case 'binds': return pairs(value, set, 'propriété', 'champ');
         case 'object': return objectEditor(spec, value, set);
         case 'animation': return animationEditor(value, set);
+        case 'themeColor': return themeColor(value, set);
         case 'webview': return select(webviewIds(), value, set, '— navigateur du système —');
         case 'iterations': return textInput(value, set, {
             placeholder: '1 · infinite',

@@ -4,13 +4,13 @@ import context.shared.infra.i18n.Language
 import context.search.infra.controllers.SearchController
 import tests.support.fake.FakeDatabase
 
-// Recherche de l'écran `search` (actions run_search, search_from_home).
+// Recherche de la barre de titre : résultats (écran `search`) et propositions.
 class SearchControllerTest extends UnitTest {
     wiring tests.support.fake.FakeSearchRepository
 
     public method searchTest(): int {
         FakeDatabase::reset()
-        const ui:UI = use UI("../../../../../ui/garage.oc.ui", Language::vars("fr"))
+        const ui:UI = use UI("../../../../../ui/carfolio.oc.ui", Language::vars("fr"))
         const id:int = FakeDatabase::car("SEARCH", "Citroën", "C3", 6000.0)
         FakeDatabase::maintenance(id, "maintenance", "Embrayage", 400.0)
         SearchController::search(ui, " Citroën ")
@@ -26,8 +26,37 @@ class SearchControllerTest extends UnitTest {
         return 0
     }
 
+    // Propositions : à partir de deux caractères ; valeur : `id` de la voiture.
+    public method suggestionsTest(): int {
+        FakeDatabase::reset()
+        const id:int = FakeDatabase::insertCar("TEST-OCUNIT-SUG", "Toyota", "Yaris", "JP", 2020, 9000.0, "", "")
+        FakeDatabase::maintenance(id, "maintenance", "Courroie Toyota", 300.0)
+        self::assertEquals(0, SearchController::suggestions("t").len())
+        const found:array<map<string, mixed>> = SearchController::suggestions("toyota")
+        self::assertEquals(2, found.len())
+        self::assertEquals(id, found[0]["value"])
+        self::assertEquals("TEST-OCUNIT-SUG · Toyota Yaris", found[0]["text"])
+        self::assertEquals("Courroie Toyota — TEST-OCUNIT-SUG", found[1]["text"])
+        // Pays (code) et année exacts.
+        self::assertEquals(1, SearchController::suggestions("jp").len())
+        self::assertEquals(1, SearchController::suggestions("2020").len())
+        FakeDatabase::cleanup()
+        return 0
+    }
+
+    // Champ de la barre de titre affiché à l'écran des résultats.
+    public method resultsTitleTest(): int {
+        FakeDatabase::reset()
+        const ui:UI = use UI("../../../../../ui/carfolio.oc.ui", Language::vars("fr"))
+        SearchController::search(ui, "clio")
+        self::assertEquals(true, ui.get("search_summary", "visible"))
+        self::assertEquals("Résultats pour « clio »", ui.get("search_summary", "value"))
+        FakeDatabase::cleanup()
+        return 0
+    }
+
     public method emptyTermTest(): int {
-        const ui:UI = use UI("../../../../../ui/garage.oc.ui", Language::vars("fr"))
+        const ui:UI = use UI("../../../../../ui/carfolio.oc.ui", Language::vars("fr"))
         SearchController::search(ui, "   ")
         self::assertEquals(true, ui.get("search_hint", "visible"))
         var cars:array<map<string, mixed>> = ui.get("search_cars", "items")

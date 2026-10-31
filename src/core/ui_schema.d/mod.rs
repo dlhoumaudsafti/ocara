@@ -267,6 +267,12 @@ impl Checker {
             let screens: Map<String, Json> = screens.into_iter().map(|(name, screen, _)| (name, screen)).collect();
             out.insert("screens".into(), Json::Object(screens));
         }
+        // Barre de titre de tous les écrans (un écran peut avoir la sienne).
+        if let Some((_, bar)) = get("bar") {
+            if let Some(bar) = self.node(bar) {
+                out.insert("bar".into(), bar);
+            }
+        }
         if let Some((_, menu)) = get("menu") {
             if let Some(menu) = self.value(menu, Ty::Menu, "'menu'") {
                 out.insert("menu".into(), menu);

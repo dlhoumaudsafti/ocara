@@ -62423,6 +62423,9 @@
                   "onSubmit": {
                     "$ref": "#/definitions/values/v9"
                   },
+                  "onSuggestion": {
+                    "$ref": "#/definitions/values/v9"
+                  },
                   "onSwipe": {
                     "$ref": "#/definitions/values/v9"
                   },
@@ -63800,6 +63803,9 @@
                   "style": {
                     "$ref": "#/definitions/values/v4"
                   },
+                  "suggestions": {
+                    "$ref": "#/definitions/values/v30"
+                  },
                   "tooltip": {
                     "$ref": "#/definitions/values/v2"
                   },
@@ -63909,6 +63915,9 @@
                 "$ref": "#/definitions/values/v9"
               },
               "onSubmit": {
+                "$ref": "#/definitions/values/v9"
+              },
+              "onSuggestion": {
                 "$ref": "#/definitions/values/v9"
               },
               "onSwipe": {
@@ -65288,6 +65297,9 @@
               "style": {
                 "$ref": "#/definitions/values/v4"
               },
+              "suggestions": {
+                "$ref": "#/definitions/values/v30"
+              },
               "tauri": {
                 "additionalProperties": false,
                 "properties": {
@@ -65376,6 +65388,9 @@
                     "$ref": "#/definitions/values/v9"
                   },
                   "onSubmit": {
+                    "$ref": "#/definitions/values/v9"
+                  },
+                  "onSuggestion": {
                     "$ref": "#/definitions/values/v9"
                   },
                   "onSwipe": {
@@ -66754,6 +66769,9 @@
                   },
                   "style": {
                     "$ref": "#/definitions/values/v4"
+                  },
+                  "suggestions": {
+                    "$ref": "#/definitions/values/v30"
                   },
                   "tooltip": {
                     "$ref": "#/definitions/values/v2"
@@ -75749,6 +75767,9 @@
                   "background": {
                     "$ref": "#/definitions/values/v13"
                   },
+                  "bind": {
+                    "$ref": "#/definitions/values/v4"
+                  },
                   "binds": {
                     "additionalProperties": {
                       "type": "string"
@@ -77222,6 +77243,9 @@
               "background": {
                 "$ref": "#/definitions/values/v13"
               },
+              "bind": {
+                "$ref": "#/definitions/values/v4"
+              },
               "binds": {
                 "additionalProperties": {
                   "type": "string"
@@ -78679,6 +78703,9 @@
                   },
                   "background": {
                     "$ref": "#/definitions/values/v13"
+                  },
+                  "bind": {
+                    "$ref": "#/definitions/values/v4"
                   },
                   "binds": {
                     "additionalProperties": {
@@ -80206,6 +80233,9 @@
                   "background": {
                     "$ref": "#/definitions/values/v13"
                   },
+                  "bind": {
+                    "$ref": "#/definitions/values/v4"
+                  },
                   "binds": {
                     "additionalProperties": {
                       "type": "string"
@@ -81679,6 +81709,9 @@
               "background": {
                 "$ref": "#/definitions/values/v13"
               },
+              "bind": {
+                "$ref": "#/definitions/values/v4"
+              },
               "binds": {
                 "additionalProperties": {
                   "type": "string"
@@ -83136,6 +83169,9 @@
                   },
                   "background": {
                     "$ref": "#/definitions/values/v13"
+                  },
+                  "bind": {
+                    "$ref": "#/definitions/values/v4"
                   },
                   "binds": {
                     "additionalProperties": {
@@ -84663,6 +84699,9 @@
                   "background": {
                     "$ref": "#/definitions/values/v13"
                   },
+                  "bind": {
+                    "$ref": "#/definitions/values/v4"
+                  },
                   "binds": {
                     "additionalProperties": {
                       "type": "string"
@@ -86139,6 +86178,9 @@
               "background": {
                 "$ref": "#/definitions/values/v13"
               },
+              "bind": {
+                "$ref": "#/definitions/values/v4"
+              },
               "binds": {
                 "additionalProperties": {
                   "type": "string"
@@ -87599,6 +87641,9 @@
                   },
                   "background": {
                     "$ref": "#/definitions/values/v13"
+                  },
+                  "bind": {
+                    "$ref": "#/definitions/values/v4"
                   },
                   "binds": {
                     "additionalProperties": {
@@ -89127,6 +89172,9 @@
                   "background": {
                     "$ref": "#/definitions/values/v13"
                   },
+                  "bind": {
+                    "$ref": "#/definitions/values/v4"
+                  },
                   "binds": {
                     "additionalProperties": {
                       "type": "string"
@@ -90600,6 +90648,9 @@
               "background": {
                 "$ref": "#/definitions/values/v13"
               },
+              "bind": {
+                "$ref": "#/definitions/values/v4"
+              },
               "binds": {
                 "additionalProperties": {
                   "type": "string"
@@ -92057,6 +92108,9 @@
                   },
                   "background": {
                     "$ref": "#/definitions/values/v13"
+                  },
+                  "bind": {
+                    "$ref": "#/definitions/values/v4"
                   },
                   "binds": {
                     "additionalProperties": {
@@ -93582,6 +93636,9 @@
                   "background": {
                     "$ref": "#/definitions/values/v13"
                   },
+                  "bind": {
+                    "$ref": "#/definitions/values/v4"
+                  },
                   "binds": {
                     "additionalProperties": {
                       "type": "string"
@@ -95055,6 +95112,9 @@
               "background": {
                 "$ref": "#/definitions/values/v13"
               },
+              "bind": {
+                "$ref": "#/definitions/values/v4"
+              },
               "binds": {
                 "additionalProperties": {
                   "type": "string"
@@ -96512,6 +96572,9 @@
                   },
                   "background": {
                     "$ref": "#/definitions/values/v13"
+                  },
+                  "bind": {
+                    "$ref": "#/definitions/values/v4"
                   },
                   "binds": {
                     "additionalProperties": {
@@ -184964,6 +185027,7 @@
                     "enum": [
                       "add",
                       "back",
+                      "car",
                       "check",
                       "close",
                       "delete",
@@ -184977,6 +185041,7 @@
                       "person",
                       "refresh",
                       "search",
+                      "settings",
                       "share",
                       "star"
                     ]
@@ -186661,6 +186726,7 @@
                 "enum": [
                   "add",
                   "back",
+                  "car",
                   "check",
                   "close",
                   "delete",
@@ -186674,6 +186740,7 @@
                   "person",
                   "refresh",
                   "search",
+                  "settings",
                   "share",
                   "star"
                 ]
@@ -188297,6 +188364,7 @@
                     "enum": [
                       "add",
                       "back",
+                      "car",
                       "check",
                       "close",
                       "delete",
@@ -188310,6 +188378,7 @@
                       "person",
                       "refresh",
                       "search",
+                      "settings",
                       "share",
                       "star"
                     ]
@@ -205673,6 +205742,10 @@
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)?$",
                     "type": "string"
                   },
+                  "onSuggestion": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)?$",
+                    "type": "string"
+                  },
                   "onSwipe": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)?$",
                     "type": "string"
@@ -207143,6 +207216,31 @@
                   "style": {
                     "type": "string"
                   },
+                  "suggestions": {
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": [
+                            "string",
+                            "number"
+                          ]
+                        },
+                        {
+                          "properties": {
+                            "text": {
+                              "type": "string"
+                            },
+                            "value": {}
+                          },
+                          "required": [
+                            "value"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "type": "array"
+                  },
                   "tooltip": {
                     "type": [
                       "string",
@@ -207386,6 +207484,10 @@
                 "type": "string"
               },
               "onSubmit": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)?$",
+                "type": "string"
+              },
+              "onSuggestion": {
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)?$",
                 "type": "string"
               },
@@ -208859,6 +208961,31 @@
               "style": {
                 "type": "string"
               },
+              "suggestions": {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": [
+                        "string",
+                        "number"
+                      ]
+                    },
+                    {
+                      "properties": {
+                        "text": {
+                          "type": "string"
+                        },
+                        "value": {}
+                      },
+                      "required": [
+                        "value"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
               "tauri": {
                 "additionalProperties": false,
                 "properties": {
@@ -209034,6 +209161,10 @@
                     "type": "string"
                   },
                   "onSubmit": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)?$",
+                    "type": "string"
+                  },
+                  "onSuggestion": {
                     "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)?$",
                     "type": "string"
                   },
@@ -210506,6 +210637,31 @@
                   },
                   "style": {
                     "type": "string"
+                  },
+                  "suggestions": {
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": [
+                            "string",
+                            "number"
+                          ]
+                        },
+                        {
+                          "properties": {
+                            "text": {
+                              "type": "string"
+                            },
+                            "value": {}
+                          },
+                          "required": [
+                            "value"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "type": "array"
                   },
                   "tooltip": {
                     "type": [
@@ -220945,6 +221101,9 @@
                     "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
+                  "bind": {
+                    "type": "string"
+                  },
                   "binds": {
                     "additionalProperties": {
                       "type": "string"
@@ -222656,6 +222815,9 @@
                 "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
+              "bind": {
+                "type": "string"
+              },
               "binds": {
                 "additionalProperties": {
                   "type": "string"
@@ -224305,6 +224467,9 @@
                   },
                   "background": {
                     "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
+                    "type": "string"
+                  },
+                  "bind": {
                     "type": "string"
                   },
                   "binds": {
@@ -226132,6 +226297,9 @@
                     "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
+                  "bind": {
+                    "type": "string"
+                  },
                   "binds": {
                     "additionalProperties": {
                       "type": "string"
@@ -227843,6 +228011,9 @@
                 "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
+              "bind": {
+                "type": "string"
+              },
               "binds": {
                 "additionalProperties": {
                   "type": "string"
@@ -229492,6 +229663,9 @@
                   },
                   "background": {
                     "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
+                    "type": "string"
+                  },
+                  "bind": {
                     "type": "string"
                   },
                   "binds": {
@@ -231319,6 +231493,9 @@
                     "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
+                  "bind": {
+                    "type": "string"
+                  },
                   "binds": {
                     "additionalProperties": {
                       "type": "string"
@@ -233008,6 +233185,9 @@
                 "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
+              "bind": {
+                "type": "string"
+              },
               "binds": {
                 "additionalProperties": {
                   "type": "string"
@@ -234639,6 +234819,9 @@
                   },
                   "background": {
                     "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
+                    "type": "string"
+                  },
+                  "bind": {
                     "type": "string"
                   },
                   "binds": {
@@ -236438,6 +236621,9 @@
                     "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
+                  "bind": {
+                    "type": "string"
+                  },
                   "binds": {
                     "additionalProperties": {
                       "type": "string"
@@ -238131,6 +238317,9 @@
                 "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
+              "bind": {
+                "type": "string"
+              },
               "binds": {
                 "additionalProperties": {
                   "type": "string"
@@ -239762,6 +239951,9 @@
                   },
                   "background": {
                     "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
+                    "type": "string"
+                  },
+                  "bind": {
                     "type": "string"
                   },
                   "binds": {
@@ -241569,6 +241761,9 @@
                     "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                     "type": "string"
                   },
+                  "bind": {
+                    "type": "string"
+                  },
                   "binds": {
                     "additionalProperties": {
                       "type": "string"
@@ -243262,6 +243457,9 @@
                 "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
                 "type": "string"
               },
+              "bind": {
+                "type": "string"
+              },
               "binds": {
                 "additionalProperties": {
                   "type": "string"
@@ -244893,6 +245091,9 @@
                   },
                   "background": {
                     "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
+                    "type": "string"
+                  },
+                  "bind": {
                     "type": "string"
                   },
                   "binds": {
@@ -246759,6 +246960,7 @@
                     "enum": [
                       "add",
                       "back",
+                      "car",
                       "check",
                       "close",
                       "delete",
@@ -246772,6 +246974,7 @@
                       "person",
                       "refresh",
                       "search",
+                      "settings",
                       "share",
                       "star"
                     ]
@@ -248477,6 +248680,7 @@
                 "enum": [
                   "add",
                   "back",
+                  "car",
                   "check",
                   "close",
                   "delete",
@@ -248490,6 +248694,7 @@
                   "person",
                   "refresh",
                   "search",
+                  "settings",
                   "share",
                   "star"
                 ]
@@ -250128,6 +250333,7 @@
                     "enum": [
                       "add",
                       "back",
+                      "car",
                       "check",
                       "close",
                       "delete",
@@ -250141,6 +250347,7 @@
                       "person",
                       "refresh",
                       "search",
+                      "settings",
                       "share",
                       "star"
                     ]
@@ -251965,6 +252172,7 @@
                     "enum": [
                       "add",
                       "back",
+                      "car",
                       "check",
                       "close",
                       "delete",
@@ -251978,6 +252186,7 @@
                       "person",
                       "refresh",
                       "search",
+                      "settings",
                       "share",
                       "star"
                     ]
@@ -253669,6 +253878,7 @@
                 "enum": [
                   "add",
                   "back",
+                  "car",
                   "check",
                   "close",
                   "delete",
@@ -253682,6 +253892,7 @@
                   "person",
                   "refresh",
                   "search",
+                  "settings",
                   "share",
                   "star"
                 ]
@@ -255320,6 +255531,7 @@
                     "enum": [
                       "add",
                       "back",
+                      "car",
                       "check",
                       "close",
                       "delete",
@@ -255333,6 +255545,7 @@
                       "person",
                       "refresh",
                       "search",
+                      "settings",
                       "share",
                       "star"
                     ]
@@ -262277,6 +262490,7 @@
                     "enum": [
                       "add",
                       "back",
+                      "car",
                       "check",
                       "close",
                       "delete",
@@ -262290,6 +262504,7 @@
                       "person",
                       "refresh",
                       "search",
+                      "settings",
                       "share",
                       "star"
                     ]
@@ -263993,6 +264208,7 @@
                 "enum": [
                   "add",
                   "back",
+                  "car",
                   "check",
                   "close",
                   "delete",
@@ -264006,6 +264222,7 @@
                   "person",
                   "refresh",
                   "search",
+                  "settings",
                   "share",
                   "star"
                 ]
@@ -265649,6 +265866,7 @@
                     "enum": [
                       "add",
                       "back",
+                      "car",
                       "check",
                       "close",
                       "delete",
@@ -265662,6 +265880,7 @@
                       "person",
                       "refresh",
                       "search",
+                      "settings",
                       "share",
                       "star"
                     ]
@@ -288308,6 +288527,7 @@
             "enum": [
               "add",
               "back",
+              "car",
               "check",
               "close",
               "delete",
@@ -288321,6 +288541,7 @@
               "person",
               "refresh",
               "search",
+              "settings",
               "share",
               "star"
             ]
@@ -288831,6 +289052,9 @@
       },
       "type": "object"
     },
+    "bar": {
+      "$ref": "#/definitions/node"
+    },
     "components": {
       "additionalProperties": {
         "additionalProperties": false,
@@ -288912,6 +289136,9 @@
       "additionalProperties": {
         "additionalProperties": false,
         "properties": {
+          "bar": {
+            "$ref": "#/definitions/node"
+          },
           "layout": {
             "$ref": "#/definitions/node"
           },
@@ -293623,9 +293850,56 @@
           "minimum": 1,
           "type": "integer"
         },
+        "onPrimary": {
+          "anyOf": [
+            {
+              "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "minProperties": 1,
+              "properties": {
+                "dark": {
+                  "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
+                  "type": "string"
+                },
+                "light": {
+                  "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          ]
+        },
         "primary": {
-          "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
-          "type": "string"
+          "anyOf": [
+            {
+              "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "minProperties": 1,
+              "properties": {
+                "dark": {
+                  "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
+                  "type": "string"
+                },
+                "light": {
+                  "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\(.*\\))$",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          ]
+        },
+        "radius": {
+          "maximum": 100.0,
+          "minimum": 0.0,
+          "type": "number"
         },
         "resizable": {
           "type": "boolean"

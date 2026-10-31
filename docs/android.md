@@ -163,6 +163,23 @@ Un symbole `w` (weak, ex. `getrandom`, `copy_file_range`) est normal : c'est un 
 
 Un squelette Android complet (Activity Kotlin + WebView + pont JNI générique) existe dans [packaging/android/](../packaging/android/) — voir son `README.md` pour la marche à suivre complète (compiler le pont JNI avec `make build-jni-bridge-android`, lier un programme Ocara avec `--android-jni-bridge`, construire l'APK avec `./gradlew assembleDebug`). Détails et vérifications complètes : [roadmap.d/packaging-android-webview-hybrid.md](roadmap.d/packaging-android-webview-hybrid.md).
 
+### Nom et icône de l'application
+
+Le nom affiché sous l'icône et l'icône du lanceur viennent du programme
+empaqueté, par deux propriétés Gradle (sans elles : ceux de l'app de
+démonstration) :
+
+```bash
+cd packaging/android && ./gradlew assembleDebug -PocaraAppName="Carfolio" -PocaraIcon=/chemin/logo.png
+```
+
+`ocaraIcon` est un PNG carré (idéalement 512 px) : il devient l'icône de
+chaque densité (`mipmap-*`) et le premier plan de l'icône adaptative
+(réduit à sa zone sûre, sur fond noir). Le SVG n'est pas accepté : le
+rendre en PNG d'abord (exemple : `make logo` de
+`examples/advanced/mini_project_ui_hexa`, qui passe aussi ces propriétés
+à `make android`).
+
 ### Tester sur un émulateur
 
 ```bash

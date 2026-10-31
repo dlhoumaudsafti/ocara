@@ -1,0 +1,30 @@
+# À propos (toutes les tailles) — AboutController::show : version et
+# contenu de la base.
+screens:
+  about:
+    title: "${about_title}"
+    onShow: show_about
+    layout:
+      type: column
+      spacing: 16
+      padding: 24
+      scroll: true
+      align: center
+      children:
+        - type: image
+          src: ../../assets/logo.svg
+          label: "Carfolio"
+          width: 160
+          height: 160
+          android: { src: ../../assets/logo.android.png }
+        - { type: heading, level: 1, value: "Carfolio", style: page_title }
+        - { type: text, id: about_version, style: muted }
+        - { type: text, value: "${about_description}", align: center }
+        - type: row
+          spacing: 10
+          children:
+            - { type: statCard, id: about_cars, label: "${stat_cars}", value: "0" }
+            - { type: statCard, id: about_maintenances, label: "${about_maintenances}", value: "0" }
+            - { type: statCard, id: about_photos, label: "${about_photos}", value: "0" }
+        - { type: text, value: "${about_built_with}", style: muted, align: center }
+        - { type: navMenu, id: about_menu }

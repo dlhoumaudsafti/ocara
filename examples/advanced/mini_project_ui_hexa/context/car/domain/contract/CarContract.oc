@@ -7,13 +7,18 @@ interface CarContract {
     private static method fromRow(row:map<string, mixed>): CarEntity
     public static method find(id:int): CarEntity|null
     public static method create(
-        reference     :string,
-        brand         :string,
-        model         :string,
-        purchase_price:float,
+        reference       :string,
+        brand           :string,
+        model           :string,
+        origin          :string,
+        year            :int,
+        purchase_price  :float,
         acquisition_date:string,
-        sale_date:string
+        sale_date       :string
     ): int
+    // Champs modifiables de la fiche (pas le prix de vente estimé, recalculé
+    // par PricingService).
+    public static method update(car:CarEntity): void
     public static method updateEstimatedPrice(id:int, new_price:float): void
     public static method delete(id:int): void
 }

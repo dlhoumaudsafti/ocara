@@ -27,6 +27,31 @@ class SearchRepositoryTest extends UnitTest {
         return 0
     }
 
+    // Pays d'origine (code) et année : valeur exacte.
+    public method carsByOriginAndYearTest(): int {
+        Fixture::reset()
+        const id:int = Fixture::car("ORIGIN", "Volvo", "P1800", 30000.0)
+        Fixture::origin(id, "SE", 1899)
+        var by_year:bool = false
+        for car in SearchRepository::cars("1899") {
+            if car.id equal id {
+                by_year = true
+                self::assertEquals("SE", car.origin)
+                self::assertEquals(1899, car.year)
+            }
+        }
+        self::assertTrue(by_year)
+        var by_origin:bool = false
+        for car in SearchRepository::cars("se") {
+            if car.id equal id {
+                by_origin = true
+            }
+        }
+        self::assertTrue(by_origin)
+        Fixture::cleanup()
+        return 0
+    }
+
     // Recherche dans la description, avec la référence de la voiture.
     public method maintenancesTest(): int {
         Fixture::reset()

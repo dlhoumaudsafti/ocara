@@ -1,13 +1,13 @@
 namespace context.search.infra.view
-// Écran `search` (ui/ui.d/search.oc.ui) : voitures et entretiens trouvés —
-// l'équivalent de templates/search/search.html et des composants car-card et
-// search-maintenance de mini_project_hexa. Un résultat porte l'`id` de sa
-// voiture : l'action `open_car` ouvre la fiche, sans que ce contexte dépende
-// de celui des voitures.
+// Écran `search` (ui/ui.d/search.oc.ui) : voitures et entretiens trouvés, et
+// propositions du champ de la barre de titre. Un résultat porte l'`id` de sa
+// voiture : les actions `open_car` / `open_suggestion` ouvrent la fiche, sans
+// que ce contexte dépende de celui des voitures.
 
 import context.search.app.dto.SearchResultsDto
 import context.search.app.port.SearchViewPort
-import context.search.app.usecase.helpers.Format
+import context.search.domain.entity.CarSearchResultEntity
+import context.shared.infra.i18n.Format
 
 class SearchView implements SearchViewPort {
     public static method present(term:string, results:SearchResultsDto|null): map<string, map<string, mixed>> {
@@ -16,6 +16,7 @@ class SearchView implements SearchViewPort {
         if results is null {
             return {
                 "search_hint": {"visible": true},
+                "search_summary": {"visible": false},
                 "search_cars": {"items": cars},
                 "search_maintenances": {"items": maintenances},
                 "search_cars_empty": {"visible": false},
@@ -23,10 +24,13 @@ class SearchView implements SearchViewPort {
             }
         }
         for car in results.cars {
+            const origin_line:string = self::originLine(car)
             cars.push({
                 "id": car.id,
                 "reference": car.reference,
                 "model_line": `${car.brand} ${car.model}`,
+                "origin_line": origin_line,
+                "has_origin_line": not origin_line.empty(),
                 "purchase": Format::price(car.purchase_price),
                 "estimated": Format::price(car.estimated_price),
                 "maintenance": Format::price(car.maintenance_total),
@@ -37,13 +41,14 @@ class SearchView implements SearchViewPort {
                 "id": m.car_id,
                 "car_reference": m.car_reference,
                 "badge": match m.type { "improvement" => "${badge_improvement}" default => "${badge_maintenance}" },
-                "badge_color": match m.type { "improvement" => "#6a1b9a" default => "#1565c0" },
+                "badge_color": match m.type { "improvement" => "#8e24aa" default => "#b8860b" },
                 "description": m.description,
                 "cost": Format::price(m.cost),
             })
         }
         return {
             "search_hint": {"visible": false},
+            "search_summary": {"visible": true, "value": "${search_results_for} « " + term + " »"},
             "search_cars": {"items": cars},
             "search_maintenances": {"items": maintenances},
             "search_cars_empty": {"visible": cars.len() equal 0, "value": "${search_no_cars} « " + term + " »."},
@@ -52,5 +57,35 @@ class SearchView implements SearchViewPort {
                 "value": "${search_no_maintenances} « " + term + " »."
             },
         }
+    }
+
+    // Propositions du menu sous le champ : voitures (5 au plus) puis
+    // entretiens (3 au plus) ; valeur : `id` de la voiture à ouvrir.
+    public static method suggestions(results:SearchResultsDto): array<map<string, mixed>> {
+        var out:array<map<string, mixed>> = []
+        for car in results.cars {
+            if out.len() smaller 5 {
+                out.push({"value": car.id, "text": `${car.reference} · ${car.brand} ${car.model}`})
+            }
+        }
+        var maintenances:int = 0
+        for m in results.maintenances {
+            if maintenances smaller 3 {
+                out.push({"value": m.car_id, "text": `${m.description} — ${m.car_reference}`})
+                maintenances += 1
+            }
+        }
+        return out
+    }
+
+    public static method originLine(car:CarSearchResultEntity): string {
+        var parts:array<string> = []
+        if not car.origin.empty() {
+            parts.push("${country_" + car.origin + "}")
+        }
+        if car.year greater 0 {
+            parts.push(car.year.toStr())
+        }
+        return parts.join(" · ")
     }
 }

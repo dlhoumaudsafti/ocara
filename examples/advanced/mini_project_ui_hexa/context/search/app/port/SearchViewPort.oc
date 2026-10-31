@@ -7,4 +7,6 @@ import context.search.app.dto.SearchResultsDto
 interface SearchViewPort {
     wiring context.search.infra.view.SearchView
     public static method present(term:string, results:SearchResultsDto|null): map<string, map<string, mixed>>
+    // Propositions du champ de recherche (`{ value, text }`).
+    public static method suggestions(results:SearchResultsDto): array<map<string, mixed>>
 }

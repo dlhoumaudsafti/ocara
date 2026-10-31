@@ -1,0 +1,95 @@
+namespace context.shared.infra.i18n
+// Fuseaux horaires proposés par les paramètres : décalage par rapport à UTC,
+// heure d'été comprise pour l'Europe (du dernier dimanche de mars au dernier
+// dimanche d'octobre, à 01:00 UTC) et les États-Unis (du deuxième dimanche de
+// mars au premier dimanche de novembre, à 02:00 heure locale). DateTime ne
+// connaît que l'UTC : la date affichée est celle de `ts + offset(zone, ts)`.
+
+import ocara.DateTime
+
+class Timezone {
+
+    // Décalage de `zone` à l'instant `ts`, en secondes (0 : zone inconnue).
+    public static method offset(zone:string, ts:int): int {
+        const standard:int = match zone {
+            "Europe/Paris" => 3600
+            "Europe/Berlin" => 3600
+            "Europe/Athens" => 7200
+            "America/New_York" => -18000
+            "America/Chicago" => -21600
+            "America/Los_Angeles" => -28800
+            "Asia/Dubai" => 14400
+            "Asia/Tokyo" => 32400
+            default => 0
+        }
+        const rule:string = match zone {
+            "Europe/London" => "eu"
+            "Europe/Lisbon" => "eu"
+            "Europe/Paris" => "eu"
+            "Europe/Berlin" => "eu"
+            "Europe/Athens" => "eu"
+            "America/New_York" => "us"
+            "America/Chicago" => "us"
+            "America/Los_Angeles" => "us"
+            default => ""
+        }
+        if rule equal "eu" and self::europeanSummer(ts) {
+            return standard + 3600
+        }
+        if rule equal "us" and self::americanSummer(ts, standard) {
+            return standard + 3600
+        }
+        return standard
+    }
+
+    public static method europeanSummer(ts:int): bool {
+        const year:int = DateTime::year(ts)
+        const start:int = self::lastSunday(year, 3) + 3600
+        const end:int = self::lastSunday(year, 10) + 3600
+        return ts greater or equal start and ts smaller end
+    }
+
+    // `standard` : décalage d'hiver de la zone (02:00 locale → UTC).
+    public static method americanSummer(ts:int, standard:int): bool {
+        const year:int = DateTime::year(ts)
+        const start:int = self::nthSunday(year, 3, 2) + 7200 - standard
+        const end:int = self::nthSunday(year, 11, 1) + 7200 - standard - 3600
+        return ts greater or equal start and ts smaller end
+    }
+
+    // Jour de la semaine, 0 = dimanche (le 1er janvier 1970 était un jeudi).
+    public static method weekday(ts:int): int {
+        var days:int = ts / 86400
+        if ts smaller 0 and ts % 86400 not equal 0 {
+            days -= 1
+        }
+        return ((days % 7) + 11) % 7
+    }
+
+    // Minuit UTC du dernier dimanche du mois `month` de `year`.
+    private static method lastSunday(year:int, month:int): int {
+        var next_month:int = month + 1
+        var next_year:int = year
+        if next_month greater 12 {
+            next_month = 1
+            next_year += 1
+        }
+        const last_day:int = self::firstDay(next_year, next_month) - 86400
+        return last_day - self::weekday(last_day) * 86400
+    }
+
+    // Minuit UTC du `n`-ième dimanche du mois.
+    private static method nthSunday(year:int, month:int, n:int): int {
+        const first:int = self::firstDay(year, month)
+        const first_sunday:int = first + ((7 - self::weekday(first)) % 7) * 86400
+        return first_sunday + (n - 1) * 7 * 86400
+    }
+
+    private static method firstDay(year:int, month:int): int {
+        var mm:string = month.toStr()
+        if month smaller 10 {
+            mm = "0" + mm
+        }
+        return DateTime::parse(`${year}-${mm}-01T00:00:00`)
+    }
+}

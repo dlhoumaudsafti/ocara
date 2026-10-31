@@ -1,0 +1,15 @@
+namespace context.about.app.usecase
+
+import context.about.domain.entity.AboutEntity
+import context.about.domain.contract.AboutContract
+
+class AboutService {
+    public static method version(): string {
+        return "2.0.0"
+    }
+
+    public static method build(): AboutEntity {
+        const counts:map<string, int> = AboutContract::counts()
+        return use AboutEntity(self::version(), counts["cars"], counts["maintenances"], counts["photos"])
+    }
+}

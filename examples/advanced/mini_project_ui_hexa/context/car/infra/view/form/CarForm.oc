@@ -1,0 +1,44 @@
+namespace context.car.infra.view.form
+// Formulaire d'une voiture, lié à l'interface (`ui.bind`) : racine `new_car`
+// (ajout, panneau de l'accueil) ou `car` (fiche modifiée sur place), voir
+// ui/ui.d/components.oc.ui `carFields`. Les champs sont le texte saisi —
+// nombres compris : CarController les contrôle et les convertit.
+
+import context.car.domain.entity.CarEntity
+
+class CarForm {
+    public property reference:string = ""
+    public property brand:string = ""
+    public property model:string = ""
+    public property origin:string = ""
+    public property year:string = ""
+    public property purchase_price:string = ""
+    public property acquisition_date:string = ""
+    public property sale_date:string = ""
+
+    // Voiture lue en base : ses champs affichés.
+    public method load(car:CarEntity): void {
+        self.reference = car.reference
+        self.brand = car.brand
+        self.model = car.model
+        self.origin = car.origin
+        self.year = ""
+        if car.year greater 0 {
+            self.year = car.year.toStr()
+        }
+        self.purchase_price = car.purchase_price.toStr()
+        self.acquisition_date = car.acquisition_date
+        self.sale_date = car.sale_date
+    }
+
+    public method clear(): void {
+        self.reference = ""
+        self.brand = ""
+        self.model = ""
+        self.origin = ""
+        self.year = ""
+        self.purchase_price = ""
+        self.acquisition_date = ""
+        self.sale_date = ""
+    }
+}

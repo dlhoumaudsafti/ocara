@@ -59,4 +59,24 @@ class DatabaseTest extends UnitTest {
         self::assertTrue(has_lifespan_days)
         return 0
     }
+
+    // Base créée avant Carfolio : `origin`, `year` et la table `settings`
+    // sont ajoutés, les voitures gardées.
+    public method migrateOldSchemaTest(): int {
+        const db:SQLite = SQLite::open(":memory:")
+        db.execute(`CREATE TABLE cars (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, reference TEXT NOT NULL, brand TEXT NOT NULL,
+            model TEXT NOT NULL, purchase_price REAL NOT NULL, estimated_sale_price REAL NOT NULL,
+            created_at INTEGER NOT NULL)`)
+        db.execute("INSERT INTO cars (reference, brand, model, purchase_price, estimated_sale_price, created_at) VALUES ('OLD', 'Fiat', '500', 1.0, 1.0, 0)")
+        Database::migrateSchema(db)
+        const car:map<string, mixed> = db.queryOne("SELECT origin, year, sale_date FROM cars WHERE reference = 'OLD'")
+        const settings:map<string, mixed> = db.queryOne("SELECT COUNT(*) AS n FROM sqlite_master WHERE name = 'settings'")
+        db.close()
+        self::assertEquals("", car["origin"])
+        self::assertEquals(0, car["year"])
+        self::assertEquals("", car["sale_date"])
+        self::assertEquals(1, settings["n"])
+        return 0
+    }
 }

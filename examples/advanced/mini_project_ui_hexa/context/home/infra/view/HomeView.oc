@@ -1,20 +1,24 @@
 namespace context.home.infra.view
 // Écran `home` (ui/ui.d/home.oc.ui) : statistiques de la flotte et cartes des
-// voitures — l'équivalent de templates/home/home.html et du composant
-// car-card de mini_project_hexa, sous forme d'état d'interface.
+// voitures (composant `carCard`), sous forme d'état d'interface. Montants et
+// dates selon les préférences (context.shared.infra.i18n.Format).
 
 import context.home.app.dto.DashboardDto
 import context.home.app.port.HomeViewPort
-import context.home.infra.view.helpers.Format
+import context.home.domain.entity.CarSummaryEntity
+import context.shared.infra.i18n.Format
 
 class HomeView implements HomeViewPort {
     public static method present(dashboard:DashboardDto): map<string, map<string, mixed>> {
         var cars:array<map<string, mixed>> = []
         for car in dashboard.cars {
+            const origin_line:string = self::originLine(car)
             cars.push({
                 "id": car.id,
                 "reference": car.reference,
                 "model_line": `${car.brand} ${car.model}`,
+                "origin_line": origin_line,
+                "has_origin_line": not origin_line.empty(),
                 "purchase": Format::price(car.purchase_price),
                 "estimated": Format::price(car.estimated_price),
                 "maintenance": Format::price(car.maintenance_total),
@@ -31,5 +35,18 @@ class HomeView implements HomeViewPort {
             "cars": {"items": cars},
             "cars_empty": {"visible": cars.len() equal 0},
         }
+    }
+
+    // « France · 2015 » (nom du pays dans la langue de l'interface) ; "" sans
+    // pays ni année.
+    public static method originLine(car:CarSummaryEntity): string {
+        var parts:array<string> = []
+        if not car.origin.empty() {
+            parts.push("${country_" + car.origin + "}")
+        }
+        if car.year greater 0 {
+            parts.push(car.year.toStr())
+        }
+        return parts.join(" · ")
     }
 }
