@@ -34,6 +34,10 @@ class SearchView implements SearchViewPort {
                 "purchase": Format::price(car.purchase_price),
                 "estimated": Format::price(car.estimated_price),
                 "maintenance": Format::price(car.maintenance_total),
+                "photo": car.photo,
+                "has_photo": not car.photo.empty(),
+                "is_collection": car.is_collection,
+                "collection_label": "${badge_collection}",
             })
         }
         for m in results.maintenances {
@@ -43,9 +47,15 @@ class SearchView implements SearchViewPort {
                 "badge": match m.type {
                     "improvement" => "${badge_improvement}"
                     "reading" => "${badge_reading}"
+                    "technical_inspection" => "${badge_technical_inspection}"
                     default => "${badge_maintenance}"
                 },
-                "badge_color": match m.type { "improvement" => "#8e24aa" "reading" => "#00838f" default => "#b8860b" },
+                    "badge_color": match m.type {
+                        "improvement" => "#8e24aa"
+                        "reading" => "#00838f"
+                        "technical_inspection" => "#1565c0"
+                        default => "#b8860b"
+                    },
                 "description": m.description,
                 "cost": Format::price(m.cost),
             })
@@ -91,7 +101,10 @@ class SearchView implements SearchViewPort {
             parts.push(car.year.toStr())
         }
         if car.mileage greater 0 {
-            parts.push(Format::distance(car.mileage))
+            parts.push(Format::distance(car.mileage, car.distance_unit))
+        }
+        if car.is_collection {
+            parts.push("${badge_collection}")
         }
         return parts.join(" · ")
     }

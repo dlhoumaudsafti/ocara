@@ -3,10 +3,11 @@ namespace context.car.infra.view.form
 // (ajout, panneau de l'accueil) ou `car` (fiche modifiée sur place), voir
 // ui/ui.d/components.oc.ui `carFields`. Les champs sont le texte saisi —
 // nombres compris : CarController les contrôle et les convertit. Le compteur
-// est dans l'unité des paramètres (km, mi).
+// est dans l'unité sélectionnée pour ce véhicule (km ou mi).
 
 import context.car.domain.entity.CarEntity
 import context.shared.infra.i18n.Format
+import ocara.ConvertException
 
 class CarForm {
     public property reference:string = ""
@@ -18,7 +19,13 @@ class CarForm {
     public property acquisition_date:string = ""
     public property sale_date:string = ""
     public property mileage:string = ""
+    public property distance_unit:string = "km"
+    public property last_inspection_date:string = ""
+    public property is_collection:bool = false
     public property inspection_date:string = ""
+    public property original_mileage:int = 0
+    public property original_display_mileage:string = ""
+    public property display_unit:string = "km"
 
     // Voiture lue en base : ses champs affichés.
     public method load(car:CarEntity): void {
@@ -34,10 +41,40 @@ class CarForm {
         self.acquisition_date = car.acquisition_date
         self.sale_date = car.sale_date
         self.mileage = ""
+        self.original_mileage = car.mileage
         if car.mileage greater 0 {
-            self.mileage = Format::toUnit(car.mileage).toStr()
+            self.mileage = Format::toUnit(car.mileage, car.distance_unit).toStr()
         }
+        self.distance_unit = car.distance_unit
+        self.display_unit = car.distance_unit
+        self.original_display_mileage = self.mileage
+        self.last_inspection_date = car.last_inspection_date
+        self.is_collection = car.is_collection
         self.inspection_date = car.inspection_date
+    }
+
+    public method changeUnit(unit:string): void {
+        if self.mileage equal self.original_display_mileage {
+            self.mileage = ""
+            if self.original_mileage greater 0 {
+                self.mileage = Format::toUnit(self.original_mileage, unit).toStr()
+            }
+        } else {
+            if not self.mileage.empty() {
+                try {
+                    const km:int = Format::toKilometers(self.mileage.toInt(), self.display_unit)
+                    self.mileage = Format::toUnit(km, unit).toStr()
+                } on e is ConvertException {
+                    // La validation du formulaire signalera la saisie invalide.
+                }
+            }
+        }
+        self.distance_unit = unit
+        self.display_unit = unit
+        self.original_display_mileage = ""
+        if self.original_mileage greater 0 {
+            self.original_display_mileage = Format::toUnit(self.original_mileage, unit).toStr()
+        }
     }
 
     public method clear(): void {
@@ -50,6 +87,12 @@ class CarForm {
         self.acquisition_date = ""
         self.sale_date = ""
         self.mileage = ""
+        self.original_mileage = 0
+        self.original_display_mileage = ""
+        self.distance_unit = "km"
+        self.display_unit = "km"
+        self.last_inspection_date = ""
+        self.is_collection = false
         self.inspection_date = ""
     }
 }

@@ -70,8 +70,8 @@ class CarControllerTest extends UnitTest {
         return 0
     }
 
-    // Compteur et contrôle technique : entier positif, date valide ; en
-    // miles, le compteur est converti en kilomètres.
+    // Compteur et contrôle technique : entier positif, date valide ; l'unité
+    // choisie sur le véhicule détermine la conversion persistée en kilomètres.
     public method mileageTest(): int {
         FakeDatabase::reset()
         const ui:UI = self.ui()
@@ -80,11 +80,12 @@ class CarControllerTest extends UnitTest {
         self::assertEquals("invalid_mileage", CarController::create(ui, form))
         form.mileage = "beaucoup"
         self::assertEquals("invalid_mileage", CarController::create(ui, form))
+        Preferences::apply("fr", "EUR", "UTC", "mi")
+        form.changeUnit("mi")
         form.mileage = "120 000"
         form.inspection_date = "2027-02-31"
         self::assertEquals("invalid_date", CarController::create(ui, form))
         form.inspection_date = "2027-03-01"
-        Preferences::apply("fr", "EUR", "UTC", "mi")
         self::assertEquals("", CarController::create(ui, form))
         var id:string = ui.get("car_id", "value")
         const row:map<string, mixed> = FakeDatabase::carRow(id.toInt())

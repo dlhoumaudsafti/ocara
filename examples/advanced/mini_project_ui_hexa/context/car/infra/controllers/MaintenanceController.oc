@@ -7,7 +7,9 @@ namespace context.car.infra.controllers
 import ocara.UI
 import ocara.UIEvent
 import context.car.domain.entity.MaintenanceEntity
+import context.car.domain.entity.CarEntity
 import context.car.domain.contract.MaintenanceContract
+import context.car.domain.contract.CarContract
 import context.car.app.usecase.PricingService
 import context.car.infra.controllers.CarController
 import context.car.infra.view.form.MaintenanceForm
@@ -48,7 +50,11 @@ class MaintenanceController {
     // Enregistre l'entretien du formulaire (ajout, ou modification s'il a un
     // `id`) ; rend le code d'erreur, "" si enregistré.
     public static method store(car_id:int, form:MaintenanceForm): string {
-        const desc:string = form.description.trim()
+        var desc:string = form.description.trim()
+        const car:CarEntity|null = CarContract::find(car_id)
+        if car is null {
+            return "not_found"
+        }
         var cost:float = CarController::number(form.cost)
         const lifespan_str:string = form.lifespan_days.trim()
         var lifespan_days:int = 0
@@ -63,6 +69,7 @@ class MaintenanceController {
             return "invalid_cost"
         }
         const is_reading:bool = form.type equal "reading"
+        const is_inspection:bool = form.type equal "technical_inspection"
         const reading:int = CarController::count(form.mileage)
         if reading smaller 0 {
             return "invalid_mileage"
@@ -71,10 +78,10 @@ class MaintenanceController {
         if is_reading and reading equal 0 {
             return "invalid_reading"
         }
-        if not is_reading and (desc.empty() or cost smaller or equal 0.0 or invalid_lifespan) {
+        if not is_reading and not is_inspection and (desc.empty() or cost smaller or equal 0.0 or invalid_lifespan) {
             return "invalid_cost"
         }
-        if is_reading {
+        if is_reading or is_inspection {
             cost = 0.0
             lifespan_days = 0
         }
@@ -85,27 +92,37 @@ class MaintenanceController {
         if Format::parseDay(performed_on) is null {
             return "invalid_date"
         }
-        const mileage:int = Format::toKilometers(reading)
+        const mileage:int = Format::toKilometers(reading, car.distance_unit)
+        var old_inspection:bool = false
         if form.id greater 0 {
             const existing:MaintenanceEntity|null = MaintenanceContract::find(form.id)
             if existing is null or existing.car_id not equal car_id {
                 return "not_found"
             }
+            old_inspection = existing.isInspection()
             // Relevé inchangé à l'écran : la valeur en kilomètres reste exacte.
             var kept:int = mileage
-            if existing.mileage greater 0 and reading equal Format::toUnit(existing.mileage) {
+            if form.mileage equal form.original_display_mileage {
                 kept = existing.mileage
             }
             MaintenanceContract::update(form.id, form.type, desc, cost, self::source(form), lifespan_days, kept, performed_on)
-            // Devenu relevé : plus de facture.
-            if is_reading and not existing.attachment.empty() {
-                Upload::remove(existing.attachment)
-                MaintenanceContract::setAttachment(form.id, "", "")
+            // Devenu relevé : plus de justificatif.
+            if is_reading {
+                for attachment in existing.attachments {
+                    Upload::remove(attachment.path)
+                }
+                if existing.attachments.len() equal 0 and not existing.attachment.empty() {
+                    Upload::remove(existing.attachment)
+                }
+                MaintenanceContract::clearAttachments(form.id)
             }
             MileageService::applyLatestReading(car_id, form.id)
         } else {
             const id:int = MaintenanceContract::create(car_id, form.type, desc, cost, self::source(form), lifespan_days, mileage, performed_on)
             MileageService::applyLatestReading(car_id, id)
+        }
+        if old_inspection or is_inspection {
+            self::syncInspectionDate(car_id)
         }
         // Recalcul complet (pas un simple +=) : voir PricingService.
         PricingService::recalculateEstimatedPrice(car_id)
@@ -124,8 +141,8 @@ class MaintenanceController {
         form.applyType()
     }
 
-    // Trombone d'une ligne de l'historique : facture (PDF ou image) jointe à
-    // l'entretien, à la place de la précédente.
+    // Trombone d'une ligne de l'historique : ajoute une pièce justificative
+    // (PDF ou image) sans remplacer les fichiers déjà associés.
     public static method attach(ui:UI, event:UIEvent): void {
         var row:map<string, mixed> = event.value()
         var id:int = row["id"]
@@ -152,29 +169,60 @@ class MaintenanceController {
         if extension.empty() {
             return "invalid_attachment"
         }
-        Upload::remove(m.attachment)
-        const path:string = Upload::store(source, extension, "maintenance-" + id.toStr() + "-" + DateTime::now().toStr())
-        MaintenanceContract::setAttachment(id, path, Upload::fileName(source))
+        const path:string = Upload::storeUnique(source, extension, "maintenance-" + id.toStr())
+        MaintenanceContract::addAttachment(id, path, Upload::fileName(source))
         return ""
     }
 
-    // Croix à côté de la facture : retirée (fichier supprimé).
+    // Croix à côté d'une pièce : elle seule est retirée.
     public static method detach(ui:UI, event:UIEvent): void {
         var row:map<string, mixed> = event.value()
-        var id:int = row["id"]
+        var maintenance_id:int = row["maintenance_id"]
+        var attachment_id:int = row["id"]
         const car_id:int = CarController::current(ui)
-        if self::removeAttachment(car_id, id) {
+        if self::removeOneAttachment(car_id, maintenance_id, attachment_id) {
             CarController::refresh(ui, car_id)
         }
     }
 
-    public static method removeAttachment(car_id:int, id:int): bool {
-        const m:MaintenanceEntity|null = MaintenanceContract::find(id)
-        if m is null or m.car_id not equal car_id or m.attachment.empty() {
+    public static method removeOneAttachment(car_id:int, maintenance_id:int, attachment_id:int): bool {
+        const m:MaintenanceEntity|null = MaintenanceContract::find(maintenance_id)
+        if m is null or m.car_id not equal car_id {
             return false
         }
-        Upload::remove(m.attachment)
-        MaintenanceContract::setAttachment(id, "", "")
+        for attachment in m.attachments {
+            if attachment.id equal attachment_id {
+                Upload::remove(attachment.path)
+                return MaintenanceContract::deleteAttachment(maintenance_id, attachment_id)
+            }
+        }
+        if attachment_id equal 0 and not m.attachment.empty() {
+            Upload::remove(m.attachment)
+            MaintenanceContract::setAttachment(maintenance_id, "", "")
+            return true
+        }
+        return false
+    }
+
+    // Retire tous les justificatifs d'une intervention.
+    public static method removeAttachment(car_id:int, id:int): bool {
+        const m:MaintenanceEntity|null = MaintenanceContract::find(id)
+        if m is null or m.car_id not equal car_id {
+            return false
+        }
+        var removed:bool = false
+        for attachment in m.attachments {
+            Upload::remove(attachment.path)
+            removed = true
+        }
+        if m.attachments.len() equal 0 and not m.attachment.empty() {
+            Upload::remove(m.attachment)
+            removed = true
+        }
+        if not removed {
+            return false
+        }
+        MaintenanceContract::clearAttachments(id)
         return true
     }
 
@@ -187,7 +235,12 @@ class MaintenanceController {
             ui.toast(Flash::message("not_found"))
             return
         }
-        form.load(m)
+        const car:CarEntity|null = CarContract::find(m.car_id)
+        var unit:string = "km"
+        if car is CarEntity {
+            unit = car.distance_unit
+        }
+        form.load(m, unit)
         ui.set("maintenance_form", "focus", true)
     }
 
@@ -221,9 +274,26 @@ class MaintenanceController {
         if m is null or m.car_id not equal car_id {
             return false
         }
-        Upload::remove(m.attachment)
+        for attachment in m.attachments {
+            Upload::remove(attachment.path)
+        }
+        if m.attachments.len() equal 0 and not m.attachment.empty() {
+            Upload::remove(m.attachment)
+        }
         MaintenanceContract::delete(id)
+        if m.isInspection() {
+            self::syncInspectionDate(car_id)
+        }
         PricingService::recalculateEstimatedPrice(car_id)
         return true
+    }
+
+    private static method syncInspectionDate(car_id:int): void {
+        const latest:MaintenanceEntity|null = MaintenanceContract::latestInspection(car_id)
+        var date:string = ""
+        if latest is MaintenanceEntity {
+            date = latest.performed_on
+        }
+        CarContract::updateLastInspectionDate(car_id, date)
     }
 }

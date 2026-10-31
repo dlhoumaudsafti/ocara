@@ -11,5 +11,8 @@ interface CarPhotoContract {
     // `photo_id` devient la photo principale de `car_id` (les autres ne le
     // sont plus) ; faux si la photo n'est pas à cette voiture.
     public static method setMain(car_id:int, photo_id:int): bool
+    // Supprime une photo appartenant à la voiture ; choisit la première
+    // restante comme principale si la photo supprimée l'était.
+    public static method deletePhoto(car_id:int, photo_id:int): bool
     public static method deleteForCar(car_id:int): void
 }

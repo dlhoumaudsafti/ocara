@@ -6,4 +6,6 @@ screens:
       type: column
       padding: 16
       children:
+        - { type: text, id: photo_id, visible: false }
         - { type: image, id: photo_full, src: "", label: "${photo_label}", width: fill, height: fill, fit: contain }
+        - { type: button, id: photo_delete, text: "${delete_photo}", icon: delete, variant: secondary, onClick: delete_current_photo, color: "#c62828" }

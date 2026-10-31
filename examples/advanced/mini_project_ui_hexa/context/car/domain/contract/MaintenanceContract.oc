@@ -1,6 +1,7 @@
 namespace context.car.domain.contract
 
 import context.car.domain.entity.MaintenanceEntity
+import context.car.domain.entity.MaintenanceAttachmentEntity
 
 interface MaintenanceContract {
     wiring context.car.infra.db.MaintenanceRepository
@@ -29,9 +30,15 @@ interface MaintenanceContract {
     public static method delete(id:int): void
     // Fichier joint ("" : retiré).
     public static method setAttachment(id:int, path:string, name:string): void
+    public static method attachments(maintenanceId:int): array<MaintenanceAttachmentEntity>
+    public static method addAttachment(maintenanceId:int, path:string, name:string): int
+    public static method deleteAttachment(maintenanceId:int, attachmentId:int): bool
+    public static method clearAttachments(maintenanceId:int): void
     // Dernier relevé du compteur de la voiture (date la plus récente, puis
     // dernier enregistré) ; `null` sans relevé.
     public static method latestReading(carId:int): MaintenanceEntity|null
+    // Dernier contrôle technique enregistré ; `null` sans opération.
+    public static method latestInspection(carId:int): MaintenanceEntity|null
     public static async method forCar(carId:int): array<MaintenanceEntity>
     public static async method maintenanceTotal(carId:int): float
     public static async method improvementTotal(carId:int): float

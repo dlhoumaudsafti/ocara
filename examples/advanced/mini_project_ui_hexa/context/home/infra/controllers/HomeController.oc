@@ -2,11 +2,9 @@ namespace context.home.infra.controllers
 // Écran `home` : tableau de bord de la flotte, rafraîchi à chaque affichage
 // (action `show_home`, `onShow` de l'écran) — l'équivalent de GET / de
 // mini_project_hexa. Le rendu est délégué à la vue (HomeViewPort →
-// context/home/infra/view/HomeView.oc). La photo des cartes n'est chargée que
-// si la variante affichée a le nœud `car_photo` (ui/ui.d/home.lg.oc.ui) ; un
-// changement de taille (`resize`) recharge le tableau de bord.
+// context/home/infra/view/HomeView.oc). La photo principale est chargée pour
+// toutes les variantes dont les cartes affichent une vignette.
 
-import ocara.UI
 import ocara.UIEvent
 import context.home.app.usecase.DashboardService
 import context.home.app.port.HomeViewPort
@@ -23,6 +21,6 @@ class HomeController {
     }
 
     public static method refresh(ui:UI): void {
-        Screen::apply(ui, HomeViewPort::present(DashboardService::build(ui.has("car_photo"))))
+        Screen::apply(ui, HomeViewPort::present(DashboardService::build(true)))
     }
 }

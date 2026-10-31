@@ -21,9 +21,13 @@ class FakeCarRepository implements CarContract {
         var sale_date:string = row["sale_date"]
         var mileage:int = row["mileage"]
         var inspection_date:string = row["inspection_date"]
+        var last_inspection_date:string = row["last_inspection_date"]
+        var collection:int = row["is_collection"]
+        var distance_unit:string = row["distance_unit"]
         return use CarEntity(
             id, reference, brand, model, origin, year, purchase_price, estimated_price,
-            acquisition_date, sale_date, mileage, inspection_date
+            acquisition_date, sale_date, mileage, inspection_date, last_inspection_date,
+            collection equal 1, distance_unit
         )
     }
 
@@ -45,15 +49,23 @@ class FakeCarRepository implements CarContract {
         acquisition_date:string,
         sale_date:string,
         mileage:int,
-        inspection_date:string
+        inspection_date:string,
+        last_inspection_date:string = "",
+        is_collection:bool = false,
+        distance_unit:string = "km"
     ): int {
         return FakeDatabase::insertCar(
-            reference, brand, model, origin, year, purchase_price, acquisition_date, sale_date, mileage, inspection_date
+            reference, brand, model, origin, year, purchase_price, acquisition_date, sale_date, mileage,
+            inspection_date, last_inspection_date, is_collection, distance_unit
         )
     }
 
     public static method updateMileage(id:int, mileage:int): void {
         FakeDatabase::setMileage(id, mileage)
+    }
+
+    public static method updateLastInspectionDate(id:int, date:string): void {
+        FakeDatabase::setLastInspectionDate(id, date)
     }
 
     public static method update(car:CarEntity): void {
@@ -63,7 +75,8 @@ class FakeCarRepository implements CarContract {
         }
         FakeDatabase::updateCar(
             id, car.reference, car.brand, car.model, car.origin, car.year,
-            car.purchase_price, car.acquisition_date, car.sale_date, car.mileage, car.inspection_date
+            car.purchase_price, car.acquisition_date, car.sale_date, car.mileage, car.inspection_date,
+            car.last_inspection_date, car.is_collection, car.distance_unit
         )
     }
 

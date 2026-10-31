@@ -157,13 +157,14 @@ class MaintenanceControllerTest extends UnitTest {
         return 0
     }
 
-    // Facture jointe : PDF ou image contrôlés, la précédente remplacée ; pas
-    // sur un relevé ; retirée (fichier supprimé) ; supprimée avec l'entretien.
+    // Plusieurs justificatifs PDF sont conservés, retirables individuellement
+    // ou ensemble ; les relevés n'en acceptent pas et les suppressions nettoient les fichiers.
     public method attachmentTest(): int {
         FakeDatabase::reset()
         const car_id:int = FakeDatabase::car("ATTACH", "Peugeot", "308", 10000.0)
         const m_id:int = FakeDatabase::insertMaintenance(car_id, "maintenance", "Vidange", 80.0, "", 0)
         const r_id:int = FakeDatabase::insertMaintenance(car_id, "reading", "", 0.0, "", 0, 50000, "2026-01-01")
+        const i_id:int = FakeDatabase::insertMaintenance(car_id, "technical_inspection", "", 0.0, "", 0, 0, "2026-02-01")
         File::writeBytes("/tmp/facture-ocunit.pdf", [37, 80, 68, 70, 45, 49])
         File::writeBytes("/tmp/faux-ocunit.pdf", [1, 2, 3])
         self::assertEquals("invalid_attachment", MaintenanceController::storeAttachment(car_id, m_id, "/tmp/faux-ocunit.pdf"))
@@ -173,20 +174,27 @@ class MaintenanceControllerTest extends UnitTest {
         var first:string = FakeDatabase::maintenanceRow(m_id)["attachment"]
         self::assertEquals("facture-ocunit.pdf", FakeDatabase::maintenanceRow(m_id)["attachment_name"])
         self::assertTrue(File::exists("./" + first))
-        // Une seconde facture remplace la première (fichier supprimé).
+        // Une seconde pièce s'ajoute sans écraser la première.
         self::assertEquals("", MaintenanceController::storeAttachment(car_id, m_id, "/tmp/facture-ocunit.pdf"))
         var second:string = FakeDatabase::maintenanceRow(m_id)["attachment"]
-        if first not equal second {
-            self::assertFalse(File::exists("./" + first))
-        }
+        self::assertFalse(first equal second)
+        self::assertEquals(2, FakeDatabase::attachments(m_id).len())
+        self::assertTrue(File::exists("./" + first))
+        self::assertTrue(File::exists("./" + second))
+        const attachment_id:int = FakeDatabase::attachments(m_id)[0]["id"]
+        self::assertTrue(MaintenanceController::removeOneAttachment(car_id, m_id, attachment_id))
+        self::assertFalse(File::exists("./" + first))
+        self::assertTrue(File::exists("./" + second))
         self::assertTrue(MaintenanceController::removeAttachment(car_id, m_id))
         self::assertFalse(File::exists("./" + second))
         self::assertEquals("", FakeDatabase::maintenanceRow(m_id)["attachment"])
         self::assertFalse(MaintenanceController::removeAttachment(car_id, m_id))
-        // Supprimer l'entretien supprime sa facture.
-        MaintenanceController::storeAttachment(car_id, m_id, "/tmp/facture-ocunit.pdf")
-        var third:string = FakeDatabase::maintenanceRow(m_id)["attachment"]
+        // Les contrôles techniques acceptent aussi plusieurs justificatifs.
+        self::assertEquals("", MaintenanceController::storeAttachment(car_id, i_id, "/tmp/facture-ocunit.pdf"))
+        var third:string = FakeDatabase::maintenanceRow(i_id)["attachment"]
+        self::assertEquals(1, FakeDatabase::attachments(i_id).len())
         self::assertTrue(MaintenanceController::remove(car_id, m_id))
+        self::assertTrue(MaintenanceController::remove(car_id, i_id))
         self::assertFalse(File::exists("./" + third))
         FakeDatabase::cleanup()
         return 0

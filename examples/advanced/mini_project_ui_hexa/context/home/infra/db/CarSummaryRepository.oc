@@ -24,6 +24,8 @@ class CarSummaryRepository implements CarSummaryContract {
         var origin:string = row["origin"]
         var year:int = row["year"]
         var mileage:int = row["mileage"]
+        var distance_unit:string = row["distance_unit"]
+        var collection:int = row["is_collection"]
         return use CarSummaryEntity(
             id,
             reference,
@@ -35,7 +37,9 @@ class CarSummaryRepository implements CarSummaryContract {
             photo,
             origin,
             year,
-            mileage
+            mileage,
+            distance_unit,
+            collection equal 1
         )
     }
 

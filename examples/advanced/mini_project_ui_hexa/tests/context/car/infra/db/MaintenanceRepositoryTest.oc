@@ -1,5 +1,6 @@
 import ocara.UnitTest
 import context.car.domain.entity.MaintenanceEntity
+import context.car.domain.entity.MaintenanceAttachmentEntity
 import context.car.infra.db.MaintenanceRepository
 import tests.support.Fixture
 
@@ -37,6 +38,38 @@ class MaintenanceRepositoryTest extends UnitTest {
         self::assertEquals(car_id, m.car_id)
         self::assertEquals("Jantes", m.description)
         self::assertNull(MaintenanceRepository::find(-1))
+        Fixture::cleanup()
+        return 0
+    }
+
+    public method multipleAttachmentsTest(): int {
+        Fixture::reset()
+        const car_id:int = Fixture::car("MFILES", "Peugeot", "208", 9000.0)
+        const maintenance_id:int = MaintenanceRepository::create(
+            car_id, "technical_inspection", "", 0.0, "", 0, 0, "2026-03-10"
+        )
+        const first:int = MaintenanceRepository::addAttachment(maintenance_id, "uploads/report.pdf", "report.pdf")
+        const second:int = MaintenanceRepository::addAttachment(maintenance_id, "uploads/photo.jpg", "photo.jpg")
+        var files:array<MaintenanceAttachmentEntity> = MaintenanceRepository::attachments(maintenance_id)
+        self::assertEquals(2, files.len())
+        self::assertEquals(first, files[0].id)
+        self::assertEquals("uploads/report.pdf", files[0].path)
+        self::assertEquals(second, files[1].id)
+        consumed items:Resolvable<array<MaintenanceEntity>> = MaintenanceRepository::forCar(car_id)
+        const history:array<MaintenanceEntity> = resolve items
+        self::assertEquals(1, history.len())
+        self::assertEquals(2, history[0].attachments.len())
+        self::assertEquals("uploads/report.pdf", history[0].attachments[0].path)
+        const maintenance:MaintenanceEntity|null = MaintenanceRepository::find(maintenance_id)
+        self::assertNotNull(maintenance)
+        self::assertEquals(2, maintenance.attachments.len())
+        self::assertTrue(MaintenanceRepository::deleteAttachment(maintenance_id, first))
+        files = MaintenanceRepository::attachments(maintenance_id)
+        self::assertEquals(1, files.len())
+        self::assertEquals("uploads/photo.jpg", files[0].path)
+        self::assertFalse(MaintenanceRepository::deleteAttachment(maintenance_id, first))
+        MaintenanceRepository::clearAttachments(maintenance_id)
+        self::assertEquals(0, MaintenanceRepository::attachments(maintenance_id).len())
         Fixture::cleanup()
         return 0
     }

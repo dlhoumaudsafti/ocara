@@ -6,8 +6,9 @@ namespace context.car.domain.entity
 // celui-ci, pour ne pas dépendre du domaine d'un autre contexte.
 // `origin` : code ISO du pays d'origine ("" : non renseigné) ; `year` :
 // année du modèle (0 : non renseignée) ; `mileage` : compteur en kilomètres ;
-// `inspection_date` : prochain contrôle technique (AAAA-MM-JJ, "" : non
-// renseigné).
+// `mileage` est stocké en kilomètres ; l'unité d'affichage est propre au
+// véhicule. `inspection_date` conserve l'échéance historique des anciennes
+// bases ; la nouvelle échéance est calculée depuis `last_inspection_date`.
 
 class CarEntity {
     public property id:int|null
@@ -22,6 +23,9 @@ class CarEntity {
     public property sale_date:string
     public property mileage:int
     public property inspection_date:string
+    public property last_inspection_date:string
+    public property is_collection:bool
+    public property distance_unit:string
 
     init(
         id:int|null,
@@ -35,7 +39,10 @@ class CarEntity {
         acquisition_date:string,
         sale_date:string,
         mileage:int = 0,
-        inspection_date:string = ""
+        inspection_date:string = "",
+        last_inspection_date:string = "",
+        is_collection:bool = false,
+        distance_unit:string = "km"
     ) {
         self.id = id
         self.reference = reference
@@ -49,11 +56,18 @@ class CarEntity {
         self.sale_date = sale_date
         self.mileage = mileage
         self.inspection_date = inspection_date
+        self.last_inspection_date = last_inspection_date
+        self.is_collection = is_collection
+        self.distance_unit = distance_unit
     }
 
     // Pays d'origine proposés (codes ISO).
     public static method origins(): array<string> {
         return ["FR", "DE", "IT", "GB", "ES", "SE", "CZ", "US", "JP", "KR", "CN"]
+    }
+
+    public static method distanceUnits(): array<string> {
+        return ["km", "mi"]
     }
 
     // Première voiture de série : 1886 ; au plus l'an prochain (millésime).

@@ -6,7 +6,9 @@ namespace context.shared.infra.settings
 // (SettingsController), qui les garde en base ; valeurs par défaut sinon.
 
 const PREFERENCES:map<string, string> = {
-    "language": "fr", "currency": "EUR", "timezone": "Europe/Paris", "distance_unit": "km", "theme": "auto"
+    "language": "fr", "currency": "EUR", "timezone": "Europe/Paris", "distance_unit": "km", "theme": "auto",
+    "inspection_mode": "manual", "inspection_country": "", "ordinary_inspection_years": "2",
+    "collection_inspection_years": "5"
 }
 
 class Preferences {
@@ -33,17 +35,47 @@ class Preferences {
         return PREFERENCES["theme"]
     }
 
-    public static method apply(language:string, currency:string, timezone:string, distance_unit:string = "km", theme:string = "auto"): void {
+    public static method inspectionMode(): string {
+        return PREFERENCES["inspection_mode"]
+    }
+
+    public static method inspectionCountry(): string {
+        return PREFERENCES["inspection_country"]
+    }
+
+    public static method ordinaryInspectionYears(): int {
+        return PREFERENCES["ordinary_inspection_years"].toInt()
+    }
+
+    public static method collectionInspectionYears(): int {
+        return PREFERENCES["collection_inspection_years"].toInt()
+    }
+
+    public static method apply(
+        language:string,
+        currency:string,
+        timezone:string,
+        distance_unit:string = "km",
+        theme:string = "auto",
+        inspection_mode:string = "manual",
+        inspection_country:string = "",
+        ordinary_inspection_years:int = 2,
+        collection_inspection_years:int = 5
+    ): void {
         PREFERENCES["language"] = language
         PREFERENCES["currency"] = currency
         PREFERENCES["timezone"] = timezone
         PREFERENCES["distance_unit"] = distance_unit
         PREFERENCES["theme"] = theme
+        PREFERENCES["inspection_mode"] = inspection_mode
+        PREFERENCES["inspection_country"] = inspection_country
+        PREFERENCES["ordinary_inspection_years"] = ordinary_inspection_years.toStr()
+        PREFERENCES["collection_inspection_years"] = collection_inspection_years.toStr()
     }
 
     // Valeurs par défaut (premier lancement, tests).
     public static method reset(): void {
-        self::apply("fr", "EUR", "Europe/Paris", "km", "auto")
+        self::apply("fr", "EUR", "Europe/Paris", "km", "auto", "manual", "", 2, 5)
     }
 
     // Variables de texte qui dépendent des préférences (pas de la langue) :

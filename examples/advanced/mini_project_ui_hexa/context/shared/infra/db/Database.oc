@@ -70,13 +70,22 @@ class Database {
         if not self::hasColumn(db, "cars", "year") {
             db.execute("ALTER TABLE cars ADD COLUMN year INTEGER NOT NULL DEFAULT 0")
         }
-        // Compteur (en kilomètres, affiché dans l'unité des paramètres) et
+        // Compteur (en kilomètres, affiché dans l'unité du véhicule) et
         // date du contrôle technique ("" : non renseignée).
         if not self::hasColumn(db, "cars", "mileage") {
             db.execute("ALTER TABLE cars ADD COLUMN mileage INTEGER NOT NULL DEFAULT 0")
         }
         if not self::hasColumn(db, "cars", "inspection_date") {
             db.execute("ALTER TABLE cars ADD COLUMN inspection_date TEXT NOT NULL DEFAULT ''")
+        }
+        if not self::hasColumn(db, "cars", "last_inspection_date") {
+            db.execute("ALTER TABLE cars ADD COLUMN last_inspection_date TEXT NOT NULL DEFAULT ''")
+        }
+        if not self::hasColumn(db, "cars", "is_collection") {
+            db.execute("ALTER TABLE cars ADD COLUMN is_collection INTEGER NOT NULL DEFAULT 0")
+        }
+        if not self::hasColumn(db, "cars", "distance_unit") {
+            db.execute("ALTER TABLE cars ADD COLUMN distance_unit TEXT NOT NULL DEFAULT 'km'")
         }
         db.execute(`CREATE TABLE IF NOT EXISTS maintenances (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,13 +121,24 @@ class Database {
         if not self::hasColumn(db, "maintenances", "performed_on") {
             db.execute("ALTER TABLE maintenances ADD COLUMN performed_on TEXT NOT NULL DEFAULT ''")
         }
-        // Fichier joint (facture) : chemin dans ./uploads et nom d'origine.
+        // Compatibilité des anciens fichiers joints ; les nouvelles pièces
+        // sont stockées dans maintenance_attachments.
         if not self::hasColumn(db, "maintenances", "attachment") {
             db.execute("ALTER TABLE maintenances ADD COLUMN attachment TEXT NOT NULL DEFAULT ''")
         }
         if not self::hasColumn(db, "maintenances", "attachment_name") {
             db.execute("ALTER TABLE maintenances ADD COLUMN attachment_name TEXT NOT NULL DEFAULT ''")
         }
+        db.execute(`CREATE TABLE IF NOT EXISTS maintenance_attachments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            maintenance_id INTEGER NOT NULL,
+            path TEXT NOT NULL,
+            name TEXT NOT NULL DEFAULT '',
+            UNIQUE(maintenance_id, path),
+            FOREIGN KEY(maintenance_id) REFERENCES maintenances(id) ON DELETE CASCADE
+        )`)
+        db.execute(`INSERT OR IGNORE INTO maintenance_attachments (maintenance_id, path, name)
+            SELECT id, attachment, attachment_name FROM maintenances WHERE attachment != ''`)
         db.execute(`CREATE TABLE IF NOT EXISTS car_photos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             car_id INTEGER NOT NULL,

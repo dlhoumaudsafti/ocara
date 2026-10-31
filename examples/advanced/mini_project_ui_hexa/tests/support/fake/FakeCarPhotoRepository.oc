@@ -28,6 +28,10 @@ class FakeCarPhotoRepository implements CarPhotoContract {
         return FakeDatabase::setMainPhoto(car_id, photo_id)
     }
 
+    public static method deletePhoto(car_id:int, photo_id:int): bool {
+        return FakeDatabase::deletePhoto(car_id, photo_id)
+    }
+
     public static method deleteForCar(car_id:int): void {
         FakeDatabase::deletePhotos(car_id)
     }

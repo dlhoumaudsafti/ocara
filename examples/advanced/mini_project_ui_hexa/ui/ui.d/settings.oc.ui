@@ -51,7 +51,7 @@ screens:
                 - { value: Asia/Dubai, text: "Asia/Dubai (UTC+4)" }
                 - { value: Asia/Tokyo, text: "Asia/Tokyo (UTC+9)" }
             - { type: text, value: "${timezone_dst_hint}", style: muted }
-            - { type: label, text: "${field_distance_unit}" }
+            - { type: label, text: "${field_default_distance_unit}" }
             - type: select
               bind: settings.distance_unit
               onChange: save_settings
@@ -66,6 +66,50 @@ screens:
                 - { value: auto, text: "${theme_auto}" }
                 - { value: light, text: "${theme_light}" }
                 - { value: dark, text: "${theme_dark}" }
+        - type: card
+          spacing: 10
+          width: fill
+          children:
+            - { type: heading, level: 3, value: "${settings_inspection}" }
+            - { type: text, id: settings_inspection_mode, style: highlight }
+            - { type: label, text: "${field_inspection_mode}" }
+            - type: select
+              bind: settings.inspection_mode
+              onChange: save_settings
+              options:
+                - { value: manual, text: "${inspection_mode_manual}" }
+                - { value: country, text: "${inspection_mode_country}" }
+            - type: column
+              spacing: 8
+              binds: { visible: settings.manual_mode }
+              children:
+                - { type: label, text: "${ordinary_vehicle}" }
+                - { type: input, bind: settings.ordinary_inspection_years, kind: number, onBlur: save_settings }
+                - { type: label, text: "${collection_period_years}" }
+                - { type: input, bind: settings.collection_inspection_years, kind: number, onBlur: save_settings }
+            - type: column
+              spacing: 8
+              binds: { visible: settings.country_mode }
+              children:
+                - { type: label, text: "${field_inspection_country}" }
+                - type: select
+                  bind: settings.inspection_country
+                  onChange: save_settings
+                  options:
+                    - { value: "", text: "${origin_unknown}" }
+                    - { value: FR, text: "${country_FR}" }
+                    - { value: DE, text: "${country_DE}" }
+                    - { value: IT, text: "${country_IT}" }
+                    - { value: GB, text: "${country_GB}" }
+                    - { value: ES, text: "${country_ES}" }
+                    - { value: SE, text: "${country_SE}" }
+                    - { value: CZ, text: "${country_CZ}" }
+                    - { value: US, text: "${country_US}" }
+                    - { value: JP, text: "${country_JP}" }
+                    - { value: KR, text: "${country_KR}" }
+                    - { value: CN, text: "${country_CN}" }
+            - { type: text, id: settings_inspection_rules_status, style: muted }
+            - { type: text, id: settings_inspection_periods, style: muted }
         - type: card
           spacing: 6
           width: fill

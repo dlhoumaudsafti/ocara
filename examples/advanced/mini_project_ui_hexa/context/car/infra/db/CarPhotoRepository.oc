@@ -63,6 +63,38 @@ class CarPhotoRepository implements CarPhotoContract {
         return true
     }
 
+    public static method deletePhoto(car_id:int, photo_id:int): bool {
+        var deleted:bool = false
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            const row:map<string, mixed> = db.queryOne(
+                "SELECT path, main FROM car_photos WHERE id = :id AND car_id = :carId",
+                {"id": photo_id, "carId": car_id}
+            )
+            if row.size() equal 0 {
+                return
+            }
+            deleted = true
+            const path:string = row["path"]
+            const was_main:int = row["main"]
+            db.begin()
+            db.execute("DELETE FROM car_photos WHERE id = :id AND car_id = :carId", {"id": photo_id, "carId": car_id})
+            if was_main equal 1 {
+                db.execute("UPDATE car_photos SET main = 0 WHERE car_id = :carId", {"carId": car_id})
+                db.execute(
+                    `UPDATE car_photos SET main = 1 WHERE id = (
+                        SELECT id FROM car_photos WHERE car_id = :carId AND path != '' ORDER BY id LIMIT 1
+                    )`,
+                    {"carId": car_id}
+                )
+            }
+            db.commit()
+            if not path.empty() and File::exists("./" + path) {
+                File::remove("./" + path)
+            }
+        })
+        return deleted
+    }
+
     public static method deleteForCar(car_id:int): void {
         for photo in self::forCar(car_id) {
             var absolute_path:string = "./" + photo.path

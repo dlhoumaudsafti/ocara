@@ -111,21 +111,33 @@ class Format {
     }
 
     // « 12 345 km » / « 7,671 mi ».
-    public static method distance(km:int): string {
-        return self::grouped(self::toUnit(km), Preferences::language() equal "fr") + " " + Preferences::distanceUnit()
+    public static method distance(km:int, unit:string = ""): string {
+        var selected:string = unit
+        if selected.empty() {
+            selected = Preferences::distanceUnit()
+        }
+        return self::grouped(self::toUnit(km, selected), Preferences::language() equal "fr") + " " + selected
     }
 
     // Kilomètres → unité affichée (arrondi).
-    public static method toUnit(km:int): int {
-        if Preferences::distanceUnit() equal "mi" {
+    public static method toUnit(km:int, unit:string = ""): int {
+        var selected:string = unit
+        if selected.empty() {
+            selected = Preferences::distanceUnit()
+        }
+        if selected equal "mi" {
             return Math::round(km.toFloat() / 1.609344)
         }
         return km
     }
 
     // Unité affichée → kilomètres (arrondi).
-    public static method toKilometers(value:int): int {
-        if Preferences::distanceUnit() equal "mi" {
+    public static method toKilometers(value:int, unit:string = ""): int {
+        var selected:string = unit
+        if selected.empty() {
+            selected = Preferences::distanceUnit()
+        }
+        if selected equal "mi" {
             return Math::round(value.toFloat() * 1.609344)
         }
         return value

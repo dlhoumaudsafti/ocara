@@ -2,9 +2,10 @@ namespace context.car.domain.entity
 
 // `mileage` : relevé du compteur à l'intervention, en kilomètres (0 : aucun) ;
 // `performed_on` : date de l'intervention (AAAA-MM-JJ, "" : celle de
-// l'enregistrement, `created_at`) ; `attachment` : fichier joint (facture),
-// chemin dans ./uploads, et son nom d'origine. `type` : `maintenance`,
-// `improvement` ou `reading` (relevé du compteur seul, sans coût).
+// l'enregistrement, `created_at`) ; `attachment` et `attachment_name` gardent
+// la dernière pièce jointe pour compatibilité. `attachments` contient tous les
+// justificatifs. `type` : `maintenance`, `improvement`, `reading` ou
+// `technical_inspection`.
 
 class MaintenanceEntity {
     public property id:int|null
@@ -19,6 +20,7 @@ class MaintenanceEntity {
     public property performed_on:string
     public property attachment:string
     public property attachment_name:string
+    public property attachments:array<MaintenanceAttachmentEntity>
 
     init(
         id:int|null,
@@ -32,7 +34,8 @@ class MaintenanceEntity {
         mileage:int = 0,
         performed_on:string = "",
         attachment:string = "",
-        attachment_name:string = ""
+        attachment_name:string = "",
+        attachments:array<MaintenanceAttachmentEntity> = []
     ) {
         self.id = id
         self.car_id = car_id
@@ -46,14 +49,19 @@ class MaintenanceEntity {
         self.performed_on = performed_on
         self.attachment = attachment
         self.attachment_name = attachment_name
+        self.attachments = attachments
     }
 
     public static method types(): array<string> {
-        return ["maintenance", "improvement", "reading"]
+        return ["maintenance", "improvement", "reading", "technical_inspection"]
     }
 
     // Un relevé n'a ni coût ni facture.
     public method isReading(): bool {
         return self.type equal "reading"
+    }
+
+    public method isInspection(): bool {
+        return self.type equal "technical_inspection"
     }
 }

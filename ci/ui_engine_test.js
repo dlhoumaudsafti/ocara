@@ -149,9 +149,13 @@
   var placements = function (visible) {
     return sent.filter(function (m) { return m.webview === "page" && m.visible === visible; });
   };
-  OcaraUI.set("people", "items", [{ name: "Ada", city: "Londres" }, { name: "Alan", city: "Wilmslow" }]);
-  var rows = node("people").querySelectorAll(".oc-list-item");
+  OcaraUI.set("people", "items", [
+    { name: "Ada", city: "Londres", documents: [{ name: "Carte grise" }, { name: "Facture" }] },
+    { name: "Alan", city: "Wilmslow", documents: [{ name: "Rapport" }] }
+  ]);
+  var rows = node("people").querySelectorAll(":scope > .oc-list-item");
   check("liste remplie", rows.length === 2 && rows[1].textContent.indexOf("Wilmslow") >= 0);
+  check("liste imbriquée liée à l'élément", rows[0].textContent.indexOf("Carte grise") >= 0 && rows[0].textContent.indexOf("Facture") >= 0 && rows[1].textContent.indexOf("Rapport") >= 0);
   rows[1].click();
   check("onSelect", last().action === "open_person" && last().index === 1 && last().value.name === "Alan");
   check("surcharge android ignorée", q(".oc-card .oc-text:last-child").style.fontSize === "");

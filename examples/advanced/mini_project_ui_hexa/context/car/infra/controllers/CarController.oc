@@ -22,6 +22,8 @@ import context.car.infra.view.form.CarForm
 import context.car.infra.view.helpers.Flash
 import context.shared.infra.ui.Screen
 import context.shared.infra.i18n.Format
+import context.shared.infra.settings.Preferences
+import context.shared.infra.i18n.Language
 import context.car.infra.files.Upload
 
 const PHOTO_TYPES:array<string> = ["jpg", "png", "webp", "gif"]
@@ -44,6 +46,13 @@ class CarController {
     }
 
     public static method openId(ui:UI, id:int): void {
+        const car:CarEntity|null = CarContract::find(id)
+        if car is null {
+            ui.set("car_id", "value", id.toStr())
+            ui.navigate("car")
+            return
+        }
+        self::setDistanceUnit(ui, car.distance_unit)
         ui.set("car_id", "value", id.toStr())
         ui.navigate("car")
     }
@@ -90,6 +99,9 @@ class CarController {
     // Bouton flottant de l'accueil : panneau d'ajout, formulaire vide.
     public static method openNew(ui:UI, event:UIEvent, form:CarForm): void {
         form.clear()
+        form.distance_unit = Preferences::distanceUnit()
+        form.display_unit = form.distance_unit
+        self::setDistanceUnit(ui, form.distance_unit)
         Screen::error(ui, "home_error", "")
         ui.set("new_car_sheet", "open", true)
     }
@@ -114,7 +126,8 @@ class CarController {
             form.reference.trim(), form.brand.trim(), form.model.trim(), form.origin,
             self::year(form.year), self::number(form.purchase_price),
             form.acquisition_date.trim(), form.sale_date.trim(),
-            Format::toKilometers(self::count(form.mileage)), form.inspection_date.trim()
+            Format::toKilometers(self::count(form.mileage), form.distance_unit), form.inspection_date.trim(),
+            form.last_inspection_date.trim(), form.is_collection, form.distance_unit
         )
         form.clear()
         ui.set("new_car_sheet", "open", false)
@@ -153,13 +166,14 @@ class CarController {
         // Compteur inchangé à l'écran : la valeur en kilomètres reste exacte
         // (pas d'aller-retour arrondi par les miles).
         var mileage:int = before.mileage
-        if self::count(form.mileage) not equal self::shownMileage(before.mileage) {
-            mileage = Format::toKilometers(self::count(form.mileage))
+        if form.mileage not equal form.original_display_mileage {
+            mileage = Format::toKilometers(self::count(form.mileage), form.distance_unit)
         }
         const after:CarEntity = use CarEntity(
             id, form.reference.trim(), form.brand.trim(), form.model.trim(), form.origin,
             self::year(form.year), self::number(form.purchase_price), before.estimated_price,
-            form.acquisition_date.trim(), form.sale_date.trim(), mileage, form.inspection_date.trim()
+            form.acquisition_date.trim(), form.sale_date.trim(), mileage, form.inspection_date.trim(),
+            form.last_inspection_date.trim(), form.is_collection, form.distance_unit
         )
         if self::same(before, after) {
             return ""
@@ -187,6 +201,9 @@ class CarController {
         if not form.origin.empty() and not CarEntity::origins().contains(form.origin) {
             return "invalid_origin"
         }
+        if not CarEntity::distanceUnits().contains(form.distance_unit) {
+            return "invalid_distance_unit"
+        }
         if self::count(form.mileage) smaller 0 {
             return "invalid_mileage"
         }
@@ -194,15 +211,39 @@ class CarController {
         if not inspection.empty() and Format::parseDay(inspection) is null {
             return "invalid_date"
         }
+        const last_inspection:string = form.last_inspection_date.trim()
+        if not last_inspection.empty() and Format::parseDay(last_inspection) is null {
+            return "invalid_date"
+        }
         return ""
     }
 
-    // Compteur affiché (unité des paramètres) ; 0 sans compteur.
-    private static method shownMileage(km:int): int {
-        if km smaller or equal 0 {
-            return 0
+    public static method changeCarUnit(ui:UI, event:UIEvent, form:CarForm): void {
+        form.changeUnit(form.distance_unit)
+        const id:int = self::current(ui)
+        const error:string = self::update(id, form)
+        Screen::error(ui, "car_error", Flash::message(error))
+        if not error.empty() {
+            return
         }
-        return Format::toUnit(km)
+        self::setDistanceUnit(ui, form.distance_unit)
+        ui.set("car_mileage", "value", form.mileage)
+        ui.set("car_saved", "visible", true)
+    }
+
+    public static method changeNewCarUnit(ui:UI, event:UIEvent, form:CarForm): void {
+        form.changeUnit(form.distance_unit)
+        self::setDistanceUnit(ui, form.distance_unit)
+        ui.set("new_car_mileage", "value", form.mileage)
+    }
+
+    private static method setDistanceUnit(ui:UI, unit:string): void {
+        var vars:map<string, mixed> = Language::vars(Preferences::language())
+        for key has value in Preferences::vars() {
+            vars[key] = value
+        }
+        vars["distance_unit"] = unit
+        ui.setVars(vars)
     }
 
     // Nombre entier saisi (compteur, relevé) : 0 si vide, -1 si ce n'est pas
@@ -228,6 +269,8 @@ class CarController {
             and a.origin equal b.origin and a.year equal b.year and a.purchase_price equal b.purchase_price
             and a.acquisition_date equal b.acquisition_date and a.sale_date equal b.sale_date
             and a.mileage equal b.mileage and a.inspection_date equal b.inspection_date
+            and a.last_inspection_date equal b.last_inspection_date and a.is_collection equal b.is_collection
+            and a.distance_unit equal b.distance_unit
     }
 
     // Nombre saisi ; 0.0 si le texte n'en est pas un (refusé ensuite comme
@@ -284,7 +327,12 @@ class CarController {
     public static method remove(id:int): void {
         consumed maintenances:Resolvable<array<MaintenanceEntity>> = MaintenanceContract::forCar(id)
         for m in resolve maintenances {
-            Upload::remove(m.attachment)
+            for attachment in m.attachments {
+                Upload::remove(attachment.path)
+            }
+            if m.attachments.len() equal 0 and not m.attachment.empty() {
+                Upload::remove(m.attachment)
+            }
         }
         CarPhotoContract::deleteForCar(id)
         CarContract::delete(id)
@@ -329,10 +377,42 @@ class CarController {
         }
     }
 
+    public static method deletePhoto(ui:UI, event:UIEvent): void {
+        var row:map<string, mixed> = event.value()
+        var photo_id:int = row["id"]
+        self::deletePhotoById(ui, photo_id)
+    }
+
     // Photo de la galerie : en grand.
     public static method openPhoto(ui:UI, event:UIEvent): void {
         var row:map<string, mixed> = event.value()
-        ui.set("photo_full", "src", row["path"])
+        const path:string = row["path"]
+        const photo_id:int = row["id"]
+        ui.set("photo_full", "src", path)
+        ui.set("photo_id", "value", photo_id.toStr())
         ui.navigate("photo")
+    }
+
+    public static method deleteCurrentPhoto(ui:UI, event:UIEvent): void {
+        const photo_id:string = Screen::text(ui, "photo_id")
+        if photo_id.empty() {
+            ui.toast(Flash::message("not_found"))
+            return
+        }
+        self::deletePhotoById(ui, photo_id.toInt())
+    }
+
+    private static method deletePhotoById(ui:UI, photo_id:int): void {
+        if not ui.confirm("${confirm_title}", "${confirm_delete_photo}") {
+            return
+        }
+        const id:int = self::current(ui)
+        if not CarPhotoContract::deletePhoto(id, photo_id) {
+            ui.toast(Flash::message("not_found"))
+            return
+        }
+        ui.toast(Flash::message("photo_deleted"))
+        ui.navigate("car")
+        self::refresh(ui, id)
     }
 }

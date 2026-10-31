@@ -104,7 +104,9 @@ components:
   carFields:
     params:
       root: text
+      mileageInput: text
       save: { type: action, required: false }
+      unitChanged: { type: action, required: false }
     layout:
       type: column
       spacing: 8
@@ -158,13 +160,27 @@ components:
             - type: column
               weight: 1
               children:
-                - { type: label, text: "${field_price}" }
-                - { type: input, bind: $root.purchase_price, kind: number, placeholder: "8500", required: true, onBlur: $save }
+                - { type: label, text: "${field_distance_unit}" }
+                - type: select
+                  bind: $root.distance_unit
+                  onChange: $unitChanged
+                  options:
+                    - { value: km, text: "${unit_km}" }
+                    - { value: mi, text: "${unit_mi}" }
             - type: column
               weight: 1
               children:
                 - { type: label, text: "${field_mileage}" }
-                - { type: input, bind: $root.mileage, kind: number, placeholder: "120000", onBlur: $save }
+                - { type: input, id: $mileageInput, bind: $root.mileage, kind: number, placeholder: "120000", onBlur: $save }
+        - { type: checkbox, bind: $root.is_collection, label: "${collection_vehicle}", onChange: $save }
+        - type: row
+          spacing: 8
+          children:
+            - type: column
+              weight: 1
+              children:
+                - { type: label, text: "${field_price}" }
+                - { type: input, bind: $root.purchase_price, kind: number, placeholder: "8500", required: true, onBlur: $save }
         - type: row
           spacing: 8
           children:
@@ -178,8 +194,8 @@ components:
               children:
                 - { type: label, text: "${field_sale}" }
                 - { type: date, bind: $root.sale_date, placeholder: "${date_hint}", onChange: $save }
-        - { type: label, text: "${field_inspection}" }
-        - { type: date, bind: $root.inspection_date, placeholder: "${date_hint}", onChange: $save }
+        - { type: label, text: "${field_last_inspection}" }
+        - { type: date, bind: $root.last_inspection_date, placeholder: "${date_hint}", onChange: $save }
 
   # Ajout d'une voiture : panneau inférieur ouvert par le bouton flottant de
   # l'accueil ; champs obligatoires vérifiés avant l'action (`submit`).
@@ -198,7 +214,7 @@ components:
           children:
             - { type: heading, level: 3, value: "${add_car_title}" }
             - { type: text, id: home_error, style: error, visible: false }
-            - { type: carFields, root: new_car }
+            - { type: carFields, root: new_car, mileageInput: new_car_mileage, unitChanged: change_new_car_unit }
             - type: row
               spacing: 8
               children:
@@ -214,18 +230,33 @@ components:
       spacing: 6
       children:
         - type: row
-          spacing: 8
+          spacing: 10
+          align: start
           children:
-            - { type: text, bind: reference, style: card_ref }
-            - { type: text, bind: model_line, width: fill }
-            - { type: iconButton, icon: delete, label: "${delete_label}", tooltip: "${delete_label}", onClick: delete_car, color: "#c62828" }
-        - { type: text, bind: origin_line, style: muted, binds: { visible: has_origin_line } }
-        - type: row
-          spacing: 16
-          children:
-            - { type: cardFact, label: "${card_purchase}", value: { bind: purchase } }
-            - { type: cardFact, label: "${card_estimated}", value: { bind: estimated }, tone: highlight }
-            - { type: cardFact, label: "${card_maintenance}", value: { bind: maintenance } }
+            - type: stack
+              width: 76
+              height: 76
+              children:
+                - { type: icon, name: car, width: 76, height: 76, color: "#9e9e9e", background: "#eeeeee", padding: 22 }
+                - { type: image, bind: photo, label: "${photo_label}", width: 76, height: 76, fit: cover, radius: 4, binds: { visible: has_photo } }
+            - type: column
+              weight: 1
+              spacing: 5
+              children:
+                - type: row
+                  spacing: 6
+                  children:
+                    - { type: text, bind: reference, style: card_ref }
+                    - { type: text, bind: collection_label, bold: true, color: "#1565c0", binds: { visible: is_collection } }
+                    - { type: text, bind: model_line, width: fill }
+                    - { type: iconButton, icon: delete, label: "${delete_label}", tooltip: "${delete_label}", onClick: delete_car, color: "#c62828" }
+                - { type: text, bind: origin_line, style: muted, binds: { visible: has_origin_line } }
+                - type: row
+                  spacing: 10
+                  children:
+                    - { type: cardFact, label: "${card_purchase}", value: { bind: purchase } }
+                    - { type: cardFact, label: "${card_estimated}", value: { bind: estimated }, tone: highlight }
+                    - { type: cardFact, label: "${card_maintenance}", value: { bind: maintenance } }
 
   # Fiche : champs modifiables sur place (enregistrés en quittant un champ),
   # chiffres clés et suppression.
@@ -243,7 +274,7 @@ components:
         - { type: text, id: car_summary, style: muted }
         # Contrôle technique à faire bientôt, ou dépassé (CarView::inspection).
         - { type: text, id: car_inspection, color: "#ffffff", bold: true, padding: [4, 10], radius: 4, visible: false }
-        - { type: carFields, root: car, save: save_car }
+        - { type: carFields, root: car, save: save_car, mileageInput: car_mileage, unitChanged: change_car_unit }
         - type: grid
           columns: 2
           spacing: 10
@@ -278,6 +309,7 @@ components:
                 children:
                   - { type: iconButton, icon: star, label: "${main_photo_set}", tooltip: "${main_photo_set}", onClick: set_main_photo, binds: { color: star_color } }
                   - { type: text, value: "${main_photo}", style: muted, binds: { visible: main } }
+                  - { type: iconButton, icon: delete, label: "${delete_label}", tooltip: "${delete_label}", onClick: delete_photo, color: "#c62828" }
 
   # Entretien ajouté, ou modifié depuis l'historique (`maintenance.editing`).
   maintenanceForm:
@@ -297,6 +329,7 @@ components:
             - { value: maintenance, text: "${type_maintenance}" }
             - { value: improvement, text: "${type_improvement}" }
             - { value: reading, text: "${type_reading}" }
+            - { value: technical_inspection, text: "${type_technical_inspection}" }
         # Obligatoires selon le type (MaintenanceForm::applyType) : un relevé
         # n'a ni coût, ni durée de vie, ni source, mais un relevé du compteur.
         - { type: label, text: "${field_description}" }
@@ -373,11 +406,15 @@ components:
                   - { type: text, bind: date, style: muted }
                   - { type: text, bind: mileage, style: muted, binds: { visible: has_mileage } }
                   - { type: text, bind: source, style: muted, binds: { visible: has_source } }
-              # Facture jointe : ouverte dans l'application par défaut (link vers un fichier local).
-              - type: row
+              # Justificatifs joints : chacun peut être ouvert ou retiré séparément.
+              - type: list
+                id: attachments
                 spacing: 4
-                binds: { visible: has_attachment }
-                children:
-                  - { type: link, text: "${attachment}", binds: { text: attachment_name, url: attachment } }
-                  - { type: iconButton, icon: close, label: "${detach_label}", tooltip: "${detach_label}", onClick: detach_file }
+                binds: { items: attachments, visible: has_attachment }
+                item:
+                  type: row
+                  spacing: 4
+                  children:
+                    - { type: link, text: "${attachment}", binds: { text: name, url: path } }
+                    - { type: iconButton, icon: close, label: "${detach_label}", tooltip: "${detach_label}", onClick: detach_file }
               - { type: text, bind: warning, color: "#ffffff", padding: [2, 8], radius: 4, binds: { visible: has_warning, background: warning_color } }

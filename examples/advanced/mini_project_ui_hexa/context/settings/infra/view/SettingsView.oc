@@ -5,12 +5,34 @@ namespace context.settings.infra.view
 import context.settings.domain.entity.SettingsEntity
 import context.settings.app.port.SettingsViewPort
 import context.shared.infra.i18n.Format
+import context.shared.domain.entity.InspectionRules
 
 class SettingsView implements SettingsViewPort {
     public static method present(settings:SettingsEntity, now:int): map<string, map<string, mixed>> {
+        var periods:string = "${inspection_rules_unavailable}"
+        var mode:string = "${inspection_mode_manual}"
+        var rules:string = "${inspection_rules_manual}"
+        if settings.inspection_mode equal "manual" {
+            periods = "${ordinary_vehicle} : " + settings.ordinary_inspection_years.toStr() + " · "
+                + "${collection_vehicle} : " + settings.collection_inspection_years.toStr()
+        } else {
+            mode = "${inspection_mode_country}"
+            const normal:int|null = InspectionRules::years(settings.inspection_country, false)
+            const collection:int|null = InspectionRules::years(settings.inspection_country, true)
+            if normal is int and collection is int {
+                rules = "${inspection_rules_available}"
+                periods = "${ordinary_vehicle} : " + normal.toStr() + " · "
+                    + "${collection_vehicle} : " + collection.toStr()
+            } else {
+                rules = "${inspection_rules_unavailable}"
+            }
+        }
         return {
             "settings_price_example": {"value": Format::price(12345.6) + " · " + Format::distance(120000)},
             "settings_date_example": {"value": "${settings_now} : " + Format::dateTime(now) + " (" + settings.timezone + ")"},
+            "settings_inspection_periods": {"value": periods},
+            "settings_inspection_mode": {"value": mode},
+            "settings_inspection_rules_status": {"value": rules},
         }
     }
 }

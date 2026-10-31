@@ -1,0 +1,13 @@
+namespace context.shared.domain.entity
+// Source unique des périodicités par pays. Aucun pays n'est publié comme
+// disponible tant qu'une source réglementaire fiable n'a pas été vérifiée.
+
+class InspectionRules {
+    public static method years(country:string, collection:bool): int|null {
+        return null
+    }
+
+    public static method supportedCountries(): array<string> {
+        return []
+    }
+}

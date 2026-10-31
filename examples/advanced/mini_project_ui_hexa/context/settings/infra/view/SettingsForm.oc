@@ -2,6 +2,7 @@ namespace context.settings.infra.view
 // Choix de l'écran `settings`, liés à l'interface (racine `settings`).
 
 import context.settings.domain.entity.SettingsEntity
+import context.shared.domain.entity.InspectionRules
 
 class SettingsForm {
     public property language:string = "fr"
@@ -9,6 +10,13 @@ class SettingsForm {
     public property timezone:string = "Europe/Paris"
     public property distance_unit:string = "km"
     public property theme:string = "auto"
+    public property inspection_mode:string = "manual"
+    public property inspection_country:string = ""
+    public property ordinary_inspection_years:string = "2"
+    public property collection_inspection_years:string = "5"
+    public property manual_mode:bool = true
+    public property country_mode:bool = false
+    public property country_rules_available:bool = false
 
     public method load(settings:SettingsEntity): void {
         self.language = settings.language
@@ -16,5 +24,17 @@ class SettingsForm {
         self.timezone = settings.timezone
         self.distance_unit = settings.distance_unit
         self.theme = settings.theme
+        self.inspection_mode = settings.inspection_mode
+        self.inspection_country = settings.inspection_country
+        self.ordinary_inspection_years = settings.ordinary_inspection_years.toStr()
+        self.collection_inspection_years = settings.collection_inspection_years.toStr()
+        self.applyMode()
+    }
+
+    public method applyMode(): void {
+        self.manual_mode = self.inspection_mode equal "manual"
+        self.country_mode = self.inspection_mode equal "country"
+        self.country_rules_available = self.country_mode
+            and InspectionRules::supportedCountries().contains(self.inspection_country)
     }
 }

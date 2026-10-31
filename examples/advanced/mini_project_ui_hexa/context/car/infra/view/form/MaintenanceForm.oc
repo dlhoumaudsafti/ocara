@@ -3,7 +3,7 @@ namespace context.car.infra.view.form
 // `maintenance`, ui/ui.d/components.oc.ui `maintenanceForm`) : ajout
 // (`id` 0), ou modification d'un entretien de l'historique. `adding` et
 // `editing` montrent les titres et boutons de chaque cas. `mileage` : relevé
-// du compteur dans l'unité des paramètres ; `performed_on` vide : aujourd'hui.
+// du compteur dans l'unité du véhicule ; `performed_on` vide : aujourd'hui.
 
 import context.car.domain.entity.MaintenanceEntity
 import context.shared.infra.i18n.Format
@@ -23,9 +23,13 @@ class MaintenanceForm {
     // amélioration ; relevé obligatoire pour un relevé du compteur.
     public property needs_cost:bool = true
     public property is_reading:bool = false
+    public property is_inspection:bool = false
+    public property distance_unit:string = "km"
+    public property original_mileage:int = 0
+    public property original_display_mileage:string = ""
 
     // Entretien de l'historique à corriger.
-    public method load(m:MaintenanceEntity): void {
+    public method load(m:MaintenanceEntity, unit:string = "km"): void {
         self.id = 0
         if m.id is int {
             self.id = m.id
@@ -39,9 +43,12 @@ class MaintenanceForm {
             self.lifespan_days = m.lifespan_days.toStr()
         }
         self.mileage = ""
+        self.original_mileage = m.mileage
         if m.mileage greater 0 {
-            self.mileage = Format::toUnit(m.mileage).toStr()
+            self.mileage = Format::toUnit(m.mileage, unit).toStr()
         }
+        self.distance_unit = unit
+        self.original_display_mileage = self.mileage
         self.performed_on = m.performed_on
         self.adding = false
         self.editing = true
@@ -51,7 +58,8 @@ class MaintenanceForm {
     // Type choisi : champs montrés et obligatoires.
     public method applyType(): void {
         self.is_reading = self.type equal "reading"
-        self.needs_cost = not self.is_reading
+        self.is_inspection = self.type equal "technical_inspection"
+        self.needs_cost = not self.is_reading and not self.is_inspection
     }
 
     // Formulaire vide, prêt pour un ajout.
@@ -63,6 +71,9 @@ class MaintenanceForm {
         self.material_source = ""
         self.lifespan_days = ""
         self.mileage = ""
+        self.original_mileage = 0
+        self.original_display_mileage = ""
+        self.distance_unit = "km"
         self.performed_on = ""
         self.adding = true
         self.editing = false

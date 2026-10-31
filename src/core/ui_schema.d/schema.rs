@@ -152,6 +152,7 @@ const PROGRESS: &[(&str, Ty)] = &[("value", Ty::Number(0.0, 1.0))];
 pub const LIST_DIRECTIONS: &[&str] = &["ltr", "rtl", "ltr-snake", "rtl-snake"];
 const LIST: &[(&str, Ty)] = &[
     ("item", Ty::Node),
+    ("items", Ty::Menu),
     ("display", Ty::Enum(&["list", "grid"])),
     ("itemWidth", Ty::Number(1.0, 10_000.0)),
     ("minColumns", Ty::Int(1, 64)),

@@ -9,7 +9,10 @@ import ocara.Math
 import context.car.app.dto.CarDetailsDTO
 import context.car.app.port.CarViewPort
 import context.car.domain.entity.MaintenanceEntity
+import context.car.domain.entity.CarEntity
 import context.shared.infra.i18n.Format
+import context.shared.infra.settings.Preferences
+import context.car.app.usecase.InspectionSchedule
 
 class CarView implements CarViewPort {
     // Les champs de la voiture sont liés au formulaire (CarForm) ; la vue
@@ -17,7 +20,7 @@ class CarView implements CarViewPort {
     public static method present(details:CarDetailsDTO): map<string, map<string, mixed>> {
         var rows:array<map<string, mixed>> = []
         for m in details.maintenances {
-            rows.push(self::row(m))
+            rows.push(self::row(m, details.car.distance_unit))
         }
         // La principale d'abord (étoile jaune) ; sans principale, la première.
         var photos:array<map<string, mixed>> = []
@@ -41,7 +44,7 @@ class CarView implements CarViewPort {
             "car_id": {"value": id},
             "car_error": {"visible": false},
             "car_summary": {"value": self::summary(details)},
-            "car_inspection": self::inspection(details.car.inspection_date, DateTime::now()),
+            "car_inspection": self::inspectionForCar(details.car, DateTime::now()),
             "car_purchase.value": {"value": Format::price(details.car.purchase_price)},
             "car_estimated.value": {"value": Format::price(details.car.estimated_price)},
             "car_maintenance_total.value": {"value": Format::price(details.maintenance_total)},
@@ -64,7 +67,7 @@ class CarView implements CarViewPort {
             parts.push(details.car.year.toStr())
         }
         if details.car.mileage greater 0 {
-            parts.push(Format::distance(details.car.mileage))
+            parts.push(Format::distance(details.car.mileage, details.car.distance_unit))
         }
         var acquisition:string = details.car.acquisition_date
         var sale:string = details.car.sale_date
@@ -103,10 +106,50 @@ class CarView implements CarViewPort {
         return {"visible": false}
     }
 
+    public static method inspectionForCar(car:CarEntity, now:int): map<string, mixed> {
+        var next:string = InspectionSchedule::next(
+            car.last_inspection_date,
+            Preferences::inspectionMode(),
+            Preferences::inspectionCountry(),
+            Preferences::ordinaryInspectionYears(),
+            Preferences::collectionInspectionYears(),
+            car.is_collection
+        )
+        if car.last_inspection_date.empty() {
+            next = car.inspection_date
+        }
+        var value:string = ""
+        if not car.last_inspection_date.empty() {
+            value = "${last_inspection_label} : " + Format::day(car.last_inspection_date)
+        }
+        if not next.empty() {
+            if not value.empty() {
+                value += " · "
+            }
+            value += "${next_inspection_label} : " + Format::day(next)
+        } else {
+            if not car.last_inspection_date.empty() {
+                if not value.empty() {
+                    value += " · "
+                }
+                value += "${inspection_rules_unavailable}"
+            }
+        }
+        const alert:map<string, mixed> = self::inspection(next, now)
+        var background:string = ""
+        if alert["visible"] equal true {
+            background = alert["background"]
+        }
+        if value.empty() and alert["visible"] equal true {
+            value = alert["value"]
+        }
+        return {"visible": not value.empty(), "value": value, "background": background}
+    }
+
     // Ligne d'historique : badge, source, et alerte de remplacement quand la
     // durée de vie expire dans moins de 90 jours (orange vers rouge, rouge
     // une fois dépassée) — même règle que mini_project_hexa.
-    private static method row(m:MaintenanceEntity): map<string, mixed> {
+    private static method row(m:MaintenanceEntity, unit:string): map<string, mixed> {
         var warning:string = ""
         var warning_color:string = ""
         // Jour de l'intervention (sinon celui de son enregistrement).
@@ -133,24 +176,48 @@ class CarView implements CarViewPort {
         if not m.material_source.empty() {
             source = "${source_label} : " + m.material_source
         }
+        var attachments:array<map<string, mixed>> = []
+        for attachment in m.attachments {
+            attachments.push({
+                "id": attachment.id,
+                "maintenance_id": attachment.maintenance_id,
+                "path": attachment.path,
+                "name": attachment.name,
+            })
+        }
+        if attachments.len() equal 0 and not m.attachment.empty() {
+            attachments.push({
+                "id": 0,
+                "maintenance_id": m.id,
+                "path": m.attachment,
+                "name": m.attachment_name,
+            })
+        }
         return {
             "id": m.id,
             "badge": match m.type {
                 "improvement" => "${badge_improvement}"
                 "reading" => "${badge_reading}"
+                "technical_inspection" => "${badge_technical_inspection}"
                 default => "${badge_maintenance}"
             },
-            "badge_color": match m.type { "improvement" => "#8e24aa" "reading" => "#00838f" default => "#b8860b" },
+            "badge_color": match m.type {
+                "improvement" => "#8e24aa"
+                "reading" => "#00838f"
+                "technical_inspection" => "#1565c0"
+                default => "#b8860b"
+            },
             "description": m.description,
             "cost": Format::price(m.cost),
-            "has_cost": not m.isReading(),
+            "has_cost": not m.isReading() and not m.isInspection(),
             // Facture : relevé exclu ; lien ouvert dans l'application par défaut.
             "can_attach": not m.isReading(),
             "attachment": m.attachment,
             "attachment_name": m.attachment_name,
-            "has_attachment": not m.attachment.empty(),
+            "attachments": attachments,
+            "has_attachment": attachments.len() greater 0,
             "date": self::date(m),
-            "mileage": self::reading(m),
+            "mileage": self::reading(m, unit),
             "has_mileage": m.mileage greater 0,
             "source": source,
             "has_source": not source.empty(),
@@ -168,11 +235,11 @@ class CarView implements CarViewPort {
     }
 
     // « Relevé : 45 000 km » ; "" sans relevé.
-    private static method reading(m:MaintenanceEntity): string {
+    private static method reading(m:MaintenanceEntity, unit:string): string {
         if m.mileage smaller or equal 0 {
             return ""
         }
-        return "${reading_label} : " + Format::distance(m.mileage)
+        return "${reading_label} : " + Format::distance(m.mileage, unit)
     }
 
     // Deux chiffres hexadécimaux d'une composante de couleur (0 à 255).

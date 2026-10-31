@@ -16,13 +16,17 @@ interface CarContract {
         acquisition_date:string,
         sale_date       :string,
         mileage         :int,
-        inspection_date :string
+        inspection_date :string,
+        last_inspection_date:string = "",
+        is_collection:bool = false,
+        distance_unit:string = "km"
     ): int
     // Champs modifiables de la fiche (pas le prix de vente estimé, recalculé
     // par PricingService).
     public static method update(car:CarEntity): void
     // Compteur mis à jour par le dernier relevé d'un entretien (MileageService).
     public static method updateMileage(id:int, mileage:int): void
+    public static method updateLastInspectionDate(id:int, date:string): void
     public static method updateEstimatedPrice(id:int, new_price:float): void
     public static method delete(id:int): void
 }

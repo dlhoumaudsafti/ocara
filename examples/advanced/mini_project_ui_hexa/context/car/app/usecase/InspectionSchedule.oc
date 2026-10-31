@@ -1,0 +1,54 @@
+namespace context.car.app.usecase
+
+import ocara.Date
+import ocara.DateTime
+import ocara.DateTimeException
+import context.shared.domain.entity.InspectionRules
+
+class InspectionSchedule {
+    public static method years(mode:string, country:string, ordinary_years:int, collection_years:int, collection:bool): int|null {
+        if mode equal "country" {
+            return InspectionRules::years(country, collection)
+        }
+        if collection {
+            return collection_years
+        }
+        return ordinary_years
+    }
+
+    public static method next(
+        last_date:string,
+        mode:string,
+        country:string,
+        ordinary_years:int,
+        collection_years:int,
+        collection:bool
+    ): string {
+        const period:int|null = self::years(mode, country, ordinary_years, collection_years, collection)
+        var timestamp:int|null = null
+        try {
+            timestamp = DateTime::parse(last_date + "T00:00:00")
+        } on e is DateTimeException {
+            return ""
+        }
+        if period is null or timestamp is null {
+            return ""
+        }
+        const year:int = DateTime::year(timestamp) + period
+        const month:int = DateTime::month(timestamp)
+        var day:int = DateTime::day(timestamp)
+        const month_days:int = Date::daysInMonth(year, month)
+        if day greater month_days {
+            day = month_days
+        }
+        var mm:string = month.toStr()
+        var dd:string = day.toStr()
+        if month smaller 10 {
+            mm = "0" + mm
+        }
+        if day smaller 10 {
+            dd = "0" + dd
+        }
+        return year.toStr() + "-" + mm + "-" + dd
+    }
+}

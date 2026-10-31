@@ -16,6 +16,9 @@ class CarSearchResultEntity {
     public property year:int
     // Compteur, en kilomètres (0 : non renseigné).
     public property mileage:int
+    public property distance_unit:string
+    public property is_collection:bool
+    public property photo:string
 
     init(
         id:int,
@@ -27,7 +30,10 @@ class CarSearchResultEntity {
         maintenance_total:float,
         origin:string = "",
         year:int = 0,
-        mileage:int = 0
+        mileage:int = 0,
+        distance_unit:string = "km",
+        is_collection:bool = false,
+        photo:string = ""
     ) {
         self.id = id
         self.reference = reference
@@ -39,5 +45,8 @@ class CarSearchResultEntity {
         self.origin = origin
         self.year = year
         self.mileage = mileage
+        self.distance_unit = distance_unit
+        self.is_collection = is_collection
+        self.photo = photo
     }
 }

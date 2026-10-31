@@ -1,0 +1,15 @@
+namespace context.car.domain.entity
+
+class MaintenanceAttachmentEntity {
+    public property id:int
+    public property maintenance_id:int
+    public property path:string
+    public property name:string
+
+    init(id:int, maintenance_id:int, path:string, name:string) {
+        self.id = id
+        self.maintenance_id = maintenance_id
+        self.path = path
+        self.name = name
+    }
+}

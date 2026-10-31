@@ -8,6 +8,7 @@ namespace context.settings.infra.controllers
 import ocara.UI
 import ocara.UIEvent
 import ocara.DateTime
+import ocara.ConvertException
 import context.settings.domain.entity.SettingsEntity
 import context.settings.app.usecase.SettingsService
 import context.settings.app.port.SettingsViewPort
@@ -21,7 +22,11 @@ class SettingsController {
     // Démarrage : préférences enregistrées appliquées.
     public static method boot(): void {
         const settings:SettingsEntity = SettingsService::load()
-        Preferences::apply(settings.language, settings.currency, settings.timezone, settings.distance_unit, settings.theme)
+        Preferences::apply(
+            settings.language, settings.currency, settings.timezone, settings.distance_unit, settings.theme,
+            settings.inspection_mode, settings.inspection_country, settings.ordinary_inspection_years,
+            settings.collection_inspection_years
+        )
     }
 
     // Textes de l'interface dans la langue choisie, unité de distance comprise.
@@ -46,17 +51,23 @@ class SettingsController {
 
     // Rend vrai si les préférences du formulaire sont enregistrées.
     public static method apply(ui:UI, form:SettingsForm): bool {
+        form.applyMode()
         const language:string = Preferences::language()
         const unit:string = Preferences::distanceUnit()
         const theme:string = Preferences::theme()
         const settings:SettingsEntity|null = SettingsService::update(
-            form.language, form.currency, form.timezone, form.distance_unit, form.theme
+            form.language, form.currency, form.timezone, form.distance_unit, form.theme, form.inspection_mode,
+            form.inspection_country, self::years(form.ordinary_inspection_years), self::years(form.collection_inspection_years)
         )
         if settings is null {
             ui.toast("${flash_invalid_settings}")
             return false
         }
-        Preferences::apply(settings.language, settings.currency, settings.timezone, settings.distance_unit, settings.theme)
+        Preferences::apply(
+            settings.language, settings.currency, settings.timezone, settings.distance_unit, settings.theme,
+            settings.inspection_mode, settings.inspection_country, settings.ordinary_inspection_years,
+            settings.collection_inspection_years
+        )
         if settings.language not equal language or settings.distance_unit not equal unit {
             ui.setVars(self::vars())
         }
@@ -66,5 +77,13 @@ class SettingsController {
         Screen::apply(ui, SettingsViewPort::present(settings, DateTime::now()))
         ui.toast("${flash_settings_saved}")
         return true
+    }
+
+    private static method years(value:string): int {
+        try {
+            return value.trim().toInt()
+        } on e is ConvertException {
+            return 0
+        }
     }
 }

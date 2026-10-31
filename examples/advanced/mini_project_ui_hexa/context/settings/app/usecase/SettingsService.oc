@@ -25,12 +25,37 @@ class SettingsService {
         if not SettingsEntity::themes().contains(settings.theme) {
             settings.theme = defaults.theme
         }
+        if not SettingsEntity::inspectionModes().contains(settings.inspection_mode) {
+            settings.inspection_mode = defaults.inspection_mode
+        }
+        if not SettingsEntity::inspectionCountries().contains(settings.inspection_country) {
+            settings.inspection_country = defaults.inspection_country
+        }
+        if settings.ordinary_inspection_years smaller 1 or settings.ordinary_inspection_years greater 20 {
+            settings.ordinary_inspection_years = defaults.ordinary_inspection_years
+        }
+        if settings.collection_inspection_years smaller 1 or settings.collection_inspection_years greater 20 {
+            settings.collection_inspection_years = defaults.collection_inspection_years
+        }
         return settings
     }
 
     // Enregistre les préférences ; `null` si l'une n'est pas proposée.
-    public static method update(language:string, currency:string, timezone:string, distance_unit:string, theme:string): SettingsEntity|null {
-        const settings:SettingsEntity = use SettingsEntity(language, currency, timezone, distance_unit, theme)
+    public static method update(
+        language:string,
+        currency:string,
+        timezone:string,
+        distance_unit:string,
+        theme:string,
+        inspection_mode:string = "manual",
+        inspection_country:string = "",
+        ordinary_inspection_years:int = 2,
+        collection_inspection_years:int = 5
+    ): SettingsEntity|null {
+        const settings:SettingsEntity = use SettingsEntity(
+            language, currency, timezone, distance_unit, theme, inspection_mode, inspection_country,
+            ordinary_inspection_years, collection_inspection_years
+        )
         if not settings.valid() {
             return null
         }

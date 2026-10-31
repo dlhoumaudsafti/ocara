@@ -9,13 +9,31 @@ class SettingsEntity {
     public property timezone:string
     public property distance_unit:string
     public property theme:string
+    public property inspection_mode:string
+    public property inspection_country:string
+    public property ordinary_inspection_years:int
+    public property collection_inspection_years:int
 
-    init(language:string, currency:string, timezone:string, distance_unit:string = "km", theme:string = "auto") {
+    init(
+        language:string,
+        currency:string,
+        timezone:string,
+        distance_unit:string = "km",
+        theme:string = "auto",
+        inspection_mode:string = "manual",
+        inspection_country:string = "",
+        ordinary_inspection_years:int = 2,
+        collection_inspection_years:int = 5
+    ) {
         self.language = language
         self.currency = currency
         self.timezone = timezone
         self.distance_unit = distance_unit
         self.theme = theme
+        self.inspection_mode = inspection_mode
+        self.inspection_country = inspection_country
+        self.ordinary_inspection_years = ordinary_inspection_years
+        self.collection_inspection_years = collection_inspection_years
     }
 
     public static method defaults(): SettingsEntity {
@@ -29,6 +47,14 @@ class SettingsEntity {
     // `auto` : celui du système.
     public static method themes(): array<string> {
         return ["auto", "light", "dark"]
+    }
+
+    public static method inspectionModes(): array<string> {
+        return ["manual", "country"]
+    }
+
+    public static method inspectionCountries(): array<string> {
+        return ["FR", "DE", "IT", "GB", "ES", "SE", "CZ", "US", "JP", "KR", "CN"]
     }
 
     public static method languages(): array<string> {
@@ -53,5 +79,9 @@ class SettingsEntity {
             and SettingsEntity::timezones().contains(self.timezone)
             and SettingsEntity::distanceUnits().contains(self.distance_unit)
             and SettingsEntity::themes().contains(self.theme)
+            and SettingsEntity::inspectionModes().contains(self.inspection_mode)
+            and (self.inspection_country.empty() or SettingsEntity::inspectionCountries().contains(self.inspection_country))
+            and self.ordinary_inspection_years greater 0 and self.ordinary_inspection_years smaller or equal 20
+            and self.collection_inspection_years greater 0 and self.collection_inspection_years smaller or equal 20
     }
 }

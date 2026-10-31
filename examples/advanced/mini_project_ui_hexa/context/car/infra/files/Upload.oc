@@ -6,6 +6,7 @@ namespace context.car.infra.files
 
 import ocara.File
 import ocara.Directory
+import ocara.DateTime
 
 class Upload {
 
@@ -46,6 +47,22 @@ class Upload {
         const path:string = "uploads/" + name + "." + extension
         File::writeBytes("./" + path, File::readBytes(source))
         return path
+    }
+
+    // Copie avec un nom disponible, sans écraser un justificatif existant.
+    public static method storeUnique(source:string, extension:string, prefix:string): string {
+        Directory::createRecursive("./uploads")
+        var index:int = 1
+        while true {
+            const name:string = prefix + "-" + DateTime::now().toStr() + "-" + index.toStr()
+            const path:string = "uploads/" + name + "." + extension
+            if not File::exists("./" + path) {
+                File::writeBytes("./" + path, File::readBytes(source))
+                return path
+            }
+            index += 1
+        }
+        return ""
     }
 
     // Nom de fichier de `path` (dernier segment).

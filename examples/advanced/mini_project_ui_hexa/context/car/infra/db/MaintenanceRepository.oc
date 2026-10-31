@@ -13,11 +13,19 @@ import ocara.SQLite
 import ocara.DateTime
 import context.shared.infra.db.Database
 import context.car.domain.entity.MaintenanceEntity
+import context.car.domain.entity.MaintenanceAttachmentEntity
 import context.car.domain.contract.MaintenanceContract
 
 class MaintenanceRepository implements MaintenanceContract {
 
     private static method fromRow(row:map<string, mixed>): MaintenanceEntity {
+        return self::fromRowWithAttachments(row, self::attachments(row["id"]))
+    }
+
+    private static method fromRowWithAttachments(
+        row:map<string, mixed>,
+        attachments:array<MaintenanceAttachmentEntity>
+    ): MaintenanceEntity {
         var id:int = row["id"]
         var car_id:int = row["car_id"]
         var type:string = row["type"]
@@ -30,10 +38,33 @@ class MaintenanceRepository implements MaintenanceContract {
         var performed_on:string = row["performed_on"]
         var attachment:string = row["attachment"]
         var attachment_name:string = row["attachment_name"]
-        return use MaintenanceEntity(
+        var maintenance:MaintenanceEntity = use MaintenanceEntity(
             id, car_id, type, description, cost, material_source, lifespan_days, created_at,
             mileage, performed_on, attachment, attachment_name
         )
+        maintenance.attachments = attachments
+        if maintenance.attachments.len() equal 0 and not attachment.empty() {
+            maintenance.attachments.push(use MaintenanceAttachmentEntity(0, id, attachment, attachment_name))
+        }
+        return maintenance
+    }
+
+    public static method attachments(maintenance_id:int): array<MaintenanceAttachmentEntity> {
+        const db:SQLite = Database::connect()
+        const rows:array<map<string, mixed>> = db.query(
+            "SELECT id, maintenance_id, path, name FROM maintenance_attachments WHERE maintenance_id = :id ORDER BY id",
+            {"id": maintenance_id}
+        )
+        db.close()
+        var items:array<MaintenanceAttachmentEntity> = []
+        for row in rows {
+            var id:int = row["id"]
+            var owner:int = row["maintenance_id"]
+            var path:string = row["path"]
+            var name:string = row["name"]
+            items.push(use MaintenanceAttachmentEntity(id, owner, path, name))
+        }
+        return items
     }
 
     public static method find(id:int): MaintenanceEntity|null {
@@ -61,10 +92,40 @@ class MaintenanceRepository implements MaintenanceContract {
             ORDER BY COALESCE(NULLIF(performed_on, ''), date(created_at, 'unixepoch')) DESC, id DESC`,
             {"carId": car_id}
         )
+        consumed attachment_rows:array<map<string, mixed>> = db.query(
+            `SELECT a.id, a.maintenance_id, a.path, a.name
+            FROM maintenance_attachments a
+            INNER JOIN maintenances m ON m.id = a.maintenance_id
+            WHERE m.car_id = :carId
+            ORDER BY a.maintenance_id, a.id`,
+            {"carId": car_id}
+        )
         db.close()
+        var attachments_by_maintenance:map<string, array<MaintenanceAttachmentEntity>> = {}
+        for row in attachment_rows {
+            var id:int = row["maintenance_id"]
+            const key:string = id.toStr()
+            if not attachments_by_maintenance.has(key) {
+                attachments_by_maintenance[key] = []
+            }
+            var attachments:array<MaintenanceAttachmentEntity> = attachments_by_maintenance[key]
+            var attachment_id:int = row["id"]
+            var path:string = row["path"]
+            var name:string = row["name"]
+            attachments.push(use MaintenanceAttachmentEntity(
+                attachment_id, id, path, name
+            ))
+            attachments_by_maintenance[key] = attachments
+        }
         var items:array<MaintenanceEntity> = []
         for row in rows {
-            items.push(self::fromRow(row))
+            var id:int = row["id"]
+            var attachments:array<MaintenanceAttachmentEntity> = []
+            const key:string = id.toStr()
+            if attachments_by_maintenance.has(key) {
+                attachments = attachments_by_maintenance[key]
+            }
+            items.push(self::fromRowWithAttachments(row, attachments))
         }
         return items
     }
@@ -142,10 +203,76 @@ class MaintenanceRepository implements MaintenanceContract {
         })
     }
 
+    public static method addAttachment(maintenance_id:int, path:string, name:string): int {
+        var id:int = 0
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.begin()
+            db.execute(
+                "INSERT INTO maintenance_attachments (maintenance_id, path, name) VALUES (:id, :path, :name)",
+                {"id": maintenance_id, "path": path, "name": name}
+            )
+            id = db.lastInsertId()
+            db.execute(
+                "UPDATE maintenances SET attachment = :path, attachment_name = :name WHERE id = :id",
+                {"path": path, "name": name, "id": maintenance_id}
+            )
+            db.commit()
+        })
+        return id
+    }
+
+    public static method deleteAttachment(maintenance_id:int, attachment_id:int): bool {
+        var deleted:bool = false
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            const row:map<string, mixed> = db.queryOne(
+                "SELECT id FROM maintenance_attachments WHERE id = :attachmentId AND maintenance_id = :maintenanceId",
+                {"attachmentId": attachment_id, "maintenanceId": maintenance_id}
+            )
+            if row.size() equal 0 {
+                return
+            }
+            db.begin()
+            db.execute(
+                "DELETE FROM maintenance_attachments WHERE id = :attachmentId AND maintenance_id = :maintenanceId",
+                {"attachmentId": attachment_id, "maintenanceId": maintenance_id}
+            )
+            const latest:map<string, mixed> = db.queryOne(
+                "SELECT path, name FROM maintenance_attachments WHERE maintenance_id = :id ORDER BY id DESC LIMIT 1",
+                {"id": maintenance_id}
+            )
+            var path:string = ""
+            var name:string = ""
+            if latest.size() greater 0 {
+                path = latest["path"]
+                name = latest["name"]
+            }
+            db.execute(
+                "UPDATE maintenances SET attachment = :path, attachment_name = :name WHERE id = :id",
+                {"path": path, "name": name, "id": maintenance_id}
+            )
+            db.commit()
+            deleted = true
+        })
+        return deleted
+    }
+
+    public static method clearAttachments(maintenance_id:int): void {
+        SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
+            db.begin()
+            db.execute("DELETE FROM maintenance_attachments WHERE maintenance_id = :id", {"id": maintenance_id})
+            db.execute(
+                "UPDATE maintenances SET attachment = '', attachment_name = '' WHERE id = :id",
+                {"id": maintenance_id}
+            )
+            db.commit()
+        })
+    }
+
     public static method delete(id:int): void {
         SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
-            db.prepare("DELETE FROM maintenances WHERE id = :id")
-            db.bind({"id": id})
+            db.begin()
+            db.execute("DELETE FROM maintenance_attachments WHERE maintenance_id = :id", {"id": id})
+            db.execute("DELETE FROM maintenances WHERE id = :id", {"id": id})
             db.commit()
         })
     }
@@ -159,6 +286,24 @@ class MaintenanceRepository implements MaintenanceContract {
                 COALESCE(lifespan_days, 0) AS lifespan_days, mileage, performed_on, attachment, attachment_name
             FROM maintenances
             WHERE car_id = :carId AND mileage > 0
+            ORDER BY COALESCE(NULLIF(performed_on, ''), date(created_at, 'unixepoch')) DESC, id DESC
+            LIMIT 1`,
+            {"carId": car_id}
+        )
+        db.close()
+        if row.size() equal 0 {
+            return null
+        }
+        return self::fromRow(row)
+    }
+
+    public static method latestInspection(car_id:int): MaintenanceEntity|null {
+        const db:SQLite = Database::connect()
+        const row:map<string, mixed> = db.queryOne(
+            `SELECT id, car_id, type, description, cost, created_at, material_source,
+                COALESCE(lifespan_days, 0) AS lifespan_days, mileage, performed_on, attachment, attachment_name
+            FROM maintenances
+            WHERE car_id = :carId AND type = 'technical_inspection'
             ORDER BY COALESCE(NULLIF(performed_on, ''), date(created_at, 'unixepoch')) DESC, id DESC
             LIMIT 1`,
             {"carId": car_id}

@@ -31,6 +31,18 @@ class SettingsRepository implements SettingsContract {
             if key equal "theme" {
                 settings.theme = value
             }
+            if key equal "inspection_mode" {
+                settings.inspection_mode = value
+            }
+            if key equal "inspection_country" {
+                settings.inspection_country = value
+            }
+            if key equal "ordinary_inspection_years" {
+                settings.ordinary_inspection_years = value.toInt()
+            }
+            if key equal "collection_inspection_years" {
+                settings.collection_inspection_years = value.toInt()
+            }
         }
         return settings
     }
@@ -40,7 +52,10 @@ class SettingsRepository implements SettingsContract {
             db.begin()
             const values:map<string, string> = {
                 "language": settings.language, "currency": settings.currency, "timezone": settings.timezone,
-                "distance_unit": settings.distance_unit, "theme": settings.theme
+                "distance_unit": settings.distance_unit, "theme": settings.theme,
+                "inspection_mode": settings.inspection_mode, "inspection_country": settings.inspection_country,
+                "ordinary_inspection_years": settings.ordinary_inspection_years.toStr(),
+                "collection_inspection_years": settings.collection_inspection_years.toStr()
             }
             for key has value in values {
                 db.execute(

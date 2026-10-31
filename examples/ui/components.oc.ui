@@ -159,16 +159,22 @@ screens:
           spacing: 4
           onSelect: open_person
           item:
-            type: row
-            spacing: 12
+            type: column
+            spacing: 6
             children:
-              - { type: icon, name: person }
-              - type: column
-                weight: 1
+              - type: row
+                spacing: 12
                 children:
-                  - { type: text, bind: name, bold: true }
-                  - { type: text, bind: city }
-              - { type: icon, name: forward }
+                  - { type: icon, name: person }
+                  - type: column
+                    weight: 1
+                    children:
+                      - { type: text, bind: name, bold: true }
+                      - { type: text, bind: city }
+                  - { type: icon, name: forward }
+              - type: list
+                binds: { items: documents }
+                item: { type: text, bind: name }
         - type: grid
           columns: 3
           spacing: 8

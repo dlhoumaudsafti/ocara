@@ -1,0 +1,42 @@
+import ocara.UnitTest
+import context.car.app.usecase.InspectionSchedule
+
+class InspectionScheduleTest extends UnitTest {
+
+    public method manualPeriodsTest(): int {
+        self::assertEquals(3, InspectionSchedule::years("manual", "", 3, 6, false))
+        self::assertEquals(6, InspectionSchedule::years("manual", "", 3, 6, true))
+        return 0
+    }
+
+    public method nextDateTest(): int {
+        self::assertEquals(
+            "2028-04-15",
+            InspectionSchedule::next("2026-04-15", "manual", "", 2, 5, false)
+        )
+        self::assertEquals(
+            "2031-04-15",
+            InspectionSchedule::next("2026-04-15", "manual", "", 2, 5, true)
+        )
+        return 0
+    }
+
+    public method leapDayTest(): int {
+        self::assertEquals(
+            "2026-02-28",
+            InspectionSchedule::next("2024-02-29", "manual", "", 2, 5, false)
+        )
+        return 0
+    }
+
+    public method unknownCountryTest(): int {
+        self::assertNull(InspectionSchedule::years("country", "XX", 2, 5, false))
+        self::assertEquals("", InspectionSchedule::next("2026-04-15", "country", "XX", 2, 5, false))
+        return 0
+    }
+
+    public method invalidDateTest(): int {
+        self::assertEquals("", InspectionSchedule::next("2026-02-30", "manual", "", 2, 5, false))
+        return 0
+    }
+}

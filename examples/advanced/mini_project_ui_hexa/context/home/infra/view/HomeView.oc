@@ -24,6 +24,8 @@ class HomeView implements HomeViewPort {
                 "maintenance": Format::price(car.maintenance_total),
                 "photo": car.photo,
                 "has_photo": car.photo not equal "",
+                "is_collection": car.is_collection,
+                "collection_label": "${badge_collection}",
             })
         }
         const profit:float = dashboard.total_estimated_value - dashboard.total_purchase_value
@@ -38,7 +40,7 @@ class HomeView implements HomeViewPort {
     }
 
     // « France · 2015 · 45 000 km » (nom du pays dans la langue de
-    // l'interface, compteur dans l'unité des paramètres) ; "" sans rien.
+    // l'interface, compteur dans l'unité du véhicule) ; "" sans rien.
     public static method originLine(car:CarSummaryEntity): string {
         var parts:array<string> = []
         if not car.origin.empty() {
@@ -48,7 +50,10 @@ class HomeView implements HomeViewPort {
             parts.push(car.year.toStr())
         }
         if car.mileage greater 0 {
-            parts.push(Format::distance(car.mileage))
+            parts.push(Format::distance(car.mileage, car.distance_unit))
+        }
+        if car.is_collection {
+            parts.push("${badge_collection}")
         }
         return parts.join(" · ")
     }

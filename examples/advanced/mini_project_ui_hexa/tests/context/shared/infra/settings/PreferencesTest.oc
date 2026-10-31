@@ -11,14 +11,19 @@ class PreferencesTest extends UnitTest {
         self::assertEquals("km", Preferences::distanceUnit())
         self::assertEquals("auto", Preferences::theme())
         self::assertEquals("km", Preferences::vars()["distance_unit"])
+        self::assertEquals(2, Preferences::ordinaryInspectionYears())
+        self::assertEquals(5, Preferences::collectionInspectionYears())
         return 0
     }
 
     public method applyTest(): int {
-        Preferences::apply("en", "USD", "America/Chicago")
+        Preferences::apply("en", "USD", "America/Chicago", "mi", "dark", "manual", "", 3, 6)
         self::assertEquals("en", Preferences::language())
         self::assertEquals("USD", Preferences::currency())
         self::assertEquals("America/Chicago", Preferences::timezone())
+        self::assertEquals("mi", Preferences::distanceUnit())
+        self::assertEquals(3, Preferences::ordinaryInspectionYears())
+        self::assertEquals(6, Preferences::collectionInspectionYears())
         Preferences::reset()
         return 0
     }

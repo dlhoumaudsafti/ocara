@@ -26,6 +26,9 @@ class SearchRepository implements SearchContract {
         var origin:string = row["origin"]
         var year:int = row["year"]
         var mileage:int = row["mileage"]
+        var distance_unit:string = row["distance_unit"]
+        var collection:int = row["is_collection"]
+        var photo:string = row["photo"]
         return use CarSearchResultEntity(
             id,
             reference,
@@ -36,7 +39,10 @@ class SearchRepository implements SearchContract {
             maintenance_total,
             origin,
             year,
-            mileage
+            mileage,
+            distance_unit,
+            collection equal 1,
+            photo
         )
     }
 
@@ -58,6 +64,11 @@ class SearchRepository implements SearchContract {
         const rows:array<map<string, mixed>> = db.query(`
             SELECT
                 cars.*,
+                COALESCE((
+                    SELECT path FROM car_photos
+                    WHERE car_photos.car_id = cars.id AND path != ''
+                    ORDER BY car_photos.main DESC, car_photos.id LIMIT 1
+                ), '') AS photo,
                 COALESCE(
                     SUM(
                         CASE WHEN maintenances.type = 'maintenance' THEN 

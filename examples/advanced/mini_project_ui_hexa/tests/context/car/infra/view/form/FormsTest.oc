@@ -23,7 +23,7 @@ class FormsTest extends UnitTest {
         self::assertEquals("", form.year)
         // Compteur dans l'unité des paramètres ; contrôle technique tel quel.
         Preferences::apply("fr", "EUR", "UTC", "mi", "auto")
-        form.load(use CarEntity(3, "EF-789", "Mini", "Cooper", "GB", 2010, 7000.0, 7000.0, "", "", 160934, "2027-03-01"))
+        form.load(use CarEntity(3, "EF-789", "Mini", "Cooper", "GB", 2010, 7000.0, 7000.0, "", "", 160934, "2027-03-01", "", false, "mi"))
         self::assertEquals("100000", form.mileage)
         self::assertEquals("2027-03-01", form.inspection_date)
         Preferences::reset()

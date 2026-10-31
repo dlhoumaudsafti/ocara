@@ -18,6 +18,8 @@ class Flash {
             "invalid_date"        => "${flash_invalid_date}"
             "invalid_reading"     => "${flash_invalid_reading}"
             "invalid_attachment"  => "${flash_invalid_attachment}"
+            "photo_deleted"      => "${flash_photo_deleted}"
+            "invalid_distance_unit" => "${flash_invalid_distance_unit}"
             "attachment_added"    => "${flash_attachment_added}"
             "main_photo_set"      => "${flash_main_photo_set}"
             "not_found"           => "${flash_not_found}"

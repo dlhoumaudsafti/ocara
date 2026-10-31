@@ -3,6 +3,7 @@ import ocara.DateTime
 import context.car.domain.entity.CarEntity
 import context.car.domain.entity.MaintenanceEntity
 import context.car.domain.entity.CarPhotoEntity
+import context.car.domain.entity.MaintenanceAttachmentEntity
 import context.car.app.dto.CarDetailsDTO
 import context.car.infra.view.CarView
 import context.shared.infra.settings.Preferences
@@ -85,7 +86,8 @@ class CarViewTest extends UnitTest {
             "Renault Clio · ${country_FR} · 2016 · 84 500 km · ${label_acquisition} : ${not_set} · ${label_sale} : ${not_set} · ${label_inspection} : 15/04/2030",
             state["car_summary"]["value"]
         )
-        self::assertEquals(false, state["car_inspection"]["visible"])
+        self::assertEquals(true, state["car_inspection"]["visible"])
+        self::assertEquals("${next_inspection_label} : 15/04/2030", state["car_inspection"]["value"])
         var rows:array<map<string, mixed>> = state["maintenances"]["items"]
         self::assertEquals("03/02/2026", rows[0]["date"])
         self::assertEquals("${reading_label} : 84 500 km", rows[0]["mileage"])
@@ -108,6 +110,29 @@ class CarViewTest extends UnitTest {
         self::assertEquals(true, rows[1]["has_attachment"])
         self::assertEquals("facture.pdf", rows[1]["attachment_name"])
         self::assertEquals("uploads/m-7.pdf", rows[1]["attachment"])
+        var attachments:array<map<string, mixed>> = rows[1]["attachments"]
+        self::assertEquals(1, attachments.len())
+        self::assertEquals("facture.pdf", attachments[0]["name"])
+        return 0
+    }
+
+    public method multipleAttachmentRowsTest(): int {
+        Preferences::reset()
+        const car:CarEntity = use CarEntity(13, "REF-FILES", "Honda", "Civic", "JP", 2020, 10000.0, 10000.0, "", "")
+        const files:array<MaintenanceAttachmentEntity> = [
+            use MaintenanceAttachmentEntity(20, 8, "uploads/report.pdf", "report.pdf"),
+            use MaintenanceAttachmentEntity(21, 8, "uploads/photo.jpg", "photo.jpg")
+        ]
+        const maintenance:MaintenanceEntity = use MaintenanceEntity(
+            8, 13, "technical_inspection", "", 0.0, "", 0, 1790251200, 0, "2026-03-01", "", "", files
+        )
+        var rows:array<map<string, mixed>> =
+            CarView::present(use CarDetailsDTO(car, [maintenance], [], 0.0, 0.0))["maintenances"]["items"]
+        var attachments:array<map<string, mixed>> = rows[0]["attachments"]
+        self::assertEquals(2, attachments.len())
+        self::assertEquals("report.pdf", attachments[0]["name"])
+        self::assertEquals(8, attachments[0]["maintenance_id"])
+        self::assertEquals("photo.jpg", attachments[1]["name"])
         return 0
     }
 
