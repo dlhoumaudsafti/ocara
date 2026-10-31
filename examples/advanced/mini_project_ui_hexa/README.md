@@ -23,9 +23,10 @@ make logo         # refait assets/logo.android.png depuis assets/logo.svg (Image
 | Formulaires liés (`ui.bind`) : ajout d'une voiture, fiche, entretien, paramètres | `configs/actions/*Actions.oc` (formulaires créés et liés), `context/*/infra/view/**/Form.oc` |
 | Fiche modifiable à la volée : chaque champ quitté (ou choix fait) est enregistré, prix estimé recalculé | `CarController::save`, composant `carFields` (`onBlur`/`onChange: save_car`) |
 | Entretiens ajoutés, modifiés (crayon de l'historique) et supprimés | `MaintenanceController`, composants `maintenanceForm`, `historyCard` |
-| Pays d'origine et année des voitures | `cars.origin`, `cars.year` (migration dans `Database.oc`) |
+| Pays d'origine, année, compteur et prochain contrôle technique des voitures (alerte à moins de 60 jours, ou dépassé) | `cars.origin`, `cars.year`, `cars.mileage`, `cars.inspection_date` (migration dans `Database.oc`), `CarView::inspection` |
+| Relevé du compteur et date de chaque entretien : le dernier relevé met à jour le compteur de la voiture | `maintenances.mileage`, `maintenances.performed_on`, `MileageService` |
 | Recherche dans la barre de titre, propositions dans un menu sous le champ | `bar:` de `ui/carfolio.oc.ui`, `SearchController::suggest` (`suggestions`, `onSuggestion`) |
-| Paramètres : langue, devise, fuseau horaire (heure d'été Europe et États-Unis) | contexte `settings`, `shared/infra/settings/Preferences.oc`, `shared/infra/i18n/{Format,Timezone}.oc` |
+| Paramètres : langue, devise, fuseau horaire (heure d'été Europe et États-Unis), unité de distance (km, mi : compteurs gardés en km), thème (auto, clair, sombre, appliqué à chaud par `ui.setTheme`) | contexte `settings`, `shared/infra/settings/Preferences.oc`, `shared/infra/i18n/{Format,Timezone}.oc` |
 | Menu : Accueil, Paramètres, Recherche, À propos (tiroir, toujours affiché à partir de 1200 px) | composant `navMenu`, `NavController` |
 | À propos : logo, version, contenu de la base | contexte `about` |
 | Thème : jaune `#FFD700` (texte noir dessus en clair, blanc en sombre), coins de 6 px | `window` de `ui/carfolio.oc.ui` (`primary`, `onPrimary`, `radius`) |

@@ -37,8 +37,8 @@ class HomeView implements HomeViewPort {
         }
     }
 
-    // « France · 2015 » (nom du pays dans la langue de l'interface) ; "" sans
-    // pays ni année.
+    // « France · 2015 · 45 000 km » (nom du pays dans la langue de
+    // l'interface, compteur dans l'unité des paramètres) ; "" sans rien.
     public static method originLine(car:CarSummaryEntity): string {
         var parts:array<string> = []
         if not car.origin.empty() {
@@ -46,6 +46,9 @@ class HomeView implements HomeViewPort {
         }
         if car.year greater 0 {
             parts.push(car.year.toStr())
+        }
+        if car.mileage greater 0 {
+            parts.push(Format::distance(car.mileage))
         }
         return parts.join(" · ")
     }

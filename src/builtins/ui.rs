@@ -99,6 +99,8 @@ pub fn class() -> ClassInfo {
     // Champs `required` vides du conteneur (docs/oc-ui.md, « Formulaires »).
     methods.insert("validate".to_string(), inst_m(vec![("container", Type::String)], Type::Array(Box::new(Type::String))));
     methods.insert("navigate".to_string(), inst_m(vec![("screen", Type::String)], Type::Void));
+    // Thème affiché (`auto`, `light`, `dark`) à la place de `window.theme`.
+    methods.insert("setTheme".to_string(), inst_m(vec![("theme", Type::String)], Type::Void));
     methods.insert("back".to_string(), inst_m(vec![], Type::Void));
     methods.insert("run".to_string(), inst_m(vec![], Type::Void));
     methods.insert("close".to_string(), inst_m(vec![], Type::Void));

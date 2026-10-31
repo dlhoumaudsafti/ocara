@@ -1,7 +1,8 @@
 namespace context.car.infra.controllers
 // Entretiens de la fiche : ajout et modification par le formulaire lié
 // (MaintenanceForm, `id` 0 pour un ajout), suppression depuis l'historique.
-// Chaque changement recalcule le prix de vente estimé (PricingService).
+// Chaque changement recalcule le prix de vente estimé (PricingService) ; le
+// dernier relevé du compteur met à jour celui de la voiture (MileageService).
 
 import ocara.UI
 import ocara.UIEvent
@@ -12,6 +13,9 @@ import context.car.infra.controllers.CarController
 import context.car.infra.view.form.MaintenanceForm
 import context.car.infra.view.helpers.Flash
 import context.shared.infra.ui.Screen
+import context.shared.infra.i18n.Format
+import context.car.app.usecase.MileageService
+import ocara.DateTime
 
 class MaintenanceController {
 
@@ -56,14 +60,33 @@ class MaintenanceController {
         if desc.empty() or cost smaller or equal 0.0 or invalid_type or invalid_lifespan {
             return "invalid_cost"
         }
+        const reading:int = CarController::count(form.mileage)
+        if reading smaller 0 {
+            return "invalid_mileage"
+        }
+        var performed_on:string = form.performed_on.trim()
+        if performed_on.empty() {
+            performed_on = Format::today(DateTime::now())
+        }
+        if Format::parseDay(performed_on) is null {
+            return "invalid_date"
+        }
+        const mileage:int = Format::toKilometers(reading)
         if form.id greater 0 {
             const existing:MaintenanceEntity|null = MaintenanceContract::find(form.id)
             if existing is null or existing.car_id not equal car_id {
                 return "not_found"
             }
-            MaintenanceContract::update(form.id, form.type, desc, cost, form.material_source.trim(), lifespan_days)
+            // Relevé inchangé à l'écran : la valeur en kilomètres reste exacte.
+            var kept:int = mileage
+            if existing.mileage greater 0 and reading equal Format::toUnit(existing.mileage) {
+                kept = existing.mileage
+            }
+            MaintenanceContract::update(form.id, form.type, desc, cost, form.material_source.trim(), lifespan_days, kept, performed_on)
+            MileageService::applyLatestReading(car_id, form.id)
         } else {
-            MaintenanceContract::create(car_id, form.type, desc, cost, form.material_source.trim(), lifespan_days)
+            const id:int = MaintenanceContract::create(car_id, form.type, desc, cost, form.material_source.trim(), lifespan_days, mileage, performed_on)
+            MileageService::applyLatestReading(car_id, id)
         }
         // Recalcul complet (pas un simple +=) : voir PricingService.
         PricingService::recalculateEstimatedPrice(car_id)

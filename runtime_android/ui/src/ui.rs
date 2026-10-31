@@ -70,6 +70,15 @@ pub extern "C" fn UI_setVars(this: i64, vars: i64) {
     }
 }
 
+/// `ui.setTheme(theme)` : `auto`, `light` ou `dark`, appliqué à chaud.
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_setTheme(this: i64, theme: i64) {
+    let tree = core::set_theme(this, &str_arg(theme));
+    if SHOWN.load(Ordering::SeqCst) == this {
+        engine("reload", &[Arg::Str(&tree.to_string())]);
+    }
+}
+
 /// `ui.sizeClass()` → `string` : classe de taille de l'écran.
 #[unsafe(no_mangle)]
 pub extern "C" fn UI_sizeClass(this: i64) -> i64 {

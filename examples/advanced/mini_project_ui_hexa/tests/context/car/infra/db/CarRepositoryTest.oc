@@ -30,7 +30,7 @@ class CarRepositoryTest extends UnitTest {
     public method createTest(): int {
         Fixture::reset()
         const id:int = CarRepository::create(
-            "TEST-OCUNIT-NEW", "Renault", "Clio", "FR", 2019, 8000.25, "2024-02-01", "2025-03-01"
+            "TEST-OCUNIT-NEW", "Renault", "Clio", "FR", 2019, 8000.25, "2024-02-01", "2025-03-01", 35000, "2027-01-20"
         )
         self::assertTrue(id greater 0)
         const car:CarEntity|null = CarRepository::find(id)
@@ -42,6 +42,19 @@ class CarRepositoryTest extends UnitTest {
         self::assertEquals(8000.25, car.estimated_price)
         self::assertEquals("2024-02-01", car.acquisition_date)
         self::assertEquals("2025-03-01", car.sale_date)
+        self::assertEquals(35000, car.mileage)
+        self::assertEquals("2027-01-20", car.inspection_date)
+        Fixture::cleanup()
+        return 0
+    }
+
+    public method updateMileageTest(): int {
+        Fixture::reset()
+        const id:int = Fixture::car("KM", "Citroen", "C3", 7000.0)
+        CarRepository::updateMileage(id, 61234)
+        const car:CarEntity|null = CarRepository::find(id)
+        self::assertNotNull(car)
+        self::assertEquals(61234, car.mileage)
         Fixture::cleanup()
         return 0
     }
@@ -52,7 +65,8 @@ class CarRepositoryTest extends UnitTest {
         const id:int = Fixture::car("UPD", "Citroen", "C3", 7000.0)
         CarRepository::updateEstimatedPrice(id, 7500.0)
         CarRepository::update(use CarEntity(
-            id, "TEST-OCUNIT-UPD2", "Citroën", "C3 Aircross", "FR", 2018, 7200.0, 0.0, "2023-05-01", "2026-01-15"
+            id, "TEST-OCUNIT-UPD2", "Citroën", "C3 Aircross", "FR", 2018, 7200.0, 0.0, "2023-05-01", "2026-01-15",
+            72000, "2026-11-30"
         ))
         const car:CarEntity|null = CarRepository::find(id)
         self::assertNotNull(car)
@@ -65,6 +79,8 @@ class CarRepositoryTest extends UnitTest {
         self::assertEquals(7500.0, car.estimated_price)
         self::assertEquals("2023-05-01", car.acquisition_date)
         self::assertEquals("2026-01-15", car.sale_date)
+        self::assertEquals(72000, car.mileage)
+        self::assertEquals("2026-11-30", car.inspection_date)
         Fixture::cleanup()
         return 0
     }

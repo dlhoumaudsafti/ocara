@@ -21,6 +21,7 @@ import context.car.app.dto.CarDetailsDTO
 import context.car.infra.view.form.CarForm
 import context.car.infra.view.helpers.Flash
 import context.shared.infra.ui.Screen
+import context.shared.infra.i18n.Format
 
 class CarController {
 
@@ -109,7 +110,8 @@ class CarController {
         const id:int = CarContract::create(
             form.reference.trim(), form.brand.trim(), form.model.trim(), form.origin,
             self::year(form.year), self::number(form.purchase_price),
-            form.acquisition_date.trim(), form.sale_date.trim()
+            form.acquisition_date.trim(), form.sale_date.trim(),
+            Format::toKilometers(self::count(form.mileage)), form.inspection_date.trim()
         )
         form.clear()
         ui.set("new_car_sheet", "open", false)
@@ -145,10 +147,16 @@ class CarController {
         if not error.empty() {
             return error
         }
+        // Compteur inchangé à l'écran : la valeur en kilomètres reste exacte
+        // (pas d'aller-retour arrondi par les miles).
+        var mileage:int = before.mileage
+        if self::count(form.mileage) not equal self::shownMileage(before.mileage) {
+            mileage = Format::toKilometers(self::count(form.mileage))
+        }
         const after:CarEntity = use CarEntity(
             id, form.reference.trim(), form.brand.trim(), form.model.trim(), form.origin,
             self::year(form.year), self::number(form.purchase_price), before.estimated_price,
-            form.acquisition_date.trim(), form.sale_date.trim()
+            form.acquisition_date.trim(), form.sale_date.trim(), mileage, form.inspection_date.trim()
         )
         if self::same(before, after) {
             return ""
@@ -176,13 +184,47 @@ class CarController {
         if not form.origin.empty() and not CarEntity::origins().contains(form.origin) {
             return "invalid_origin"
         }
+        if self::count(form.mileage) smaller 0 {
+            return "invalid_mileage"
+        }
+        const inspection:string = form.inspection_date.trim()
+        if not inspection.empty() and Format::parseDay(inspection) is null {
+            return "invalid_date"
+        }
         return ""
+    }
+
+    // Compteur affiché (unité des paramètres) ; 0 sans compteur.
+    private static method shownMileage(km:int): int {
+        if km smaller or equal 0 {
+            return 0
+        }
+        return Format::toUnit(km)
+    }
+
+    // Nombre entier saisi (compteur, relevé) : 0 si vide, -1 si ce n'est pas
+    // un entier positif ou nul (espaces de groupement acceptés : « 12 500 »).
+    public static method count(text:string): int {
+        const t:string = text.replace(" ", "").trim()
+        if t.empty() {
+            return 0
+        }
+        try {
+            const n:int = t.toInt()
+            if n smaller 0 {
+                return -1
+            }
+            return n
+        } on e is ConvertException {
+            return -1
+        }
     }
 
     private static method same(a:CarEntity, b:CarEntity): bool {
         return a.reference equal b.reference and a.brand equal b.brand and a.model equal b.model
             and a.origin equal b.origin and a.year equal b.year and a.purchase_price equal b.purchase_price
             and a.acquisition_date equal b.acquisition_date and a.sale_date equal b.sale_date
+            and a.mileage equal b.mileage and a.inspection_date equal b.inspection_date
     }
 
     // Nombre saisi ; 0.0 si le texte n'en est pas un (refusé ensuite comme

@@ -4120,6 +4120,19 @@
         "docFile": "UI.md"
       },
       {
+        "name": "setTheme",
+        "params": [
+          {
+            "name": "theme",
+            "type": "string"
+          }
+        ],
+        "returns": "void",
+        "static": false,
+        "doc": "`ui.setTheme(theme)` — thème affiché, `auto` (celui du système), `light` ou `dark`, à la place de `window.theme` ; appliqué à chaud (écran et état gardés), ou dès l'affichage s'il est appelé avant `run()` ; `UIException` 109 pour un autre nom",
+        "docFile": "UI.md"
+      },
+      {
         "name": "setVars",
         "params": [
           {

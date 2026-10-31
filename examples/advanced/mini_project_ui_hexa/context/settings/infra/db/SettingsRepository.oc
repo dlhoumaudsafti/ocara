@@ -25,6 +25,12 @@ class SettingsRepository implements SettingsContract {
             if key equal "timezone" {
                 settings.timezone = value
             }
+            if key equal "distance_unit" {
+                settings.distance_unit = value
+            }
+            if key equal "theme" {
+                settings.theme = value
+            }
         }
         return settings
     }
@@ -32,7 +38,11 @@ class SettingsRepository implements SettingsContract {
     public static method save(settings:SettingsEntity): void {
         SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
             db.begin()
-            for key has value in {"language": settings.language, "currency": settings.currency, "timezone": settings.timezone} {
+            const values:map<string, string> = {
+                "language": settings.language, "currency": settings.currency, "timezone": settings.timezone,
+                "distance_unit": settings.distance_unit, "theme": settings.theme
+            }
+            for key has value in values {
                 db.execute(
                     "INSERT INTO settings (key, value) VALUES (:key, :value) ON CONFLICT(key) DO UPDATE SET value = :value",
                     {"key": key, "value": value}

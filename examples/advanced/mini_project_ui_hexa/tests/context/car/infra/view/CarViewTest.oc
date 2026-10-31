@@ -65,6 +65,45 @@ class CarViewTest extends UnitTest {
         return 0
     }
 
+    // Compteur et contrôle technique dans le résumé ; relevé et date de
+    // l'intervention dans l'historique.
+    public method mileageAndInspectionTest(): int {
+        Preferences::reset()
+        const car:CarEntity = use CarEntity(
+            11, "REF-KM", "Renault", "Clio", "FR", 2016, 9000.0, 9000.0, "", "", 84500, "2030-04-15"
+        )
+        var maintenances:array<MaintenanceEntity> = []
+        maintenances.push(use MaintenanceEntity(5, 11, "maintenance", "Vidange", 80.0, "", 0, 1790251200, 84500, "2026-02-03"))
+        const state:map<string, map<string, mixed>> = CarView::present(use CarDetailsDTO(car, maintenances, [], 80.0, 0.0))
+        self::assertEquals(
+            "Renault Clio · ${country_FR} · 2016 · 84 500 km · ${label_acquisition} : ${not_set} · ${label_sale} : ${not_set} · ${label_inspection} : 15/04/2030",
+            state["car_summary"]["value"]
+        )
+        self::assertEquals(false, state["car_inspection"]["visible"])
+        var rows:array<map<string, mixed>> = state["maintenances"]["items"]
+        self::assertEquals("03/02/2026", rows[0]["date"])
+        self::assertEquals("${reading_label} : 84 500 km", rows[0]["mileage"])
+        self::assertEquals(true, rows[0]["has_mileage"])
+        return 0
+    }
+
+    // Contrôle technique : alerte orange à moins de 60 jours, rouge dépassé.
+    public method inspectionAlertTest(): int {
+        Preferences::apply("fr", "EUR", "UTC")
+        const now:int = DateTime::parse("2026-10-31T10:00:00")
+        self::assertEquals(false, CarView::inspection("", now)["visible"])
+        self::assertEquals(false, CarView::inspection("2027-06-01", now)["visible"])
+        const soon:map<string, mixed> = CarView::inspection("2026-12-15", now)
+        self::assertEquals(true, soon["visible"])
+        self::assertEquals("${inspection_due} 15/12/2026", soon["value"])
+        self::assertEquals("#e65100", soon["background"])
+        const late:map<string, mixed> = CarView::inspection("2026-10-30", now)
+        self::assertEquals("${inspection_overdue} 30/10/2026", late["value"])
+        self::assertEquals("#c62828", late["background"])
+        Preferences::reset()
+        return 0
+    }
+
     // Remplacement dû dans moins de 90 jours : alerte orange ; dépassé : rouge.
     public method replacementWarningTest(): int {
         const car:CarEntity = use CarEntity(9, "REF-WARN", "Peugeot", "208", "FR", 2019, 9000.0, 9000.0, "", "")

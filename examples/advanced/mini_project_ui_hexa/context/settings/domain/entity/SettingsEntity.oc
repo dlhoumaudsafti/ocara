@@ -1,21 +1,34 @@
 namespace context.settings.domain.entity
 
 // Préférences de l'application : langue de l'interface, devise des montants,
-// fuseau horaire des dates.
+// fuseau horaire des dates, unité des distances (compteurs), thème.
 
 class SettingsEntity {
     public property language:string
     public property currency:string
     public property timezone:string
+    public property distance_unit:string
+    public property theme:string
 
-    init(language:string, currency:string, timezone:string) {
+    init(language:string, currency:string, timezone:string, distance_unit:string = "km", theme:string = "auto") {
         self.language = language
         self.currency = currency
         self.timezone = timezone
+        self.distance_unit = distance_unit
+        self.theme = theme
     }
 
     public static method defaults(): SettingsEntity {
-        return use SettingsEntity("fr", "EUR", "Europe/Paris")
+        return use SettingsEntity("fr", "EUR", "Europe/Paris", "km", "auto")
+    }
+
+    public static method distanceUnits(): array<string> {
+        return ["km", "mi"]
+    }
+
+    // `auto` : celui du système.
+    public static method themes(): array<string> {
+        return ["auto", "light", "dark"]
     }
 
     public static method languages(): array<string> {
@@ -38,5 +51,7 @@ class SettingsEntity {
         return SettingsEntity::languages().contains(self.language)
             and SettingsEntity::currencies().contains(self.currency)
             and SettingsEntity::timezones().contains(self.timezone)
+            and SettingsEntity::distanceUnits().contains(self.distance_unit)
+            and SettingsEntity::themes().contains(self.theme)
     }
 }

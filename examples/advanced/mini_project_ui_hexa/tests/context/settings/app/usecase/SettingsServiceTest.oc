@@ -16,12 +16,14 @@ class SettingsServiceTest extends UnitTest {
 
     public method updateTest(): int {
         FakeDatabase::reset()
-        const s:SettingsEntity|null = SettingsService::update("en", "GBP", "Europe/London")
+        const s:SettingsEntity|null = SettingsService::update("en", "GBP", "Europe/London", "mi", "dark")
         self::assertNotNull(s)
         self::assertEquals("GBP", FakeDatabase::settings()["currency"])
         const loaded:SettingsEntity = SettingsService::load()
         self::assertEquals("en", loaded.language)
         self::assertEquals("Europe/London", loaded.timezone)
+        self::assertEquals("mi", loaded.distance_unit)
+        self::assertEquals("dark", loaded.theme)
         FakeDatabase::reset()
         return 0
     }
@@ -29,7 +31,7 @@ class SettingsServiceTest extends UnitTest {
     // Choix non proposé : rien d'enregistré.
     public method updateInvalidTest(): int {
         FakeDatabase::reset()
-        self::assertNull(SettingsService::update("fr", "BTC", "UTC"))
+        self::assertNull(SettingsService::update("fr", "BTC", "UTC", "km", "auto"))
         self::assertEquals(0, FakeDatabase::settings().size())
         return 0
     }
@@ -39,8 +41,12 @@ class SettingsServiceTest extends UnitTest {
         FakeDatabase::reset()
         FakeDatabase::setSetting("currency", "BTC")
         FakeDatabase::setSetting("language", "en")
+        FakeDatabase::setSetting("distance_unit", "furlong")
+        FakeDatabase::setSetting("theme", "violet")
         const s:SettingsEntity = SettingsService::load()
         self::assertEquals("EUR", s.currency)
+        self::assertEquals("km", s.distance_unit)
+        self::assertEquals("auto", s.theme)
         self::assertEquals("en", s.language)
         FakeDatabase::reset()
         return 0

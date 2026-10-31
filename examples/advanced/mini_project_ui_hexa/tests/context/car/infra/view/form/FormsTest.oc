@@ -5,6 +5,7 @@ import context.car.infra.view.form.CarForm
 import context.car.infra.view.form.MaintenanceForm
 import context.settings.domain.entity.SettingsEntity
 import context.settings.infra.view.SettingsForm
+import context.shared.infra.settings.Preferences
 
 // Formulaires liés à l'interface : remplis depuis le domaine, vidés.
 class FormsTest extends UnitTest {
@@ -20,8 +21,15 @@ class FormsTest extends UnitTest {
         // Année absente : champ vide (pas « 0 »).
         form.load(use CarEntity(2, "CD-456", "Fiat", "500", "", 0, 5000.0, 5000.0, "", ""))
         self::assertEquals("", form.year)
+        // Compteur dans l'unité des paramètres ; contrôle technique tel quel.
+        Preferences::apply("fr", "EUR", "UTC", "mi", "auto")
+        form.load(use CarEntity(3, "EF-789", "Mini", "Cooper", "GB", 2010, 7000.0, 7000.0, "", "", 160934, "2027-03-01"))
+        self::assertEquals("100000", form.mileage)
+        self::assertEquals("2027-03-01", form.inspection_date)
+        Preferences::reset()
         form.clear()
         self::assertEquals("", form.reference)
+        self::assertEquals("", form.mileage)
         self::assertEquals("", form.purchase_price)
         return 0
     }
@@ -35,9 +43,14 @@ class FormsTest extends UnitTest {
         self::assertEquals("improvement", form.type)
         self::assertEquals("500.0", form.cost)
         self::assertEquals("", form.lifespan_days)
+        self::assertEquals("", form.mileage)
         self::assertFalse(form.adding)
         self::assertTrue(form.editing)
+        form.load(use MaintenanceEntity(10, 1, "maintenance", "Vidange", 80.0, "", 0, 0, 45000, "2026-05-02"))
+        self::assertEquals("45000", form.mileage)
+        self::assertEquals("2026-05-02", form.performed_on)
         form.reset()
+        self::assertEquals("", form.performed_on)
         self::assertEquals(0, form.id)
         self::assertEquals("maintenance", form.type)
         self::assertTrue(form.adding)
@@ -46,10 +59,12 @@ class FormsTest extends UnitTest {
 
     public method settingsFormTest(): int {
         const form:SettingsForm = use SettingsForm()
-        form.load(use SettingsEntity("en", "CAD", "America/Chicago"))
+        form.load(use SettingsEntity("en", "CAD", "America/Chicago", "mi", "dark"))
         self::assertEquals("en", form.language)
         self::assertEquals("CAD", form.currency)
         self::assertEquals("America/Chicago", form.timezone)
+        self::assertEquals("mi", form.distance_unit)
+        self::assertEquals("dark", form.theme)
         return 0
     }
 }

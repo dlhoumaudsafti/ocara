@@ -111,6 +111,13 @@ pub extern "C" fn UI_setVars(this: i64, vars: i64) {
     show_tree(this, &tree);
 }
 
+/// `ui.setTheme(theme)` : `auto`, `light` ou `dark`, appliqué à chaud.
+#[unsafe(no_mangle)]
+pub extern "C" fn UI_setTheme(this: i64, theme: i64) {
+    let tree = core::set_theme(this, &str_arg(theme));
+    show_tree(this, &tree);
+}
+
 /// `ui.sizeClass()` → `string` : classe de taille de la fenêtre.
 #[unsafe(no_mangle)]
 pub extern "C" fn UI_sizeClass(this: i64) -> i64 {

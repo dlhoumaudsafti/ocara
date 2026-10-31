@@ -7,10 +7,14 @@ class SettingsForm {
     public property language:string = "fr"
     public property currency:string = "EUR"
     public property timezone:string = "Europe/Paris"
+    public property distance_unit:string = "km"
+    public property theme:string = "auto"
 
     public method load(settings:SettingsEntity): void {
         self.language = settings.language
         self.currency = settings.currency
         self.timezone = settings.timezone
+        self.distance_unit = settings.distance_unit
+        self.theme = settings.theme
     }
 }

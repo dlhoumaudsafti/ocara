@@ -9,7 +9,7 @@ class MaintenanceRepositoryTest extends UnitTest {
         Fixture::reset()
         const car_id:int = Fixture::car("MCREATE", "Peugeot", "208", 9000.0)
         const id:int = MaintenanceRepository::create(
-            car_id, "maintenance", "Vidange", 80.0, "Garage local", 180
+            car_id, "maintenance", "Vidange", 80.0, "Garage local", 180, 45000, "2026-04-02"
         )
         self::assertTrue(id greater 0)
         consumed items:Resolvable<array<MaintenanceEntity>> = MaintenanceRepository::forCar(car_id)
@@ -22,6 +22,8 @@ class MaintenanceRepositoryTest extends UnitTest {
         self::assertEquals(80.0, list[0].cost)
         self::assertEquals("Garage local", list[0].material_source)
         self::assertEquals(180, list[0].lifespan_days)
+        self::assertEquals(45000, list[0].mileage)
+        self::assertEquals("2026-04-02", list[0].performed_on)
         Fixture::cleanup()
         return 0
     }
@@ -29,7 +31,7 @@ class MaintenanceRepositoryTest extends UnitTest {
     public method findTest(): int {
         Fixture::reset()
         const car_id:int = Fixture::car("MFIND", "Peugeot", "208", 9000.0)
-        const id:int = MaintenanceRepository::create(car_id, "improvement", "Jantes", 600.0, "Atelier", 0)
+        const id:int = MaintenanceRepository::create(car_id, "improvement", "Jantes", 600.0, "Atelier", 0, 0, "")
         const m:MaintenanceEntity|null = MaintenanceRepository::find(id)
         self::assertNotNull(m)
         self::assertEquals(car_id, m.car_id)
@@ -43,9 +45,9 @@ class MaintenanceRepositoryTest extends UnitTest {
     public method updateTest(): int {
         Fixture::reset()
         const car_id:int = Fixture::car("MUPD", "Peugeot", "208", 9000.0)
-        const id:int = MaintenanceRepository::create(car_id, "maintenance", "Vidange", 80.0, "", 0)
+        const id:int = MaintenanceRepository::create(car_id, "maintenance", "Vidange", 80.0, "", 0, 0, "")
         const before:MaintenanceEntity|null = MaintenanceRepository::find(id)
-        MaintenanceRepository::update(id, "improvement", "Vidange et filtres", 95.5, "Garage", 365)
+        MaintenanceRepository::update(id, "improvement", "Vidange et filtres", 95.5, "Garage", 365, 46000, "2026-05-01")
         const after:MaintenanceEntity|null = MaintenanceRepository::find(id)
         self::assertNotNull(after)
         self::assertEquals("improvement", after.type)
@@ -53,8 +55,30 @@ class MaintenanceRepositoryTest extends UnitTest {
         self::assertEquals(95.5, after.cost)
         self::assertEquals("Garage", after.material_source)
         self::assertEquals(365, after.lifespan_days)
+        self::assertEquals(46000, after.mileage)
+        self::assertEquals("2026-05-01", after.performed_on)
         self::assertEquals(car_id, after.car_id)
         self::assertEquals(before.created_at, after.created_at)
+        Fixture::cleanup()
+        return 0
+    }
+
+    // Dernier relevé : jour le plus récent, puis dernier enregistré ; les
+    // entretiens sans relevé ne comptent pas.
+    public method latestReadingTest(): int {
+        Fixture::reset()
+        const car_id:int = Fixture::car("MREAD", "Peugeot", "208", 9000.0)
+        self::assertNull(MaintenanceRepository::latestReading(car_id))
+        MaintenanceRepository::create(car_id, "maintenance", "Vidange", 80.0, "", 0, 52000, "2026-06-01")
+        MaintenanceRepository::create(car_id, "maintenance", "Pneus", 300.0, "", 0, 50000, "2026-01-10")
+        MaintenanceRepository::create(car_id, "maintenance", "Lavage", 20.0, "", 0, 0, "2026-07-01")
+        const latest:MaintenanceEntity|null = MaintenanceRepository::latestReading(car_id)
+        self::assertNotNull(latest)
+        self::assertEquals(52000, latest.mileage)
+        const same_day:int = MaintenanceRepository::create(car_id, "maintenance", "Filtre", 30.0, "", 0, 52010, "2026-06-01")
+        const last:MaintenanceEntity|null = MaintenanceRepository::latestReading(car_id)
+        self::assertNotNull(last)
+        self::assertEquals(same_day, last.id)
         Fixture::cleanup()
         return 0
     }
@@ -62,8 +86,8 @@ class MaintenanceRepositoryTest extends UnitTest {
     public method deleteTest(): int {
         Fixture::reset()
         const car_id:int = Fixture::car("MDEL", "Peugeot", "208", 9000.0)
-        const id:int = MaintenanceRepository::create(car_id, "maintenance", "Vidange", 80.0, "", 0)
-        MaintenanceRepository::create(car_id, "maintenance", "Pneus", 300.0, "", 0)
+        const id:int = MaintenanceRepository::create(car_id, "maintenance", "Vidange", 80.0, "", 0, 0, "")
+        MaintenanceRepository::create(car_id, "maintenance", "Pneus", 300.0, "", 0, 0, "")
         MaintenanceRepository::delete(id)
         self::assertNull(MaintenanceRepository::find(id))
         self::assertEquals(1, Fixture::maintenanceCount(car_id))

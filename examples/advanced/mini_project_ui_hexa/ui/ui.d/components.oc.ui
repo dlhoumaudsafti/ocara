@@ -152,8 +152,19 @@ components:
               children:
                 - { type: label, text: "${field_year}" }
                 - { type: input, bind: $root.year, kind: number, placeholder: "2015", onBlur: $save }
-        - { type: label, text: "${field_price}" }
-        - { type: input, bind: $root.purchase_price, kind: number, placeholder: "8500", required: true, onBlur: $save }
+        - type: row
+          spacing: 8
+          children:
+            - type: column
+              weight: 1
+              children:
+                - { type: label, text: "${field_price}" }
+                - { type: input, bind: $root.purchase_price, kind: number, placeholder: "8500", required: true, onBlur: $save }
+            - type: column
+              weight: 1
+              children:
+                - { type: label, text: "${field_mileage}" }
+                - { type: input, bind: $root.mileage, kind: number, placeholder: "120000", onBlur: $save }
         - type: row
           spacing: 8
           children:
@@ -167,6 +178,8 @@ components:
               children:
                 - { type: label, text: "${field_sale}" }
                 - { type: date, bind: $root.sale_date, placeholder: "${date_hint}", onChange: $save }
+        - { type: label, text: "${field_inspection}" }
+        - { type: date, bind: $root.inspection_date, placeholder: "${date_hint}", onChange: $save }
 
   # Ajout d'une voiture : panneau inférieur ouvert par le bouton flottant de
   # l'accueil ; champs obligatoires vérifiés avant l'action (`submit`).
@@ -225,6 +238,8 @@ components:
             - { type: heading, level: 1, bind: car.reference, style: page_title, width: fill }
             - { type: text, id: car_saved, value: "${car_saved}", style: saved, visible: false }
         - { type: text, id: car_summary, style: muted }
+        # Contrôle technique à faire bientôt, ou dépassé (CarView::inspection).
+        - { type: text, id: car_inspection, color: "#ffffff", bold: true, padding: [4, 10], radius: 4, visible: false }
         - { type: carFields, root: car, save: save_car }
         - type: grid
           columns: 2
@@ -283,6 +298,21 @@ components:
               children:
                 - { type: label, text: "${field_lifespan}" }
                 - { type: input, bind: maintenance.lifespan_days, kind: number, placeholder: "365" }
+        # Date de l'intervention (vide : aujourd'hui) et relevé du compteur :
+        # le dernier relevé met à jour le compteur de la voiture.
+        - type: row
+          spacing: 8
+          children:
+            - type: column
+              weight: 1
+              children:
+                - { type: label, text: "${field_performed_on}" }
+                - { type: date, bind: maintenance.performed_on, placeholder: "${today_hint}" }
+            - type: column
+              weight: 1
+              children:
+                - { type: label, text: "${field_reading}" }
+                - { type: input, bind: maintenance.mileage, kind: number, placeholder: "120000" }
         - { type: label, text: "${field_source}" }
         - { type: input, bind: maintenance.material_source, placeholder: "${source_hint}" }
         - type: row
@@ -320,5 +350,6 @@ components:
                 spacing: 8
                 children:
                   - { type: text, bind: date, style: muted }
+                  - { type: text, bind: mileage, style: muted, binds: { visible: has_mileage } }
                   - { type: text, bind: source, style: muted, binds: { visible: has_source } }
               - { type: text, bind: warning, color: "#ffffff", padding: [2, 8], radius: 4, binds: { visible: has_warning, background: warning_color } }

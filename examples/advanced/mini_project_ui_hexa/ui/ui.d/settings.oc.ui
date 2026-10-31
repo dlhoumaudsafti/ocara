@@ -51,6 +51,21 @@ screens:
                 - { value: Asia/Dubai, text: "Asia/Dubai (UTC+4)" }
                 - { value: Asia/Tokyo, text: "Asia/Tokyo (UTC+9)" }
             - { type: text, value: "${timezone_dst_hint}", style: muted }
+            - { type: label, text: "${field_distance_unit}" }
+            - type: select
+              bind: settings.distance_unit
+              onChange: save_settings
+              options:
+                - { value: km, text: "${unit_km}" }
+                - { value: mi, text: "${unit_mi}" }
+            - { type: label, text: "${field_theme}" }
+            - type: select
+              bind: settings.theme
+              onChange: save_settings
+              options:
+                - { value: auto, text: "${theme_auto}" }
+                - { value: light, text: "${theme_light}" }
+                - { value: dark, text: "${theme_dark}" }
         - type: card
           spacing: 6
           width: fill

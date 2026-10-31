@@ -12,7 +12,7 @@ class SettingsViewTest extends UnitTest {
         const state:map<string, map<string, mixed>> = SettingsView::present(
             use SettingsEntity("en", "USD", "UTC"), DateTime::parse("2026-07-04T09:05:00")
         )
-        self::assertEquals("$12,345.60", state["settings_price_example"]["value"])
+        self::assertEquals("$12,345.60 · 120,000 km", state["settings_price_example"]["value"])
         self::assertEquals("${settings_now} : 07/04/2026 09:05 (UTC)", state["settings_date_example"]["value"])
         Preferences::reset()
         return 0

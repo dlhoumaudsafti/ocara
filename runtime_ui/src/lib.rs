@@ -30,6 +30,7 @@ pub const ERR_UNAVAILABLE: i64 = 104;
 pub const ERR_TREE: i64 = 105;
 pub const ERR_ROOT: i64 = 107;
 pub const ERR_ANIMATION: i64 = 108;
+pub const ERR_THEME: i64 = 109;
 
 struct Ui {
     /// Arbre du compilateur (textes avec `${nom}`) et variables.
@@ -48,6 +49,8 @@ struct Ui {
     bindings: HashMap<String, bind::Binding>,
     /// Dernière valeur de l'objet lue pour chaque nœud lié (`id`, propriété).
     seen: HashMap<(String, String), Value>,
+    /// `ui.setTheme` : thème à la place de `window.theme` (variantes comprises).
+    theme: Option<String>,
 }
 
 static UIS: Mutex<Option<HashMap<i64, Ui>>> = Mutex::new(None);
@@ -135,6 +138,7 @@ pub fn init(this: i64, tree_json: &str, vars: Value, default_action: DefaultActi
         size_class: String::new(),
         bindings: HashMap::new(),
         seen: HashMap::new(),
+        theme: None,
     };
     UIS.lock().unwrap().get_or_insert_with(HashMap::new).insert(this, ui);
     tree
@@ -142,6 +146,9 @@ pub fn init(this: i64, tree_json: &str, vars: Value, default_action: DefaultActi
 
 fn rebuild(ui: &mut Ui) -> Value {
     ui.tree = vars::resolve_tree(&ui.raw, &ui.vars);
+    if let Some(theme) = &ui.theme {
+        set_window_theme(&mut ui.tree, theme);
+    }
     ui.nodes = nodes_of(&ui.tree);
     ui.tree.clone()
 }
@@ -152,6 +159,29 @@ pub fn reload(this: i64, raw: Value) -> Value {
     with(this, |ui| {
         warn_missing(&raw, &ui.vars);
         ui.raw = raw;
+        rebuild(ui)
+    }).unwrap_or(Value::Null)
+}
+
+/// `window.theme` de l'arbre et de ses variantes de taille.
+fn set_window_theme(tree: &mut Value, theme: &str) {
+    let Some(object) = tree.as_object_mut() else { return };
+    if let Some(Value::Object(variants)) = object.get_mut("variants") {
+        for variant in variants.values_mut().filter_map(Value::as_object_mut) {
+            variant.entry("window").or_insert_with(|| Value::Object(Map::new()))["theme"] = Value::String(theme.to_string());
+        }
+    }
+    object.entry("window").or_insert_with(|| Value::Object(Map::new()))["theme"] = Value::String(theme.to_string());
+}
+
+/// `ui.setTheme(theme)` : `auto`, `light` ou `dark` à la place de
+/// `window.theme` ; rend l'arbre affiché.
+pub fn set_theme(this: i64, theme: &str) -> Value {
+    if !matches!(theme, "auto" | "light" | "dark") {
+        raise(ERR_THEME, format!("thème '{theme}' inconnu (attendu : auto, light, dark)"));
+    }
+    with(this, |ui| {
+        ui.theme = Some(theme.to_string());
         rebuild(ui)
     }).unwrap_or(Value::Null)
 }
@@ -473,6 +503,16 @@ mod tests {
         assert!(shown("lg"));
         assert!(shown("xl"));
         assert!(super::declares(&tree["screens"]["home"]["layout"], "cars"));
+    }
+
+    /// `ui.setTheme` : `window.theme` de l'arbre et de chaque variante.
+    #[test]
+    fn window_theme_is_set_everywhere() {
+        let mut tree = json!({ "window": { "title": "T" }, "variants": { "md": { "screens": {} } } });
+        super::set_window_theme(&mut tree, "dark");
+        assert_eq!(tree["window"]["theme"], "dark");
+        assert_eq!(tree["window"]["title"], "T");
+        assert_eq!(tree["variants"]["md"]["window"]["theme"], "dark");
     }
 
     /// Barre de titre (de tous les écrans, d'un écran) : ses nœuds ont un état.

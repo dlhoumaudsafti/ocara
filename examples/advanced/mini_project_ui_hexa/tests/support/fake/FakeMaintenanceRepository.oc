@@ -17,8 +17,11 @@ class FakeMaintenanceRepository implements MaintenanceContract {
         var material_source:string = row["material_source"]
         var lifespan_days:int = row["lifespan_days"]
         var created_at:int = row["created_at"]
+        var mileage:int = row["mileage"]
+        var performed_on:string = row["performed_on"]
         return use MaintenanceEntity(
-            id, car_id, type, description, cost, material_source, lifespan_days, created_at
+            id, car_id, type, description, cost, material_source, lifespan_days, created_at,
+            mileage, performed_on
         )
     }
 
@@ -36,9 +39,19 @@ class FakeMaintenanceRepository implements MaintenanceContract {
         description:string,
         cost:float,
         material_source:string,
-        lifespan_days:int
+        lifespan_days:int,
+        mileage:int,
+        performed_on:string
     ): void {
-        FakeDatabase::updateMaintenance(id, type, description, cost, material_source, lifespan_days)
+        FakeDatabase::updateMaintenance(id, type, description, cost, material_source, lifespan_days, mileage, performed_on)
+    }
+
+    public static method latestReading(car_id:int): MaintenanceEntity|null {
+        const row:map<string, mixed> = FakeDatabase::latestReading(car_id)
+        if row.size() equal 0 {
+            return null
+        }
+        return self::fromRow(row)
     }
 
     public static method delete(id:int): void {
@@ -51,10 +64,12 @@ class FakeMaintenanceRepository implements MaintenanceContract {
         description:string,
         cost:float,
         material_source:string,
-        lifespan_days:int
+        lifespan_days:int,
+        mileage:int,
+        performed_on:string
     ): int {
         return FakeDatabase::insertMaintenance(
-            car_id, type, description, cost, material_source, lifespan_days
+            car_id, type, description, cost, material_source, lifespan_days, mileage, performed_on
         )
     }
 

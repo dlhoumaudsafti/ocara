@@ -39,6 +39,44 @@ class FormatTest extends UnitTest {
         return 0
     }
 
+    // Distances gardées en km, affichées (et saisies) dans l'unité choisie.
+    public method distanceTest(): int {
+        Preferences::apply("fr", "EUR", "UTC", "km")
+        self::assertEquals("123 456 km", Format::distance(123456))
+        self::assertEquals(1000, Format::toKilometers(1000))
+        Preferences::apply("en", "USD", "UTC", "mi")
+        self::assertEquals("62,137 mi", Format::distance(100000))
+        self::assertEquals(62137, Format::toUnit(100000))
+        self::assertEquals(100000, Format::toKilometers(62137))
+        Preferences::reset()
+        return 0
+    }
+
+    // Jour d'un champ date (AAAA-MM-JJ) au format de la langue.
+    public method dayTest(): int {
+        Preferences::apply("fr", "EUR", "UTC")
+        self::assertEquals("01/05/2027", Format::day("2027-05-01"))
+        self::assertEquals("pas une date", Format::day("pas une date"))
+        self::assertNull(Format::parseDay("2027-02-31"))
+        self::assertNull(Format::parseDay(""))
+        self::assertEquals(DateTime::parse("2027-05-01T00:00:00"), Format::parseDay("2027-05-01"))
+        Preferences::apply("en", "USD", "UTC")
+        self::assertEquals("05/01/2027", Format::day("2027-05-01"))
+        Preferences::reset()
+        return 0
+    }
+
+    // Aujourd'hui dans le fuseau choisi : 23:30 UTC est déjà demain à Tokyo.
+    public method todayTest(): int {
+        const ts:int = DateTime::parse("2026-05-10T23:30:00")
+        Preferences::apply("fr", "EUR", "UTC")
+        self::assertEquals("2026-05-10", Format::today(ts))
+        Preferences::apply("fr", "EUR", "Asia/Tokyo")
+        self::assertEquals("2026-05-11", Format::today(ts))
+        Preferences::reset()
+        return 0
+    }
+
     public method symbolTest(): int {
         self::assertEquals("€", Format::symbol("EUR"))
         self::assertEquals("XYZ", Format::symbol("XYZ"))

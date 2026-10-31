@@ -9,8 +9,10 @@ class SettingsRepositoryTest extends UnitTest {
     public method saveAndLoadTest(): int {
         Fixture::reset()
         const saved:SettingsEntity = SettingsRepository::load()
-        SettingsRepository::save(use SettingsEntity("en", "CHF", "Asia/Dubai"))
+        SettingsRepository::save(use SettingsEntity("en", "CHF", "Asia/Dubai", "mi", "dark"))
         const loaded:SettingsEntity = SettingsRepository::load()
+        self::assertEquals("mi", loaded.distance_unit)
+        self::assertEquals("dark", loaded.theme)
         self::assertEquals("en", loaded.language)
         self::assertEquals("CHF", loaded.currency)
         self::assertEquals("Asia/Dubai", loaded.timezone)

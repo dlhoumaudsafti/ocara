@@ -20,9 +20,10 @@ class FakeCarSummaryRepository implements CarSummaryContract {
             var estimated_price:float = row["estimated_sale_price"]
             var origin:string = row["origin"]
             var year:int = row["year"]
+            var mileage:int = row["mileage"]
             const maintenance_total:float = FakeDatabase::total(id, "maintenance")
             items.push(
-                use CarSummaryEntity(id, reference, brand, model, purchase_price, estimated_price, maintenance_total, "", origin, year)
+                use CarSummaryEntity(id, reference, brand, model, purchase_price, estimated_price, maintenance_total, "", origin, year, mileage)
             )
         }
         return items

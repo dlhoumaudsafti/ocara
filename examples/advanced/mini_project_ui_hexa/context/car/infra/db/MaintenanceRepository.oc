@@ -26,8 +26,11 @@ class MaintenanceRepository implements MaintenanceContract {
         var material_source:string = row["material_source"]
         var lifespan_days:int = row["lifespan_days"]
         var created_at:int = row["created_at"]
+        var mileage:int = row["mileage"]
+        var performed_on:string = row["performed_on"]
         return use MaintenanceEntity(
-            id, car_id, type, description, cost, material_source, lifespan_days, created_at
+            id, car_id, type, description, cost, material_source, lifespan_days, created_at,
+            mileage, performed_on
         )
     }
 
@@ -35,7 +38,7 @@ class MaintenanceRepository implements MaintenanceContract {
         const db:SQLite = Database::connect()
         const row:map<string, mixed> = db.queryOne(
             `SELECT id, car_id, type, description, cost, created_at, material_source,
-                COALESCE(lifespan_days, 0) AS lifespan_days
+                COALESCE(lifespan_days, 0) AS lifespan_days, mileage, performed_on
             FROM maintenances WHERE id = :id`,
             {"id": id}
         )
@@ -50,10 +53,10 @@ class MaintenanceRepository implements MaintenanceContract {
         const db:SQLite = Database::connect()
         consumed rows:array<map<string, mixed>> = db.query(
             `SELECT id, car_id, type, description, cost, created_at, material_source,
-                COALESCE(lifespan_days, 0) AS lifespan_days
+                COALESCE(lifespan_days, 0) AS lifespan_days, mileage, performed_on
             FROM maintenances
             WHERE car_id = :carId
-            ORDER BY created_at DESC`,
+            ORDER BY COALESCE(NULLIF(performed_on, ''), date(created_at, 'unixepoch')) DESC, id DESC`,
             {"carId": car_id}
         )
         db.close()
@@ -70,13 +73,15 @@ class MaintenanceRepository implements MaintenanceContract {
         description:string,
         cost:float,
         material_source:string,
-        lifespan_days:int
+        lifespan_days:int,
+        mileage:int,
+        performed_on:string
     ): int {
         var id:int = 0
         SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
             db.prepare(`INSERT INTO maintenances
-                (car_id, type, description, cost, created_at, material_source, lifespan_days)
-                VALUES (:carId, :type, :description, :cost, :createdAt, :materialSource, :lifespanDays)
+                (car_id, type, description, cost, created_at, material_source, lifespan_days, mileage, performed_on)
+                VALUES (:carId, :type, :description, :cost, :createdAt, :materialSource, :lifespanDays, :mileage, :performedOn)
             `)
             db.bind({
                 "carId": car_id,
@@ -85,7 +90,9 @@ class MaintenanceRepository implements MaintenanceContract {
                 "cost": cost,
                 "createdAt": DateTime::now(),
                 "materialSource": material_source,
-                "lifespanDays": lifespan_days
+                "lifespanDays": lifespan_days,
+                "mileage": mileage,
+                "performedOn": performed_on
             })
             db.commit()
             id = db.lastInsertId()
@@ -101,12 +108,15 @@ class MaintenanceRepository implements MaintenanceContract {
         description:string,
         cost:float,
         material_source:string,
-        lifespan_days:int
+        lifespan_days:int,
+        mileage:int,
+        performed_on:string
     ): void {
         SQLite::withOpen(Database::path(), nameless(db:SQLite): void {
             db.prepare(`UPDATE maintenances SET
                 type = :type, description = :description, cost = :cost,
-                material_source = :materialSource, lifespan_days = :lifespanDays
+                material_source = :materialSource, lifespan_days = :lifespanDays,
+                mileage = :mileage, performed_on = :performedOn
                 WHERE id = :id`)
             db.bind({
                 "type": type,
@@ -114,6 +124,8 @@ class MaintenanceRepository implements MaintenanceContract {
                 "cost": cost,
                 "materialSource": material_source,
                 "lifespanDays": lifespan_days,
+                "mileage": mileage,
+                "performedOn": performed_on,
                 "id": id
             })
             db.commit()
@@ -126,6 +138,26 @@ class MaintenanceRepository implements MaintenanceContract {
             db.bind({"id": id})
             db.commit()
         })
+    }
+
+    // Dernier relevé du compteur : jour de l'entretien (`performed_on`, sinon
+    // celui de son enregistrement) le plus récent, puis le dernier enregistré.
+    public static method latestReading(car_id:int): MaintenanceEntity|null {
+        const db:SQLite = Database::connect()
+        const row:map<string, mixed> = db.queryOne(
+            `SELECT id, car_id, type, description, cost, created_at, material_source,
+                COALESCE(lifespan_days, 0) AS lifespan_days, mileage, performed_on
+            FROM maintenances
+            WHERE car_id = :carId AND mileage > 0
+            ORDER BY COALESCE(NULLIF(performed_on, ''), date(created_at, 'unixepoch')) DESC, id DESC
+            LIMIT 1`,
+            {"carId": car_id}
+        )
+        db.close()
+        if row.size() equal 0 {
+            return null
+        }
+        return self::fromRow(row)
     }
 
     // Somme des entretiens d'amélioration d'une voiture — base du recalcul

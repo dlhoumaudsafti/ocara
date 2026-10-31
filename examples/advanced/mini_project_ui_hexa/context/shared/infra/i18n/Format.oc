@@ -2,12 +2,14 @@ namespace context.shared.infra.i18n
 // Formatage d'affichage des montants et des dates, commun aux vues de tous
 // les contextes, selon les préférences en cours (Preferences : langue,
 // devise, fuseau horaire) :
-//   fr  1 234,50 €    31/10/2026     (symbole après le montant)
-//   en  €1,234.50     10/31/2026     (symbole avant)
-// Le yen n'a pas de décimales.
+//   fr  1 234,50 €    31/10/2026     12 345 km   (symbole après le montant)
+//   en  €1,234.50     10/31/2026     7,671 mi    (symbole avant)
+// Le yen n'a pas de décimales. Les distances sont gardées en kilomètres et
+// affichées (saisies) dans l'unité choisie.
 
 import ocara.Math
 import ocara.DateTime
+import ocara.DateTimeException
 import context.shared.infra.settings.Preferences
 import context.shared.infra.i18n.Timezone
 
@@ -76,6 +78,57 @@ class Format {
     public static method dateTime(timestamp:int): string {
         const local:int = timestamp + Timezone::offset(Preferences::timezone(), timestamp)
         return self::date(timestamp) + " " + DateTime::format(local, "%H:%M")
+    }
+
+    // Jour `AAAA-MM-JJ` (champ date) au format de la langue ; tel quel s'il
+    // n'est pas valide.
+    public static method day(iso:string): string {
+        const ts:int|null = self::parseDay(iso)
+        if ts is null {
+            return iso
+        }
+        if Preferences::language() equal "fr" {
+            return DateTime::format(ts, "%d/%m/%Y")
+        }
+        return DateTime::format(ts, "%m/%d/%Y")
+    }
+
+    // Minuit UTC du jour `AAAA-MM-JJ` ; `null` s'il n'est pas valide.
+    public static method parseDay(iso:string): int|null {
+        if iso.len() not equal 10 {
+            return null
+        }
+        try {
+            return DateTime::parse(iso + "T00:00:00")
+        } on e is DateTimeException {
+            return null
+        }
+    }
+
+    // Jour courant `AAAA-MM-JJ` dans le fuseau choisi.
+    public static method today(now:int): string {
+        return DateTime::format(now + Timezone::offset(Preferences::timezone(), now), "%Y-%m-%d")
+    }
+
+    // « 12 345 km » / « 7,671 mi ».
+    public static method distance(km:int): string {
+        return self::grouped(self::toUnit(km), Preferences::language() equal "fr") + " " + Preferences::distanceUnit()
+    }
+
+    // Kilomètres → unité affichée (arrondi).
+    public static method toUnit(km:int): int {
+        if Preferences::distanceUnit() equal "mi" {
+            return Math::round(km.toFloat() / 1.609344)
+        }
+        return km
+    }
+
+    // Unité affichée → kilomètres (arrondi).
+    public static method toKilometers(value:int): int {
+        if Preferences::distanceUnit() equal "mi" {
+            return Math::round(value.toFloat() * 1.609344)
+        }
+        return value
     }
 
     // Partie entière par groupes de trois chiffres (espace en français,

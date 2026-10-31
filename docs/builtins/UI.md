@@ -235,6 +235,7 @@ littéraux, les deux sont vérifiés dès la compilation.
 
 | Méthode | Rôle |
 |---------|------|
+| `ui.setTheme(theme)` | thème affiché, `auto` (celui du système), `light` ou `dark`, à la place de `window.theme` ; appliqué à chaud (écran et état gardés), ou dès l'affichage s'il est appelé avant `run()` ; `UIException` 109 pour un autre nom |
 | `ui.navigate(screen)` | affiche l'écran (`UIException` 103 s'il n'est pas déclaré) ; un écran déjà ouvert : retour à lui ; l'écran affiché : son `onShow` relancé |
 | `ui.back()` | écran précédent |
 | `ui.run()` | affiche l'interface et bloque jusqu'à sa fermeture |
@@ -321,6 +322,7 @@ Les spécificités de chaque plateforme restent dans [Tauri](Tauri.md) et
 | 106 | composant absent du `.oc.ui` (`ui.component`) |
 | 107 | `ui.bind` : racine absente des liaisons du `.oc.ui`, chemin lié absent de l'objet (ou inaccessible), ou de type incompatible |
 | 108 | `ui.animate` : animation absente du `.oc.ui` |
+| 109 | `ui.setTheme` : thème inconnu (attendu : `auto`, `light`, `dark`) |
 
 ## Voir aussi
 

@@ -2,9 +2,11 @@ namespace context.car.infra.view.form
 // Formulaire d'une voiture, lié à l'interface (`ui.bind`) : racine `new_car`
 // (ajout, panneau de l'accueil) ou `car` (fiche modifiée sur place), voir
 // ui/ui.d/components.oc.ui `carFields`. Les champs sont le texte saisi —
-// nombres compris : CarController les contrôle et les convertit.
+// nombres compris : CarController les contrôle et les convertit. Le compteur
+// est dans l'unité des paramètres (km, mi).
 
 import context.car.domain.entity.CarEntity
+import context.shared.infra.i18n.Format
 
 class CarForm {
     public property reference:string = ""
@@ -15,6 +17,8 @@ class CarForm {
     public property purchase_price:string = ""
     public property acquisition_date:string = ""
     public property sale_date:string = ""
+    public property mileage:string = ""
+    public property inspection_date:string = ""
 
     // Voiture lue en base : ses champs affichés.
     public method load(car:CarEntity): void {
@@ -29,6 +33,11 @@ class CarForm {
         self.purchase_price = car.purchase_price.toStr()
         self.acquisition_date = car.acquisition_date
         self.sale_date = car.sale_date
+        self.mileage = ""
+        if car.mileage greater 0 {
+            self.mileage = Format::toUnit(car.mileage).toStr()
+        }
+        self.inspection_date = car.inspection_date
     }
 
     public method clear(): void {
@@ -40,5 +49,7 @@ class CarForm {
         self.purchase_price = ""
         self.acquisition_date = ""
         self.sale_date = ""
+        self.mileage = ""
+        self.inspection_date = ""
     }
 }

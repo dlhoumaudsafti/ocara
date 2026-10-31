@@ -1,8 +1,9 @@
 namespace context.settings.infra.controllers
-// Écran `settings` : langue, devise et fuseau horaire, enregistrés dès qu'un
-// choix change. Les préférences passent dans
+// Écran `settings` : langue, devise, fuseau horaire, unité de distance et
+// thème, enregistrés dès qu'un choix change. Les préférences passent dans
 // context.shared.infra.settings.Preferences (formats des autres écrans) ; la
-// langue remplace les textes de l'interface (`ui.setVars`).
+// langue et l'unité remplacent les textes de l'interface (`ui.setVars`), le
+// thème est appliqué à chaud (`ui.setTheme`).
 
 import ocara.UI
 import ocara.UIEvent
@@ -17,12 +18,19 @@ import context.shared.infra.ui.Screen
 
 class SettingsController {
 
-    // Démarrage : préférences enregistrées appliquées ; rend la langue de
-    // l'interface.
-    public static method boot(): string {
+    // Démarrage : préférences enregistrées appliquées.
+    public static method boot(): void {
         const settings:SettingsEntity = SettingsService::load()
-        Preferences::apply(settings.language, settings.currency, settings.timezone)
-        return settings.language
+        Preferences::apply(settings.language, settings.currency, settings.timezone, settings.distance_unit, settings.theme)
+    }
+
+    // Textes de l'interface dans la langue choisie, unité de distance comprise.
+    public static method vars(): map<string, mixed> {
+        const vars:map<string, mixed> = Language::vars(Preferences::language())
+        for key has value in Preferences::vars() {
+            vars[key] = value
+        }
+        return vars
     }
 
     public static method show(ui:UI, event:UIEvent, form:SettingsForm): void {
@@ -33,17 +41,30 @@ class SettingsController {
 
     // Un choix a changé : enregistré et appliqué.
     public static method save(ui:UI, event:UIEvent, form:SettingsForm): void {
-        const before:string = Preferences::language()
-        const settings:SettingsEntity|null = SettingsService::update(form.language, form.currency, form.timezone)
+        self::apply(ui, form)
+    }
+
+    // Rend vrai si les préférences du formulaire sont enregistrées.
+    public static method apply(ui:UI, form:SettingsForm): bool {
+        const language:string = Preferences::language()
+        const unit:string = Preferences::distanceUnit()
+        const theme:string = Preferences::theme()
+        const settings:SettingsEntity|null = SettingsService::update(
+            form.language, form.currency, form.timezone, form.distance_unit, form.theme
+        )
         if settings is null {
             ui.toast("${flash_invalid_settings}")
-            return
+            return false
         }
-        Preferences::apply(settings.language, settings.currency, settings.timezone)
-        if settings.language not equal before {
-            ui.setVars(Language::vars(settings.language))
+        Preferences::apply(settings.language, settings.currency, settings.timezone, settings.distance_unit, settings.theme)
+        if settings.language not equal language or settings.distance_unit not equal unit {
+            ui.setVars(self::vars())
+        }
+        if settings.theme not equal theme {
+            ui.setTheme(settings.theme)
         }
         Screen::apply(ui, SettingsViewPort::present(settings, DateTime::now()))
         ui.toast("${flash_settings_saved}")
+        return true
     }
 }

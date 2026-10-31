@@ -2,9 +2,11 @@ namespace context.car.infra.view.form
 // Formulaire d'entretien de la fiche, lié à l'interface (racine
 // `maintenance`, ui/ui.d/components.oc.ui `maintenanceForm`) : ajout
 // (`id` 0), ou modification d'un entretien de l'historique. `adding` et
-// `editing` montrent les titres et boutons de chaque cas.
+// `editing` montrent les titres et boutons de chaque cas. `mileage` : relevé
+// du compteur dans l'unité des paramètres ; `performed_on` vide : aujourd'hui.
 
 import context.car.domain.entity.MaintenanceEntity
+import context.shared.infra.i18n.Format
 
 class MaintenanceForm {
     public property id:int = 0
@@ -13,6 +15,8 @@ class MaintenanceForm {
     public property cost:string = ""
     public property material_source:string = ""
     public property lifespan_days:string = ""
+    public property mileage:string = ""
+    public property performed_on:string = ""
     public property adding:bool = true
     public property editing:bool = false
 
@@ -30,6 +34,11 @@ class MaintenanceForm {
         if m.lifespan_days greater 0 {
             self.lifespan_days = m.lifespan_days.toStr()
         }
+        self.mileage = ""
+        if m.mileage greater 0 {
+            self.mileage = Format::toUnit(m.mileage).toStr()
+        }
+        self.performed_on = m.performed_on
         self.adding = false
         self.editing = true
     }
@@ -42,6 +51,8 @@ class MaintenanceForm {
         self.cost = ""
         self.material_source = ""
         self.lifespan_days = ""
+        self.mileage = ""
+        self.performed_on = ""
         self.adding = true
         self.editing = false
     }

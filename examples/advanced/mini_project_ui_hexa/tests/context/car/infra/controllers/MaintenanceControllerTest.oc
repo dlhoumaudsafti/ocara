@@ -95,6 +95,58 @@ class MaintenanceControllerTest extends UnitTest {
         return 0
     }
 
+    // Relevé du compteur : le dernier met à jour la voiture ; un relevé plus
+    // ancien ajouté après coup ne la fait pas reculer.
+    public method readingTest(): int {
+        FakeDatabase::reset()
+        Preferences::reset()
+        const car_id:int = FakeDatabase::car("READ", "Peugeot", "308", 10000.0)
+        const first:MaintenanceForm = self.form("maintenance", "Vidange", "80", "", "")
+        first.mileage = "45000"
+        first.performed_on = "2026-03-01"
+        self::assertEquals("", MaintenanceController::store(car_id, first))
+        self::assertEquals(45000, FakeDatabase::carRow(car_id)["mileage"])
+        const older:MaintenanceForm = self.form("maintenance", "Pneus", "300", "", "")
+        older.mileage = "40000"
+        older.performed_on = "2025-11-15"
+        self::assertEquals("", MaintenanceController::store(car_id, older))
+        self::assertEquals(45000, FakeDatabase::carRow(car_id)["mileage"])
+        const newer:MaintenanceForm = self.form("maintenance", "Freins", "200", "", "")
+        newer.mileage = "48 200"
+        newer.performed_on = "2026-06-20"
+        self::assertEquals("", MaintenanceController::store(car_id, newer))
+        self::assertEquals(48200, FakeDatabase::carRow(car_id)["mileage"])
+        // Sans relevé : le compteur ne change pas ; date vide : aujourd'hui.
+        const plain:MaintenanceForm = self.form("maintenance", "Lavage", "20", "", "")
+        self::assertEquals("", MaintenanceController::store(car_id, plain))
+        self::assertEquals(48200, FakeDatabase::carRow(car_id)["mileage"])
+        var dated:bool = false
+        for row in FakeDatabase::maintenances(car_id) {
+            var description:string = row["description"]
+            var day:string = row["performed_on"]
+            if description equal "Lavage" {
+                dated = day.len() equal 10
+            }
+        }
+        self::assertTrue(dated)
+        FakeDatabase::cleanup()
+        return 0
+    }
+
+    public method readingInvalidTest(): int {
+        FakeDatabase::reset()
+        const car_id:int = FakeDatabase::car("READ2", "Peugeot", "308", 10000.0)
+        const form:MaintenanceForm = self.form("maintenance", "Vidange", "80", "", "")
+        form.mileage = "-1"
+        self::assertEquals("invalid_mileage", MaintenanceController::store(car_id, form))
+        form.mileage = ""
+        form.performed_on = "2026-13-01"
+        self::assertEquals("invalid_date", MaintenanceController::store(car_id, form))
+        self::assertEquals(0, FakeDatabase::maintenanceCount(car_id))
+        FakeDatabase::cleanup()
+        return 0
+    }
+
     // Suppression : prix estimé recalculé ; un entretien d'une autre voiture
     // n'est pas supprimé.
     public method removeTest(): int {

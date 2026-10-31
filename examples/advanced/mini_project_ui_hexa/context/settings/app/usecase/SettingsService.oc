@@ -19,12 +19,18 @@ class SettingsService {
         if not SettingsEntity::timezones().contains(settings.timezone) {
             settings.timezone = defaults.timezone
         }
+        if not SettingsEntity::distanceUnits().contains(settings.distance_unit) {
+            settings.distance_unit = defaults.distance_unit
+        }
+        if not SettingsEntity::themes().contains(settings.theme) {
+            settings.theme = defaults.theme
+        }
         return settings
     }
 
     // Enregistre les préférences ; `null` si l'une n'est pas proposée.
-    public static method update(language:string, currency:string, timezone:string): SettingsEntity|null {
-        const settings:SettingsEntity = use SettingsEntity(language, currency, timezone)
+    public static method update(language:string, currency:string, timezone:string, distance_unit:string, theme:string): SettingsEntity|null {
+        const settings:SettingsEntity = use SettingsEntity(language, currency, timezone, distance_unit, theme)
         if not settings.valid() {
             return null
         }

@@ -37,6 +37,7 @@ pub const UI_BUILTINS: &[BuiltinDesc] = &[
     ui("UI_stopAnimation", &[I, I],  None),
     ui("UI_setItems", &[I, I, I],    None),
     ui("UI_navigate", &[I, I],       None),
+    ui("UI_setTheme", &[I, I],       None),
     ui("UI_back",     &[I],          None),
     ui("UI_run",      &[I],          None),
     ui("UI_close",    &[I],          None),

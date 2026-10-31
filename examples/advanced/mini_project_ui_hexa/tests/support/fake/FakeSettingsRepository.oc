@@ -20,6 +20,12 @@ class FakeSettingsRepository implements SettingsContract {
         if stored.has("timezone") {
             settings.timezone = stored["timezone"]
         }
+        if stored.has("distance_unit") {
+            settings.distance_unit = stored["distance_unit"]
+        }
+        if stored.has("theme") {
+            settings.theme = stored["theme"]
+        }
         return settings
     }
 
@@ -27,5 +33,7 @@ class FakeSettingsRepository implements SettingsContract {
         FakeDatabase::setSetting("language", settings.language)
         FakeDatabase::setSetting("currency", settings.currency)
         FakeDatabase::setSetting("timezone", settings.timezone)
+        FakeDatabase::setSetting("distance_unit", settings.distance_unit)
+        FakeDatabase::setSetting("theme", settings.theme)
     }
 }

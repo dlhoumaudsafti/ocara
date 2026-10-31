@@ -18,6 +18,9 @@ class SettingsEntityTest extends UnitTest {
         self::assertFalse((use SettingsEntity("de", "EUR", "UTC")).valid())
         self::assertFalse((use SettingsEntity("fr", "BTC", "UTC")).valid())
         self::assertFalse((use SettingsEntity("fr", "EUR", "Mars/Olympus")).valid())
+        self::assertTrue((use SettingsEntity("fr", "EUR", "UTC", "mi", "dark")).valid())
+        self::assertFalse((use SettingsEntity("fr", "EUR", "UTC", "furlong", "dark")).valid())
+        self::assertFalse((use SettingsEntity("fr", "EUR", "UTC", "km", "violet")).valid())
         return 0
     }
 }

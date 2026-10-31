@@ -86,6 +86,9 @@ class SearchView implements SearchViewPort {
         if car.year greater 0 {
             parts.push(car.year.toStr())
         }
+        if car.mileage greater 0 {
+            parts.push(Format::distance(car.mileage))
+        }
         return parts.join(" · ")
     }
 }

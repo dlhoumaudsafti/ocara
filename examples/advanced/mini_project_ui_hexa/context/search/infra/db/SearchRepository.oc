@@ -25,6 +25,7 @@ class SearchRepository implements SearchContract {
         var maintenance_total:float = row["maintenance_total"]
         var origin:string = row["origin"]
         var year:int = row["year"]
+        var mileage:int = row["mileage"]
         return use CarSearchResultEntity(
             id,
             reference,
@@ -34,7 +35,8 @@ class SearchRepository implements SearchContract {
             estimated_price,
             maintenance_total,
             origin,
-            year
+            year,
+            mileage
         )
     }
 

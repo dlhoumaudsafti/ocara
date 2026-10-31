@@ -1,0 +1,35 @@
+import ocara.UnitTest
+import context.car.app.usecase.MileageService
+import tests.support.fake.FakeDatabase
+
+class MileageServiceTest extends UnitTest {
+    wiring tests.support.fake.FakeCarRepository
+    wiring tests.support.fake.FakeMaintenanceRepository
+
+    // Seul le dernier relevé (jour le plus récent) met à jour le compteur.
+    public method applyLatestReadingTest(): int {
+        FakeDatabase::reset()
+        const car_id:int = FakeDatabase::car("MILES", "Peugeot", "308", 10000.0)
+        const recent:int = FakeDatabase::insertMaintenance(car_id, "maintenance", "Vidange", 80.0, "", 0, 52000, "2026-06-01")
+        const old:int = FakeDatabase::insertMaintenance(car_id, "maintenance", "Pneus", 300.0, "", 0, 50000, "2026-01-10")
+        self::assertFalse(MileageService::applyLatestReading(car_id, old))
+        self::assertEquals(0, FakeDatabase::carRow(car_id)["mileage"])
+        self::assertTrue(MileageService::applyLatestReading(car_id, recent))
+        self::assertEquals(52000, FakeDatabase::carRow(car_id)["mileage"])
+        // Même jour : le dernier enregistré l'emporte.
+        const same_day:int = FakeDatabase::insertMaintenance(car_id, "maintenance", "Filtre", 30.0, "", 0, 52010, "2026-06-01")
+        self::assertTrue(MileageService::applyLatestReading(car_id, same_day))
+        self::assertEquals(52010, FakeDatabase::carRow(car_id)["mileage"])
+        FakeDatabase::cleanup()
+        return 0
+    }
+
+    public method withoutReadingTest(): int {
+        FakeDatabase::reset()
+        const car_id:int = FakeDatabase::car("MILES2", "Peugeot", "308", 10000.0)
+        const id:int = FakeDatabase::insertMaintenance(car_id, "maintenance", "Vidange", 80.0, "", 0, 0, "2026-06-01")
+        self::assertFalse(MileageService::applyLatestReading(car_id, id))
+        FakeDatabase::cleanup()
+        return 0
+    }
+}

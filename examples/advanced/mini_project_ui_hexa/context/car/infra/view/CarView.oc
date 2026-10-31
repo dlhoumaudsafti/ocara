@@ -32,6 +32,7 @@ class CarView implements CarViewPort {
             "car_id": {"value": id},
             "car_error": {"visible": false},
             "car_summary": {"value": self::summary(details)},
+            "car_inspection": self::inspection(details.car.inspection_date, DateTime::now()),
             "car_purchase.value": {"value": Format::price(details.car.purchase_price)},
             "car_estimated.value": {"value": Format::price(details.car.estimated_price)},
             "car_maintenance_total.value": {"value": Format::price(details.maintenance_total)},
@@ -52,6 +53,9 @@ class CarView implements CarViewPort {
         if details.car.year greater 0 {
             parts.push(details.car.year.toStr())
         }
+        if details.car.mileage greater 0 {
+            parts.push(Format::distance(details.car.mileage))
+        }
         var acquisition:string = details.car.acquisition_date
         var sale:string = details.car.sale_date
         if acquisition.empty() {
@@ -62,7 +66,31 @@ class CarView implements CarViewPort {
         }
         parts.push("${label_acquisition} : " + acquisition)
         parts.push("${label_sale} : " + sale)
+        if not details.car.inspection_date.empty() {
+            parts.push("${label_inspection} : " + Format::day(details.car.inspection_date))
+        }
         return parts.join(" · ")
+    }
+
+    // Alerte du contrôle technique : à faire dans moins de 60 jours
+    // (orange), ou dépassé (rouge) ; masquée sinon.
+    public static method inspection(date:string, now:int): map<string, mixed> {
+        const due:int|null = Format::parseDay(date)
+        if due is null {
+            return {"visible": false}
+        }
+        const today:int|null = Format::parseDay(Format::today(now))
+        var days_left:int = 0
+        if today is int {
+            days_left = (due - today) / 86400
+        }
+        if days_left smaller 0 {
+            return {"visible": true, "value": "${inspection_overdue} " + Format::day(date), "background": "#c62828"}
+        }
+        if days_left smaller or equal 60 {
+            return {"visible": true, "value": "${inspection_due} " + Format::day(date), "background": "#e65100"}
+        }
+        return {"visible": false}
     }
 
     // Ligne d'historique : badge, source, et alerte de remplacement quand la
@@ -71,8 +99,14 @@ class CarView implements CarViewPort {
     private static method row(m:MaintenanceEntity): map<string, mixed> {
         var warning:string = ""
         var warning_color:string = ""
+        // Jour de l'intervention (sinon celui de son enregistrement).
+        var done_at:int = m.created_at
+        const performed:int|null = Format::parseDay(m.performed_on)
+        if performed is int {
+            done_at = performed
+        }
         if m.lifespan_days greater 0 {
-            const due_at:int = m.created_at + m.lifespan_days * 86400
+            const due_at:int = done_at + m.lifespan_days * 86400
             const seconds_left:int = due_at - DateTime::now()
             if seconds_left smaller or equal 90 * 86400 {
                 warning = "${replace_before} " + Format::date(due_at)
@@ -95,13 +129,30 @@ class CarView implements CarViewPort {
             "badge_color": match m.type { "improvement" => "#8e24aa" default => "#b8860b" },
             "description": m.description,
             "cost": Format::price(m.cost),
-            "date": Format::date(m.created_at),
+            "date": self::date(m),
+            "mileage": self::reading(m),
+            "has_mileage": m.mileage greater 0,
             "source": source,
             "has_source": not source.empty(),
             "warning": warning,
             "has_warning": not warning.empty(),
             "warning_color": warning_color,
         }
+    }
+
+    private static method date(m:MaintenanceEntity): string {
+        if m.performed_on.empty() {
+            return Format::date(m.created_at)
+        }
+        return Format::day(m.performed_on)
+    }
+
+    // « Relevé : 45 000 km » ; "" sans relevé.
+    private static method reading(m:MaintenanceEntity): string {
+        if m.mileage smaller or equal 0 {
+            return ""
+        }
+        return "${reading_label} : " + Format::distance(m.mileage)
     }
 
     // Deux chiffres hexadécimaux d'une composante de couleur (0 à 255).

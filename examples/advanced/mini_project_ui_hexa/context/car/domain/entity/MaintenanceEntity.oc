@@ -1,5 +1,9 @@
 namespace context.car.domain.entity
 
+// `mileage` : relevé du compteur à l'intervention, en kilomètres (0 : aucun) ;
+// `performed_on` : date de l'intervention (AAAA-MM-JJ, "" : celle de
+// l'enregistrement, `created_at`).
+
 class MaintenanceEntity {
     public property id:int|null
     public property car_id:int
@@ -9,6 +13,8 @@ class MaintenanceEntity {
     public property material_source:string
     public property lifespan_days:int
     public property created_at:int
+    public property mileage:int
+    public property performed_on:string
 
     init(
         id:int|null,
@@ -18,7 +24,9 @@ class MaintenanceEntity {
         cost:float,
         material_source:string,
         lifespan_days:int,
-        created_at:int
+        created_at:int,
+        mileage:int = 0,
+        performed_on:string = ""
     ) {
         self.id = id
         self.car_id = car_id
@@ -28,5 +36,7 @@ class MaintenanceEntity {
         self.material_source = material_source
         self.lifespan_days = lifespan_days
         self.created_at = created_at
+        self.mileage = mileage
+        self.performed_on = performed_on
     }
 }

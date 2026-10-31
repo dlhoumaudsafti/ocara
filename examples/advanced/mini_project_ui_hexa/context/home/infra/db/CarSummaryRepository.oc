@@ -23,6 +23,7 @@ class CarSummaryRepository implements CarSummaryContract {
         var photo:string = row["photo"]
         var origin:string = row["origin"]
         var year:int = row["year"]
+        var mileage:int = row["mileage"]
         return use CarSummaryEntity(
             id,
             reference,
@@ -33,7 +34,8 @@ class CarSummaryRepository implements CarSummaryContract {
             maintenance_total,
             photo,
             origin,
-            year
+            year,
+            mileage
         )
     }
 

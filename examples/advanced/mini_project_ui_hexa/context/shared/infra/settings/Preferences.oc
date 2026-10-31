@@ -1,11 +1,13 @@
 namespace context.shared.infra.settings
-// Préférences d'affichage en cours — langue, devise, fuseau horaire —, lues
-// par les vues de tous les contextes pour formater montants et dates
-// (context.shared.infra.i18n.Format). Posées au démarrage puis à chaque
-// enregistrement par le contexte settings (SettingsController), qui les garde
-// en base ; valeurs par défaut sinon.
+// Préférences d'affichage en cours — langue, devise, fuseau horaire, unité
+// de distance, thème —, lues par les vues de tous les contextes pour
+// formater montants, dates et distances (context.shared.infra.i18n.Format).
+// Posées au démarrage puis à chaque enregistrement par le contexte settings
+// (SettingsController), qui les garde en base ; valeurs par défaut sinon.
 
-const PREFERENCES:map<string, string> = {"language": "fr", "currency": "EUR", "timezone": "Europe/Paris"}
+const PREFERENCES:map<string, string> = {
+    "language": "fr", "currency": "EUR", "timezone": "Europe/Paris", "distance_unit": "km", "theme": "auto"
+}
 
 class Preferences {
 
@@ -21,14 +23,32 @@ class Preferences {
         return PREFERENCES["timezone"]
     }
 
-    public static method apply(language:string, currency:string, timezone:string): void {
+    // `km` ou `mi` : les distances sont gardées en kilomètres.
+    public static method distanceUnit(): string {
+        return PREFERENCES["distance_unit"]
+    }
+
+    // `auto`, `light` ou `dark`.
+    public static method theme(): string {
+        return PREFERENCES["theme"]
+    }
+
+    public static method apply(language:string, currency:string, timezone:string, distance_unit:string = "km", theme:string = "auto"): void {
         PREFERENCES["language"] = language
         PREFERENCES["currency"] = currency
         PREFERENCES["timezone"] = timezone
+        PREFERENCES["distance_unit"] = distance_unit
+        PREFERENCES["theme"] = theme
     }
 
     // Valeurs par défaut (premier lancement, tests).
     public static method reset(): void {
-        self::apply("fr", "EUR", "Europe/Paris")
+        self::apply("fr", "EUR", "Europe/Paris", "km", "auto")
+    }
+
+    // Variables de texte qui dépendent des préférences (pas de la langue) :
+    // `${distance_unit}` des libellés de l'interface.
+    public static method vars(): map<string, mixed> {
+        return {"distance_unit": self::distanceUnit()}
     }
 }

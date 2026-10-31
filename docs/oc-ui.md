@@ -117,7 +117,7 @@ screens:
 | `title` | texte |
 | `width`, `height`, `minWidth`, `minHeight` | entier, en pixels logiques (ignorés sur Android) |
 | `resizable` | booléen |
-| `theme` | `auto`, `light`, `dark` |
+| `theme` | `auto`, `light`, `dark` ; changé depuis Ocara par `ui.setTheme` |
 | `primary` | couleur principale : fond des boutons et du bouton flottant, accents ; une couleur, ou une par thème : `{ light: "#…", dark: "#…" }` |
 | `onPrimary` | texte et icônes posés sur `primary` (blanc par défaut) ; une couleur, ou une par thème |
 | `radius` | coins des cartes, boutons, champs, listes et panneaux, en pixels (0 à 100) ; absent : ceux de Material |

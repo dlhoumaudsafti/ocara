@@ -207,6 +207,7 @@ mod tests {
             size_class: String::new(),
             bindings: HashMap::new(),
             seen: HashMap::new(),
+            theme: None,
         }
     }
 

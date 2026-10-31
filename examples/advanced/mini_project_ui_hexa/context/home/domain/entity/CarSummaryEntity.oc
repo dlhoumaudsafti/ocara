@@ -18,6 +18,8 @@ class CarSummaryEntity {
     public property photo:string
     public property origin:string
     public property year:int
+    // Compteur, en kilomètres (0 : non renseigné).
+    public property mileage:int
 
     init(
         id:int,
@@ -29,7 +31,8 @@ class CarSummaryEntity {
         maintenance_total:float,
         photo:string = "",
         origin:string = "",
-        year:int = 0
+        year:int = 0,
+        mileage:int = 0
     ) {
         self.id = id
         self.reference = reference
@@ -41,5 +44,6 @@ class CarSummaryEntity {
         self.photo = photo
         self.origin = origin
         self.year = year
+        self.mileage = mileage
     }
 }

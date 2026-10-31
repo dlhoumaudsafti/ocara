@@ -12,7 +12,9 @@ interface MaintenanceContract {
         description:string,
         cost:float,
         material_source:string,
-        lifespan_days:int
+        lifespan_days:int,
+        mileage:int,
+        performed_on:string
     ): int
     public static method update(
         id:int,
@@ -20,9 +22,14 @@ interface MaintenanceContract {
         description:string,
         cost:float,
         material_source:string,
-        lifespan_days:int
+        lifespan_days:int,
+        mileage:int,
+        performed_on:string
     ): void
     public static method delete(id:int): void
+    // Dernier relevé du compteur de la voiture (date la plus récente, puis
+    // dernier enregistré) ; `null` sans relevé.
+    public static method latestReading(carId:int): MaintenanceEntity|null
     public static async method forCar(carId:int): array<MaintenanceEntity>
     public static async method maintenanceTotal(carId:int): float
     public static async method improvementTotal(carId:int): float

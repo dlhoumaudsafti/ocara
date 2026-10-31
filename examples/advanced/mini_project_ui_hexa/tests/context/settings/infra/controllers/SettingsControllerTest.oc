@@ -1,5 +1,7 @@
 import ocara.UnitTest
+import ocara.UI
 import context.settings.infra.controllers.SettingsController
+import context.settings.infra.view.SettingsForm
 import context.shared.infra.settings.Preferences
 import tests.support.fake.FakeDatabase
 
@@ -12,9 +14,40 @@ class SettingsControllerTest extends UnitTest {
         FakeDatabase::setSetting("language", "en")
         FakeDatabase::setSetting("currency", "JPY")
         FakeDatabase::setSetting("timezone", "Asia/Tokyo")
-        self::assertEquals("en", SettingsController::boot())
+        FakeDatabase::setSetting("distance_unit", "mi")
+        FakeDatabase::setSetting("theme", "dark")
+        SettingsController::boot()
+        self::assertEquals("en", Preferences::language())
         self::assertEquals("JPY", Preferences::currency())
         self::assertEquals("Asia/Tokyo", Preferences::timezone())
+        self::assertEquals("mi", Preferences::distanceUnit())
+        self::assertEquals("dark", Preferences::theme())
+        // Textes : langue des paramètres, unité de distance comprise.
+        const vars:map<string, mixed> = SettingsController::vars()
+        self::assertEquals("My fleet", vars["home_title"])
+        self::assertEquals("mi", vars["distance_unit"])
+        Preferences::reset()
+        FakeDatabase::reset()
+        return 0
+    }
+
+    // Choix enregistrés et appliqués (préférences, textes, thème).
+    public method applyTest(): int {
+        FakeDatabase::reset()
+        Preferences::reset()
+        const ui:UI = use UI("../../../../../ui/carfolio.oc.ui", SettingsController::vars())
+        const form:SettingsForm = use SettingsForm()
+        form.currency = "GBP"
+        form.distance_unit = "mi"
+        form.theme = "light"
+        self::assertTrue(SettingsController::apply(ui, form))
+        self::assertEquals("GBP", FakeDatabase::settings()["currency"])
+        self::assertEquals("light", FakeDatabase::settings()["theme"])
+        self::assertEquals("mi", Preferences::distanceUnit())
+        self::assertEquals("12 345,60 £ · 74 565 mi", ui.get("settings_price_example", "value"))
+        form.theme = "violet"
+        self::assertFalse(SettingsController::apply(ui, form))
+        self::assertEquals("light", Preferences::theme())
         Preferences::reset()
         FakeDatabase::reset()
         return 0

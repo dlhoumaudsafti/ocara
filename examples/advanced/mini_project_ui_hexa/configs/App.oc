@@ -1,7 +1,8 @@
 namespace configs
 // L'interface native de Carfolio : l'interface (ui/carfolio.oc.ui, lue et
 // validée à la compilation) et ses actions (configs/actions/). Langue des
-// textes : celle des paramètres enregistrés (SettingsController::boot).
+// textes, unité de distance et thème : ceux des paramètres enregistrés
+// (SettingsController::boot).
 
 import ocara.UI
 import ocara.IO
@@ -11,7 +12,7 @@ import configs.actions.CarActions
 import configs.actions.SearchActions
 import configs.actions.SettingsActions
 import configs.actions.AboutActions
-import context.shared.infra.i18n.Language
+import context.shared.infra.settings.Preferences
 import context.settings.infra.controllers.SettingsController
 
 class App {
@@ -19,7 +20,9 @@ class App {
 
     init() {
         IO::writeln("Configuration de l'interface...")
-        self.ui = use UI("../ui/carfolio.oc.ui", Language::vars(SettingsController::boot()))
+        SettingsController::boot()
+        self.ui = use UI("../ui/carfolio.oc.ui", SettingsController::vars())
+        self.ui.setTheme(Preferences::theme())
     }
 
     public method actions(): void {

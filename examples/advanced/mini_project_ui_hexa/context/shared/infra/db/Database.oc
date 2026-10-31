@@ -70,6 +70,14 @@ class Database {
         if not self::hasColumn(db, "cars", "year") {
             db.execute("ALTER TABLE cars ADD COLUMN year INTEGER NOT NULL DEFAULT 0")
         }
+        // Compteur (en kilomètres, affiché dans l'unité des paramètres) et
+        // date du contrôle technique ("" : non renseignée).
+        if not self::hasColumn(db, "cars", "mileage") {
+            db.execute("ALTER TABLE cars ADD COLUMN mileage INTEGER NOT NULL DEFAULT 0")
+        }
+        if not self::hasColumn(db, "cars", "inspection_date") {
+            db.execute("ALTER TABLE cars ADD COLUMN inspection_date TEXT NOT NULL DEFAULT ''")
+        }
         db.execute(`CREATE TABLE IF NOT EXISTS maintenances (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             car_id INTEGER NOT NULL,
@@ -95,6 +103,14 @@ class Database {
         }
         if not has_lifespan_days {
             db.execute("ALTER TABLE maintenances ADD COLUMN lifespan_days INTEGER NOT NULL DEFAULT 0")
+        }
+        // Relevé du compteur à l'intervention (km, 0 : aucun) et date de
+        // l'intervention (AAAA-MM-JJ, "" : celle de l'enregistrement).
+        if not self::hasColumn(db, "maintenances", "mileage") {
+            db.execute("ALTER TABLE maintenances ADD COLUMN mileage INTEGER NOT NULL DEFAULT 0")
+        }
+        if not self::hasColumn(db, "maintenances", "performed_on") {
+            db.execute("ALTER TABLE maintenances ADD COLUMN performed_on TEXT NOT NULL DEFAULT ''")
         }
         db.execute(`CREATE TABLE IF NOT EXISTS car_photos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -1,0 +1,24 @@
+namespace context.car.app.usecase
+// Règle métier : le dernier relevé du compteur (entretien le plus récent qui
+// en a un) met à jour le compteur général de la voiture. Un relevé plus
+// ancien, corrigé ou ajouté après coup, ne le fait pas reculer ; supprimer
+// un relevé ne le change pas non plus (le compteur a pu être corrigé à la
+// main depuis).
+
+import context.car.domain.entity.MaintenanceEntity
+import context.car.domain.contract.CarContract
+import context.car.domain.contract.MaintenanceContract
+
+class MileageService {
+
+    // Après l'enregistrement de l'entretien `maintenance_id` : vrai si son
+    // relevé est le dernier et a mis à jour le compteur.
+    public static method applyLatestReading(car_id:int, maintenance_id:int): bool {
+        const latest:MaintenanceEntity|null = MaintenanceContract::latestReading(car_id)
+        if latest is null or latest.id not equal maintenance_id {
+            return false
+        }
+        CarContract::updateMileage(car_id, latest.mileage)
+        return true
+    }
+}

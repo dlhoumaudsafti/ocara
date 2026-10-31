@@ -14,6 +14,8 @@ class CarSearchResultEntity {
     public property maintenance_total:float
     public property origin:string
     public property year:int
+    // Compteur, en kilomètres (0 : non renseigné).
+    public property mileage:int
 
     init(
         id:int,
@@ -24,7 +26,8 @@ class CarSearchResultEntity {
         estimated_price:float,
         maintenance_total:float,
         origin:string = "",
-        year:int = 0
+        year:int = 0,
+        mileage:int = 0
     ) {
         self.id = id
         self.reference = reference
@@ -35,5 +38,6 @@ class CarSearchResultEntity {
         self.maintenance_total = maintenance_total
         self.origin = origin
         self.year = year
+        self.mileage = mileage
     }
 }

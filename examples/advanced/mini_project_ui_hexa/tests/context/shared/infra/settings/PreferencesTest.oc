@@ -8,6 +8,9 @@ class PreferencesTest extends UnitTest {
         self::assertEquals("fr", Preferences::language())
         self::assertEquals("EUR", Preferences::currency())
         self::assertEquals("Europe/Paris", Preferences::timezone())
+        self::assertEquals("km", Preferences::distanceUnit())
+        self::assertEquals("auto", Preferences::theme())
+        self::assertEquals("km", Preferences::vars()["distance_unit"])
         return 0
     }
 

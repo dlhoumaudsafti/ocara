@@ -70,6 +70,55 @@ class CarControllerTest extends UnitTest {
         return 0
     }
 
+    // Compteur et contrôle technique : entier positif, date valide ; en
+    // miles, le compteur est converti en kilomètres.
+    public method mileageTest(): int {
+        FakeDatabase::reset()
+        const ui:UI = self.ui()
+        const form:CarForm = self.form("TEST-OCUNIT-KM", "8500")
+        form.mileage = "-5"
+        self::assertEquals("invalid_mileage", CarController::create(ui, form))
+        form.mileage = "beaucoup"
+        self::assertEquals("invalid_mileage", CarController::create(ui, form))
+        form.mileage = "120 000"
+        form.inspection_date = "2027-02-31"
+        self::assertEquals("invalid_date", CarController::create(ui, form))
+        form.inspection_date = "2027-03-01"
+        Preferences::apply("fr", "EUR", "UTC", "mi")
+        self::assertEquals("", CarController::create(ui, form))
+        var id:string = ui.get("car_id", "value")
+        const row:map<string, mixed> = FakeDatabase::carRow(id.toInt())
+        self::assertEquals(193121, row["mileage"])
+        self::assertEquals("2027-03-01", row["inspection_date"])
+        Preferences::reset()
+        FakeDatabase::cleanup()
+        return 0
+    }
+
+    // Compteur inchangé à l'écran (miles) : la valeur en km ne dérive pas.
+    public method mileageKeptTest(): int {
+        FakeDatabase::reset()
+        Preferences::apply("fr", "EUR", "UTC", "mi")
+        const id:int = FakeDatabase::insertCar("TEST-OCUNIT-KEEP", "Mini", "Cooper", "GB", 2010, 7000.0, "", "", 100001, "")
+        const form:CarForm = use CarForm()
+        CarController::display(self.ui(), id, form)
+        form.model = "Cooper S"
+        self::assertEquals("", CarController::update(id, form))
+        self::assertEquals(100001, FakeDatabase::carRow(id)["mileage"])
+        self::assertEquals("Cooper S", FakeDatabase::carRow(id)["model"])
+        Preferences::reset()
+        FakeDatabase::cleanup()
+        return 0
+    }
+
+    public method countTest(): int {
+        self::assertEquals(0, CarController::count(""))
+        self::assertEquals(12500, CarController::count("12 500"))
+        self::assertEquals(-1, CarController::count("-3"))
+        self::assertEquals(-1, CarController::count("1,5"))
+        return 0
+    }
+
     // Prix saisi avec une virgule décimale.
     public method numberTest(): int {
         self::assertEquals(8500.5, CarController::number(" 8500,5 "))
